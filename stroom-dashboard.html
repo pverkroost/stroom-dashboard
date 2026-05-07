@@ -217,9 +217,9 @@ function renderDashboard(prijzen, day) {
   const hoogste = prijzen.find(p => p.totaal === max);
 
   document.getElementById('chartTitle').textContent = day === 0 ? 'Vandaag' : 'Morgen';
-  document.getElementById('laagstePrijs').textContent = '€ ' + min.toFixed(4);
+  document.getElementById('laagstePrijs').textContent = '€ ' + min.toFixed(3);
   document.getElementById('laagsteUur').textContent = uurStr(laagste.tijd);
-  document.getElementById('hoogstePrijs').textContent = '€ ' + max.toFixed(4);
+  document.getElementById('hoogstePrijs').textContent = '€ ' + max.toFixed(3);
   document.getElementById('hoogsteUur').textContent = uurStr(hoogste.tijd);
 
   const pill = document.getElementById('prijsPill');
@@ -228,7 +228,7 @@ function renderDashboard(prijzen, day) {
   if (day === 0) {
     const huidig = prijzen.find(p => p.tijd.getHours() === nowUur) || prijzen.at(-1);
     document.getElementById('heroLabel').textContent = 'Nu betaal je';
-    document.getElementById('huidigePrijs').textContent = '€ ' + huidig.totaal.toFixed(4);
+    document.getElementById('huidigePrijs').textContent = '€ ' + huidig.totaal.toFixed(3);
     document.getElementById('huidigUur').textContent = uurStr(huidig.tijd) + '–' + String(huidig.tijd.getHours()+1).padStart(2,'0') + ':00 per kWh';
     if (huidig.totaal <= min*1.05)      { pill.className='hero-pill pill-green'; pill.textContent='Goedkoop uur'; }
     else if (huidig.totaal >= max*0.95) { pill.className='hero-pill pill-red';   pill.textContent='Duur uur'; }
@@ -236,7 +236,7 @@ function renderDashboard(prijzen, day) {
     else                                { pill.className='hero-pill pill-amber'; pill.textContent='Boven gemiddelde'; }
   } else {
     document.getElementById('heroLabel').textContent = 'Goedkoopste morgen';
-    document.getElementById('huidigePrijs').textContent = '€ ' + min.toFixed(4);
+    document.getElementById('huidigePrijs').textContent = '€ ' + min.toFixed(3);
     document.getElementById('huidigUur').textContent = 'om ' + uurStr(laagste.tijd) + ' per kWh';
     pill.className = 'hero-pill pill-gray';
     pill.textContent = 'Gemiddeld € ' + gem.toFixed(3) + ' / kWh';
@@ -290,7 +290,7 @@ function renderDashboard(prijzen, day) {
     plugins: [verticalLinePlugin],
     data: {
       labels: prijzen.map(p => uurStr(p.tijd)),
-      datasets: [{ data: prijzen.map(p => parseFloat(p.totaal.toFixed(4))), backgroundColor: barKleuren, borderRadius: 3, borderSkipped: false }]
+      datasets: [{ data: prijzen.map(p => parseFloat(p.totaal.toFixed(3))), backgroundColor: barKleuren, borderRadius: 3, borderSkipped: false }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -306,7 +306,7 @@ function renderDashboard(prijzen, day) {
             if (idx == null) return;
             const p = prijzen[idx];
             const timeStr = uurStr(p.tijd) + '–' + String(p.tijd.getHours()+1).padStart(2,'0') + ':00';
-            tooltip.textContent = timeStr + ' · € ' + p.totaal.toFixed(4);
+            tooltip.textContent = timeStr + ' · € ' + p.totaal.toFixed(3);
             // Positie berekenen
             const canvasRect = chart.canvas.getBoundingClientRect();
             const x = t.caretX;
