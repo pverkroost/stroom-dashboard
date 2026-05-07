@@ -2,19 +2,6 @@ const fetch = require('node-fetch');
 
 const HEADERS_JSON = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
 
-async function probe(label, fetchArgs) {
-  try {
-    const res  = await fetch(...fetchArgs);
-    const text = await res.text();
-    let json = null;
-    try { json = JSON.parse(text); } catch (_) {}
-    const isHtml = text.trimStart().startsWith('<');
-    return { label, status: res.status, isHtml, bodySnippet: text.slice(0, 400), json };
-  } catch (e) {
-    return { label, error: e.message };
-  }
-}
-
 exports.handler = async (event) => {
   const apiToken = process.env.GROWATT_API_TOKEN;
   const plantId  = process.env.GROWATT_PLANT_ID;
@@ -29,37 +16,44 @@ exports.handler = async (event) => {
     };
   }
 
+  const [y, m, d] = date.split('-');
+  const dateFormats = [
+    { label: 'YYYY-MM-DD', value: date },
+    { label: 'YYYYMMDD',   value: `${y}${m}${d}` },
+    { label: 'DD-MM-YYYY', value: `${d}-${m}-${y}` },
+    { label: 'MM/DD/YYYY', value: `${m}/${d}/${y}` }
+  ];
+
   const endpoint = type === 'power'
     ? 'https://openapi.growatt.com/v1/plant/power'
     : 'https://openapi.growatt.com/v1/plant/energy';
 
-  const results = await Promise.all([
-    // Optie 1: token + plant_id als query parameters (GET)
-    probe('GET ?token=…&plant_id=…', [
-      `${endpoint}?token=${apiToken}&plant_id=${plantId}&date=${date}`
-    ]),
-    // Optie 2: token + plant_id in JSON body (POST)
-    probe('POST body {token, plant_id}', [
-      endpoint,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: apiToken, plant_id: plantId, date }) }
-    ]),
-    // Optie 3: token als header, plant_id als query parameter (GET)
-    probe('GET ?plant_id=… + token header', [
-      `${endpoint}?plant_id=${plantId}&date=${date}`,
-      { headers: { token: apiToken } }
-    ])
-  ]);
+  const attempts = [];
 
-  // Eerste optie die JSON teruggeeft en geen HTML is
-  const winner = results.find(r => r.json && !r.isHtml);
+  for (const fmt of dateFormats) {
+    try {
+      const url = `${endpoint}?plant_id=${plantId}&date=${encodeURIComponent(fmt.value)}`;
+      const res  = await fetch(url, { headers: { token: apiToken } });
+      const text = await res.text();
+      const isHtml = text.trimStart().startsWith('<');
+      let json = null;
+      try { json = JSON.parse(text); } catch (_) {}
+      attempts.push({ dateFormat: fmt.label, dateValue: fmt.value, status: res.status, isHtml, bodySnippet: text.slice(0, 300), json });
+      if (json && !isHtml) break; // stop bij eerste werkend formaat
+    } catch (e) {
+      attempts.push({ dateFormat: fmt.label, dateValue: fmt.value, error: e.message });
+    }
+  }
+
+  const winner = attempts.find(a => a.json && !a.isHtml);
 
   return {
     statusCode: 200,
     headers: HEADERS_JSON,
     body: JSON.stringify({
-      winner: winner ? winner.label : null,
+      winner: winner ? winner.dateFormat : null,
       data: winner?.json ?? null,
-      attempts: results
+      attempts
     })
   };
 };
