@@ -105,10 +105,22 @@ function getSolarForIdx(solarData, hour) {
 }
 
 function renderSolarKaartjes() {
-  console.log('[Solar] solarVandaag:', solarVandaag);
+  const isMorgen = activeDay === 1;
+  document.getElementById('solarNuCard').style.display = isMorgen ? 'none' : '';
+
+  if (isMorgen) {
+    const hourly    = solarMorgen?.hourly || [];
+    const verwacht  = (hourly.reduce((s, e) => s + e.watt, 0) / 1000).toFixed(2);
+    document.getElementById('solarVandaagLabel').textContent = '☀️ Verwacht morgen';
+    document.getElementById('solarVandaagKwh').textContent   = solarMorgen ? verwacht : '—';
+    document.getElementById('solarVandaagEen').textContent   = 'kWh verwacht';
+    return;
+  }
+
+  document.getElementById('solarVandaagLabel').textContent = '☀️ Vandaag';
   if (!solarVandaag) {
-    document.getElementById('solarNu').textContent = '—';
-    document.getElementById('solarNuEen').textContent = 'W';
+    document.getElementById('solarNu').textContent        = '—';
+    document.getElementById('solarNuEen').textContent     = 'W';
     document.getElementById('solarVandaagKwh').textContent = '—';
     document.getElementById('solarVandaagEen').textContent = 'kWh';
     return;
@@ -116,10 +128,9 @@ function renderSolarKaartjes() {
   const nowH  = new Date().getHours();
   const entry = solarVandaag.hourly?.find(e => e.hour === nowH);
   const w     = solarVandaag.currentWatt ?? entry?.watt ?? 0;
-  document.getElementById('solarNu').textContent = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
-  document.getElementById('solarNuEen').textContent = w > 0 ? 'nu opgewekt' : 'geen productie';
-  const kwh = solarVandaag.todayKwh ?? 0;
-  document.getElementById('solarVandaagKwh').textContent = kwh.toFixed(2);
+  document.getElementById('solarNu').textContent         = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
+  document.getElementById('solarNuEen').textContent      = w > 0 ? 'nu opgewekt' : 'geen productie';
+  document.getElementById('solarVandaagKwh').textContent = (solarVandaag.todayKwh ?? 0).toFixed(2);
   document.getElementById('solarVandaagEen').textContent = 'kWh vandaag';
 }
 
