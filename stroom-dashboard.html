@@ -260,10 +260,12 @@ function renderDashboard(prijzen, day) {
   const verticalLinePlugin = {
     id: 'verticalLine',
     afterDraw(chart) {
-      if (nowUurIndex < 0) return;
+      const active = chart.tooltip?._active;
+      const idx = (active && active.length > 0) ? active[0].index : nowUurIndex;
+      if (idx < 0) return;
       const ctx = chart.ctx;
       const meta = chart.getDatasetMeta(0);
-      const bar = meta.data[nowUurIndex];
+      const bar = meta.data[idx];
       if (!bar) return;
       const x = bar.x;
       const top = chart.chartArea.top;
