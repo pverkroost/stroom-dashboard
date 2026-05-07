@@ -2,6 +2,19 @@ const fetch = require('node-fetch');
 
 const HEADERS_JSON = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
 
+async function probe(label, fetchArgs) {
+  try {
+    const res  = await fetch(...fetchArgs);
+    const text = await res.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch (_) {}
+    const isHtml = text.trimStart().startsWith('<');
+    return { label, status: res.status, isHtml, bodySnippet: text.slice(0, 400), json };
+  } catch (e) {
+    return { label, error: e.message };
+  }
+}
+
 exports.handler = async (event) => {
   const apiToken = process.env.GROWATT_API_TOKEN;
   const plantId  = process.env.GROWATT_PLANT_ID;
@@ -12,42 +25,41 @@ exports.handler = async (event) => {
     return {
       statusCode: 503,
       headers: HEADERS_JSON,
-      body: JSON.stringify({ error: 'Growatt niet geconfigureerd — GROWATT_API_TOKEN of GROWATT_PLANT_ID ontbreekt' })
+      body: JSON.stringify({ error: 'GROWATT_API_TOKEN of GROWATT_PLANT_ID ontbreekt' })
     };
   }
 
-  const postHeaders = { token: apiToken, 'Content-Type': 'application/json' };
+  const endpoint = type === 'power'
+    ? 'https://openapi.growatt.com/v1/plant/power'
+    : 'https://openapi.growatt.com/v1/plant/energy';
 
-  try {
-    let res, data;
+  const results = await Promise.all([
+    // Optie 1: token + plant_id als query parameters (GET)
+    probe('GET ?token=…&plant_id=…', [
+      `${endpoint}?token=${apiToken}&plant_id=${plantId}&date=${date}`
+    ]),
+    // Optie 2: token + plant_id in JSON body (POST)
+    probe('POST body {token, plant_id}', [
+      endpoint,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: apiToken, plant_id: plantId, date }) }
+    ]),
+    // Optie 3: token als header, plant_id als query parameter (GET)
+    probe('GET ?plant_id=… + token header', [
+      `${endpoint}?plant_id=${plantId}&date=${date}`,
+      { headers: { token: apiToken } }
+    ])
+  ]);
 
-    if (type === 'plants') {
-      res  = await fetch('https://openapi.growatt.com/v1/plant/list?page=1&perpage=10', { headers: postHeaders });
-      data = await res.json();
-    } else if (type === 'overview') {
-      res  = await fetch('https://openapi.growatt.com/v1/plant/energy', {
-        method: 'POST',
-        headers: postHeaders,
-        body: JSON.stringify({ plant_id: plantId, date })
-      });
-      data = await res.json();
-    } else if (type === 'power') {
-      res  = await fetch('https://openapi.growatt.com/v1/plant/power', {
-        method: 'POST',
-        headers: postHeaders,
-        body: JSON.stringify({ plant_id: plantId, date })
-      });
-      data = await res.json();
-    } else {
-      return {
-        statusCode: 400,
-        headers: HEADERS_JSON,
-        body: JSON.stringify({ error: 'Ongeldig type — gebruik overview, power of plants' })
-      };
-    }
+  // Eerste optie die JSON teruggeeft en geen HTML is
+  const winner = results.find(r => r.json && !r.isHtml);
 
-    return { statusCode: 200, headers: HEADERS_JSON, body: JSON.stringify(data) };
-  } catch (e) {
-    return { statusCode: 500, headers: HEADERS_JSON, body: JSON.stringify({ error: e.message }) };
-  }
+  return {
+    statusCode: 200,
+    headers: HEADERS_JSON,
+    body: JSON.stringify({
+      winner: winner ? winner.label : null,
+      data: winner?.json ?? null,
+      attempts: results
+    })
+  };
 };
