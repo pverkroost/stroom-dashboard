@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stroom">
+<meta name="theme-color" content="#1a6e47">
+<title>Sepa Green Dashboard</title>
+<link rel="stylesheet" href="css/stijl.css">
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <div class="header-title">Sepa Green Dynamic</div>
+      <div class="header-sub" id="lastUpdate">Laden...</div>
+    </div>
+    <button class="refresh-btn" onclick="laadPrijzen()">↺ Ververs</button>
+  </div>
+</div>
+
+<div class="day-nav">
+  <div class="day-tab active" id="tab-0" onclick="switchDay(0)">Vandaag</div>
+  <div class="day-tab" id="tab-1" onclick="switchDay(1)">Morgen</div>
+  <div class="day-tab" id="tab-2" onclick="switchZon()">☀️ Zon</div>
+</div>
+
+<div id="mainContent">
+  <div class="hero">
+    <div class="hero-label" id="heroLabel">Nu betaal je</div>
+    <div class="hero-price" id="huidigePrijs">—</div>
+    <div class="hero-unit" id="huidigUur">per kWh</div>
+    <div><span class="hero-pill" id="prijsPill" style="display:none"></span></div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Goedkoopste</div>
+      <div class="card-val" id="laagstePrijs">—</div>
+      <div class="card-time" id="laagsteUur">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Duurste</div>
+      <div class="card-val" id="hoogstePrijs">—</div>
+      <div class="card-time" id="hoogsteUur">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">☀️ Nu</div>
+      <div class="card-val" id="solarNu">—</div>
+      <div class="card-time" id="solarNuEen">W</div>
+    </div>
+    <div class="card">
+      <div class="card-label">☀️ Vandaag</div>
+      <div class="card-val" id="solarVandaagKwh">—</div>
+      <div class="card-time" id="solarVandaagEen">kWh</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title" id="chartTitle">Vandaag</div>
+    <div style="position:relative">
+      <div class="chart-tooltip" id="chartTooltip"></div>
+      <div class="chart-wrap">
+        <canvas id="chart" role="img" aria-label="Stroomprijs per uur">Stroomprijs per uur</canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="laadadviesSection">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="section-title" style="margin-bottom:0">Slim inplannen</div>
+      <button class="solar-toggle-btn aan" id="solarToggleBtn" onclick="toggleSolar()">☀️ Zon AAN</button>
+    </div>
+    <div id="laadadviesContainer"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Uuroverzicht</div>
+    <div class="hours-card" id="urenLijst">
+      <div class="loading"><div class="spinner"></div>Prijzen ophalen...</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Jouw tarieven</div>
+    <div class="tarief-card">
+      <div class="tarief-row"><span class="tarief-key">Inkoopvergoeding</span><span>€ 0,03194 / kWh</span></div>
+      <div class="tarief-row"><span class="tarief-key">Energiebelasting (netto)</span><span>€ 0,09161 / kWh</span></div>
+      <div class="tarief-row"><span class="tarief-key">BTW</span><span>21%</span></div>
+      <div class="tarief-row"><span class="tarief-key">Vaste kosten</span><span>€ 0,32819 / dag</span></div>
+      <div class="tarief-row"><span class="tarief-key">Contract</span><span>Dynamic Pricing</span></div>
+    </div>
+  </div>
+</div><!-- /mainContent -->
+
+<div id="zonContent" style="display:none">
+  <div class="hero">
+    <div class="hero-label">Nu opgewekt</div>
+    <div class="hero-price" id="zonNuPrijs">— W</div>
+    <div class="hero-unit">zonnepanelen totaal</div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Vandaag</div>
+      <div class="card-val" id="zonTotaalKwh">—</div>
+      <div class="card-time">kWh</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Piek vandaag</div>
+      <div class="card-val" id="zonPiekW">—</div>
+      <div class="card-time" id="zonPiekTijd">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Gisteren</div>
+      <div class="card-val" id="zonGisterenKwh">—</div>
+      <div class="card-time">kWh</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Deze maand</div>
+      <div class="card-val" id="zonMaandKwh">—</div>
+      <div class="card-time">kWh</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Opbrengst vandaag per uur</div>
+    <div class="chart-wrap"><canvas id="zonChart"></canvas></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Omvormers</div>
+    <div class="advies-grid">
+      <div class="advies-card">
+        <div class="advies-device-icon">🔆</div>
+        <div class="advies-device-naam">SolarEdge</div>
+        <div class="advies-vergelijk">
+          <div class="av-rij"><span class="av-label">Vandaag</span><span class="av-prijs" id="zonSEVandaag">—</span></div>
+          <div class="av-rij"><span class="av-label">Gisteren</span><span class="av-prijs" id="zonSEGisteren">—</span></div>
+          <div class="av-rij"><span class="av-label">Deze maand</span><span class="av-prijs" id="zonSEMaand">—</span></div>
+        </div>
+      </div>
+      <div class="advies-card" style="opacity:0.5">
+        <div class="advies-device-icon">🔋</div>
+        <div class="advies-device-naam">Growatt</div>
+        <div class="advies-row" style="margin-top:6px">Nog niet gekoppeld</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="padding-bottom:24px">
+    <div class="section-title">Verwachting morgen</div>
+    <div class="chart-wrap"><canvas id="voorspellingChart"></canvas></div>
+    <div style="text-align:center;padding:8px 0 0;font-size:12px;color:var(--muted)" id="voorspellingKwh"></div>
+  </div>
+</div><!-- /zonContent -->
+
+<div class="footer">
+  Prijzen via EnergyZero API · EPEX day-ahead<br>
+  (EPEX + €0,03194 + €0,09161) × 1,21<br>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.6.0</span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="js/config.js"></script>
+<script src="js/solar.js"></script>
+<script src="js/prijzen.js"></script>
+<script src="js/apparaten.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
