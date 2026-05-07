@@ -32,6 +32,8 @@ exports.handler = async (event) => {
       url = `https://openapi.growatt.com/v1/plant/energy?plantId=${plantId}&date=${date}`;
     } else if (type === 'power') {
       url = `https://openapi.growatt.com/v1/plant/power?plantId=${plantId}&date=${date}`;
+    } else if (type === 'plants') {
+      url = 'https://openapi.growatt.com/v1/plant/list?page=1&perpage=10';
     } else {
       return {
         statusCode: 400,
