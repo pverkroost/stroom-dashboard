@@ -1,0 +1,13 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/solaredge"
+  to = "/.netlify/functions/solaredge"
+  status = 200
+
+[[redirects]]
+  from = "/api/growatt"
+  to = "/.netlify/functions/growatt"
+  status = 200
