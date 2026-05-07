@@ -8,11 +8,21 @@ exports.handler = async (event) => {
   const date = event.queryStringParameters?.date || new Date().toISOString().split('T')[0];
   const type = event.queryStringParameters?.type || 'overview';
 
+  const growattEnv = Object.fromEntries(
+    Object.entries(process.env)
+      .filter(([k]) => k.startsWith('GROWATT_'))
+      .map(([k, v]) => [k, k.includes('TOKEN') || k.includes('PASSWORD') ? v?.slice(0, 6) + '…' : v])
+  );
+  console.log('[Growatt] env:', JSON.stringify(growattEnv));
+  console.log('[Growatt] plantId:', plantId, '| type:', type, '| date:', date);
+
+  const debug = { growattEnv, plantId: plantId ?? null, type, date };
+
   if (!apiToken || !plantId) {
     return {
       statusCode: 503,
       headers: HEADERS_JSON,
-      body: JSON.stringify({ error: 'Growatt niet geconfigureerd — GROWATT_API_TOKEN of GROWATT_PLANT_ID ontbreekt' })
+      body: JSON.stringify({ error: 'Growatt niet geconfigureerd — GROWATT_API_TOKEN of GROWATT_PLANT_ID ontbreekt', debug })
     };
   }
 
@@ -26,15 +36,21 @@ exports.handler = async (event) => {
       return {
         statusCode: 400,
         headers: HEADERS_JSON,
-        body: JSON.stringify({ error: 'Ongeldig type — gebruik overview of power' })
+        body: JSON.stringify({ error: 'Ongeldig type — gebruik overview of power', debug })
       };
     }
 
+    console.log('[Growatt] fetching:', url);
     const res  = await fetch(url, { headers: { token: apiToken, 'Content-Type': 'application/json' } });
     const data = await res.json();
+    console.log('[Growatt] response status:', res.status);
 
-    return { statusCode: 200, headers: HEADERS_JSON, body: JSON.stringify(data) };
+    return {
+      statusCode: 200,
+      headers: HEADERS_JSON,
+      body: JSON.stringify({ ...data, _debug: { ...debug, apiStatus: res.status, url } })
+    };
   } catch (e) {
-    return { statusCode: 500, headers: HEADERS_JSON, body: JSON.stringify({ error: e.message }) };
+    return { statusCode: 500, headers: HEADERS_JSON, body: JSON.stringify({ error: e.message, debug }) };
   }
 };
