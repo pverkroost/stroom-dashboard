@@ -388,9 +388,23 @@ function renderDashboard(prijzen, day) {
   document.getElementById('urenLijst').innerHTML = knopje + rows;
 }
 
+const VOLVO_SVG = `<svg viewBox="0 0 52 24" width="48" height="22" xmlns="http://www.w3.org/2000/svg" style="display:block;margin-bottom:2px">
+  <path d="M4,20 L3,14 L6,12 L11,6 L37,6 L42,10 L48,10 L49,14 L49,20 Z" fill="#1a3a5c"/>
+  <path d="M12,12 L15.5,7.5 L22,7.5 L22,12 Z" fill="#88c0d8" opacity="0.82"/>
+  <rect x="23" y="7.5" width="10" height="4.5" rx="0.5" fill="#88c0d8" opacity="0.82"/>
+  <path d="M34.5,7.5 L39,12 L34.5,12 Z" fill="#88c0d8" opacity="0.62"/>
+  <line x1="23" y1="12" x2="23" y2="19.5" stroke="#14304e" stroke-width="0.8"/>
+  <circle cx="12" cy="20" r="4" fill="#08141e"/>
+  <circle cx="12" cy="20" r="1.8" fill="#2a4060"/>
+  <circle cx="38" cy="20" r="4" fill="#08141e"/>
+  <circle cx="38" cy="20" r="1.8" fill="#2a4060"/>
+  <rect x="3" y="13.5" width="3" height="1.8" rx="0.6" fill="#f5e070"/>
+  <rect x="46.5" y="11" width="2.5" height="2.5" rx="0.4" fill="#dd2222"/>
+</svg>`;
+
 const APPARATEN = [
-  { naam: 'Volvo XC90 PHEV', icon: '🚗', uren: 6,   kw: 2.3 },
-  { naam: 'Vaatwasser',       icon: '🍽️', uren: 3.5, kw: 1.8 }
+  { naam: 'Volvo XC90 PHEV', icon: VOLVO_SVG, uren: 6,   kw: 2.3 },
+  { naam: 'Vaatwasser',       icon: '🍽️',     uren: 3.5, kw: 1.8 }
 ];
 
 function berekenGoedkoopsteBlok(uren, vermogenKw, prijzenLijst) {
@@ -521,7 +535,7 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v1.7.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v1.8.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
 </script>
 </body>
