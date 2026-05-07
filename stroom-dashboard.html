@@ -120,8 +120,10 @@
 <div class="day-nav">
   <div class="day-tab active" id="tab-0" onclick="switchDay(0)">Vandaag</div>
   <div class="day-tab" id="tab-1" onclick="switchDay(1)">Morgen</div>
+  <div class="day-tab" id="tab-2" onclick="switchZon()">☀️ Zon</div>
 </div>
 
+<div id="mainContent">
 <div class="hero">
   <div class="hero-label" id="heroLabel">Nu betaal je</div>
   <div class="hero-price" id="huidigePrijs">—</div>
@@ -185,10 +187,74 @@
   </div>
 </div>
 
+</div><!-- /mainContent -->
+
+<div id="zonContent" style="display:none">
+  <div class="hero">
+    <div class="hero-label">Nu opgewekt</div>
+    <div class="hero-price" id="zonNuPrijs">— W</div>
+    <div class="hero-unit">zonnepanelen totaal</div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Vandaag</div>
+      <div class="card-val" id="zonTotaalKwh">—</div>
+      <div class="card-time">kWh</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Piek vandaag</div>
+      <div class="card-val" id="zonPiekW">—</div>
+      <div class="card-time" id="zonPiekTijd">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Gisteren</div>
+      <div class="card-val" id="zonGisterenKwh">—</div>
+      <div class="card-time">kWh</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Deze maand</div>
+      <div class="card-val" id="zonMaandKwh">—</div>
+      <div class="card-time">kWh</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Opbrengst vandaag per uur</div>
+    <div class="chart-wrap"><canvas id="zonChart"></canvas></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Omvormers</div>
+    <div class="advies-grid">
+      <div class="advies-card">
+        <div class="advies-device-icon">🔆</div>
+        <div class="advies-device-naam">SolarEdge</div>
+        <div class="advies-vergelijk">
+          <div class="av-rij"><span class="av-label">Vandaag</span><span class="av-prijs" id="zonSEVandaag">—</span></div>
+          <div class="av-rij"><span class="av-label">Gisteren</span><span class="av-prijs" id="zonSEGisteren">—</span></div>
+          <div class="av-rij"><span class="av-label">Deze maand</span><span class="av-prijs" id="zonSEMaand">—</span></div>
+        </div>
+      </div>
+      <div class="advies-card" style="opacity:0.5">
+        <div class="advies-device-icon">🔋</div>
+        <div class="advies-device-naam">Growatt</div>
+        <div class="advies-row" style="margin-top:6px">Nog niet gekoppeld</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="padding-bottom:24px">
+    <div class="section-title">Verwachting morgen</div>
+    <div class="chart-wrap"><canvas id="voorspellingChart"></canvas></div>
+    <div style="text-align:center;padding:8px 0 0;font-size:12px;color:var(--muted)" id="voorspellingKwh"></div>
+  </div>
+</div><!-- /zonContent -->
+
 <div class="footer">
   Prijzen via EnergyZero API · EPEX day-ahead<br>
   (EPEX + €0,03194 + €0,09161) × 1,21<br>
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.3.0</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.4.0</span>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -202,6 +268,7 @@ const SOLAR_SOURCES = [
 let chart = null, activeDay = 0, cacheVandaag = null, cacheMorgen = null;
 let toonVerleden = false, geselecteerdStartTijd = null, rAFId = null;
 let solarVandaag = null, solarMorgen = null;
+let isZonTab = false, zonChart = null, voorspellingChart = null;
 
 function berekenPrijs(epex) { return (epex + OPSLAG + EB) * BTW; }
 function uurStr(d) { return d.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' }); }
@@ -228,9 +295,12 @@ function aggregateToHourly(values) {
 
 async function fetchSolarEdge() {
   const dateStr = new Date().toISOString().slice(0, 10);
-  const [powerRes, overviewRes] = await Promise.all([
+  const gisterenDate = new Date(); gisterenDate.setDate(gisterenDate.getDate() - 1);
+  const gisterenStr  = gisterenDate.toISOString().slice(0, 10);
+  const [powerRes, overviewRes, gisterenRes] = await Promise.all([
     fetch(`/api/solaredge?type=power&date=${dateStr}`),
-    fetch(`/api/solaredge?type=overview`)
+    fetch(`/api/solaredge?type=overview`),
+    fetch(`/api/solaredge?type=energy&startDate=${gisterenStr}&endDate=${gisterenStr}`)
   ]);
   if (!powerRes.ok || !overviewRes.ok) return null;
   const powerData    = await powerRes.json();
@@ -239,7 +309,16 @@ async function fetchSolarEdge() {
   const hourly      = aggregateToHourly(powerData?.power?.values || []);
   const currentWatt = overviewData?.overview?.currentPower?.power ?? 0;
   const todayKwh    = (overviewData?.overview?.lastDayData?.energy ?? 0) / 1000;
-  return { hourly, currentWatt, todayKwh };
+  const maandKwh    = (overviewData?.overview?.lastMonthData?.energy ?? 0) / 1000;
+  const gisterenData = gisterenRes.ok ? await gisterenRes.json() : null;
+  const gisterenWh   = gisterenData?.energy?.values?.[0]?.value ?? null;
+  const piekEntry    = hourly.length ? hourly.reduce((b, e) => e.watt > b.watt ? e : b) : null;
+  return {
+    hourly, currentWatt, todayKwh, maandKwh,
+    gisterenKwh: gisterenWh !== null ? gisterenWh / 1000 : null,
+    piekWatt: piekEntry?.watt ?? 0,
+    piekUur:  piekEntry?.hour ?? null
+  };
 }
 
 async function fetchGrowatt() {
@@ -306,15 +385,30 @@ async function fetchPrijzen(offset) {
 }
 
 function switchDay(day) {
+  isZonTab = false;
   activeDay = day;
   toonVerleden = false;
   geselecteerdStartTijd = null;
   if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
+  document.getElementById('mainContent').style.display = '';
+  document.getElementById('zonContent').style.display = 'none';
   document.getElementById('tab-0').classList.toggle('active', day === 0);
   document.getElementById('tab-1').classList.toggle('active', day === 1);
+  document.getElementById('tab-2').classList.remove('active');
   const prijzen = day === 0 ? cacheVandaag : cacheMorgen;
   if (prijzen) renderDashboard(prijzen, day);
   else renderGeenData();
+}
+
+function switchZon() {
+  isZonTab = true;
+  if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
+  document.getElementById('mainContent').style.display = 'none';
+  document.getElementById('zonContent').style.display = '';
+  document.getElementById('tab-0').classList.remove('active');
+  document.getElementById('tab-1').classList.remove('active');
+  document.getElementById('tab-2').classList.add('active');
+  renderZonTab();
 }
 
 function renderGeenData() {
@@ -584,6 +678,103 @@ function berekenComboBlok(uren1, kw1, uren2, kw2, prijzenLijst) {
   };
 }
 
+function renderZonTab() {
+  const w = solarVandaag?.currentWatt ?? 0;
+  document.getElementById('zonNuPrijs').textContent =
+    w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
+
+  const kwh = solarVandaag?.todayKwh ?? 0;
+  document.getElementById('zonTotaalKwh').textContent = solarVandaag ? kwh.toFixed(1) : '—';
+
+  const pWatt = solarVandaag?.piekWatt ?? 0;
+  const pUur  = solarVandaag?.piekUur ?? null;
+  document.getElementById('zonPiekW').textContent =
+    pWatt >= 1000 ? (pWatt/1000).toFixed(2)+' kW' : Math.round(pWatt)+' W';
+  document.getElementById('zonPiekTijd').textContent =
+    pUur !== null ? `om ${String(pUur).padStart(2,'0')}:00` : '—';
+
+  const gist = solarVandaag?.gisterenKwh ?? null;
+  document.getElementById('zonGisterenKwh').textContent =
+    gist !== null ? gist.toFixed(1) : '—';
+
+  const maand = solarVandaag?.maandKwh ?? 0;
+  document.getElementById('zonMaandKwh').textContent = solarVandaag ? maand.toFixed(1) : '—';
+
+  document.getElementById('zonSEVandaag').textContent  = solarVandaag ? kwh.toFixed(1)+' kWh' : '—';
+  document.getElementById('zonSEGisteren').textContent = gist !== null ? gist.toFixed(1)+' kWh' : '—';
+  document.getElementById('zonSEMaand').textContent    = solarVandaag ? maand.toFixed(1)+' kWh' : '—';
+
+  renderZonChart();
+  renderVoorspellingChart();
+}
+
+function renderZonChart() {
+  if (zonChart) { zonChart.destroy(); zonChart = null; }
+  const canvas = document.getElementById('zonChart');
+  if (!canvas) return;
+  if (!solarVandaag?.hourly?.length) {
+    canvas.parentElement.innerHTML = '<div class="no-data">Geen productiedata beschikbaar.<br>Vul je SolarEdge API key in bij Netlify.</div>';
+    return;
+  }
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const labels = Array.from({length:24}, (_, i) => String(i).padStart(2,'0')+':00');
+  const seData = Array.from({length:24}, (_, i) => {
+    const e = solarVandaag.hourly.find(h => h.hour === i);
+    return e ? Math.round(e.watt) : 0;
+  });
+  zonChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'SolarEdge', data: seData, backgroundColor: 'rgba(59,109,17,0.65)', borderColor: '#3b6d11', borderWidth: 1, borderRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ctx.parsed.y+' W' } } },
+      scales: {
+        x: { ticks:{color:isDark?'#888':'#888780', font:{size:10}, maxTicksLimit:8, maxRotation:0}, grid:{display:false} },
+        y: { beginAtZero:true, ticks:{color:isDark?'#888':'#888780', font:{size:10}, callback: v => v+' W'}, grid:{color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'} }
+      }
+    }
+  });
+}
+
+function renderVoorspellingChart() {
+  if (voorspellingChart) { voorspellingChart.destroy(); voorspellingChart = null; }
+  const canvas = document.getElementById('voorspellingChart');
+  if (!canvas) return;
+  if (!solarMorgen?.hourly?.length) {
+    canvas.parentElement.innerHTML = '<div class="no-data">Geen verwachting beschikbaar.</div>';
+    document.getElementById('voorspellingKwh').textContent = '';
+    return;
+  }
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const labels = Array.from({length:24}, (_, i) => String(i).padStart(2,'0')+':00');
+  const data   = Array.from({length:24}, (_, i) => {
+    const e = solarMorgen.hourly.find(h => h.hour === i);
+    return e ? e.watt : 0;
+  });
+  const totaalKwh = (data.reduce((s,v) => s+v, 0) / 1000).toFixed(1);
+  document.getElementById('voorspellingKwh').textContent = `Geschatte opbrengst morgen: ${totaalKwh} kWh`;
+  voorspellingChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Verwacht', data, backgroundColor: 'rgba(255,200,50,0.55)', borderColor: 'rgba(255,180,30,0.9)', borderWidth: 1, borderRadius: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ctx.parsed.y+' W' } } },
+      scales: {
+        x: { ticks:{color:isDark?'#888':'#888780', font:{size:10}, maxTicksLimit:8, maxRotation:0}, grid:{display:false} },
+        y: { beginAtZero:true, ticks:{color:isDark?'#888':'#888780', font:{size:10}, callback: v => v+' W'}, grid:{color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'} }
+      }
+    }
+  });
+}
+
 function getSolarForIdx(solarData, hour) {
   if (!solarData?.hourly) return 0;
   const entry = solarData.hourly.find(e => e.hour === hour);
@@ -737,8 +928,12 @@ async function laadPrijzen() {
     cacheMorgen  = morgen;
     solarVandaag = solar;
     solarMorgen  = solarM;
-    switchDay(activeDay);
-    renderLaadadvies();
+    if (isZonTab) {
+      renderZonTab();
+    } else {
+      switchDay(activeDay);
+      renderLaadadvies();
+    }
     renderSolarKaartjes();
     document.getElementById('lastUpdate').textContent = 'Bijgewerkt ' + uurStr(new Date());
   } catch(e) {
@@ -760,7 +955,7 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.3.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.4.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
 </script>
 </body>
