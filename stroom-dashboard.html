@@ -183,7 +183,7 @@
 <script>
 const OPSLAG = 0.03194, EB = 0.09161, BTW = 1.21;
 let chart = null, activeDay = 0, cacheVandaag = null, cacheMorgen = null;
-let toonVerleden = false, geselecteerdStartTijd = null;
+let toonVerleden = false, geselecteerdStartTijd = null, rAFId = null;
 
 function berekenPrijs(epex) { return (epex + OPSLAG + EB) * BTW; }
 function uurStr(d) { return d.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' }); }
@@ -208,6 +208,8 @@ async function fetchPrijzen(offset) {
 function switchDay(day) {
   activeDay = day;
   toonVerleden = false;
+  geselecteerdStartTijd = null;
+  if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
   document.getElementById('tab-0').classList.toggle('active', day === 0);
   document.getElementById('tab-1').classList.toggle('active', day === 1);
   const prijzen = day === 0 ? cacheVandaag : cacheMorgen;
@@ -331,7 +333,10 @@ function renderDashboard(prijzen, day) {
             const { chart, tooltip: t } = context;
             if (t.opacity === 0) {
               tooltip.classList.remove('visible');
-              if (geselecteerdStartTijd !== null) { geselecteerdStartTijd = null; renderLaadadvies(); }
+              if (geselecteerdStartTijd !== null) {
+                geselecteerdStartTijd = null;
+                updateApparaatKaarten();
+              }
               return;
             }
             const idx = t.dataPoints?.[0]?.dataIndex;
@@ -348,7 +353,7 @@ function renderDashboard(prijzen, day) {
             tooltip.classList.add('visible');
             if (!geselecteerdStartTijd || geselecteerdStartTijd.getTime() !== p.tijd.getTime()) {
               geselecteerdStartTijd = p.tijd;
-              renderLaadadvies();
+              updateApparaatKaarten();
             }
           }
         }
@@ -406,6 +411,11 @@ const APPARATEN = [
   { naam: 'Volvo XC90 PHEV', icon: VOLVO_SVG, uren: 6,   kw: 2.3 },
   { naam: 'Vaatwasser',       icon: '🍽️',     uren: 3.5, kw: 1.8 }
 ];
+
+function updateApparaatKaarten() {
+  if (rAFId) cancelAnimationFrame(rAFId);
+  rAFId = requestAnimationFrame(() => { rAFId = null; renderLaadadvies(); });
+}
 
 function berekenGoedkoopsteBlok(uren, vermogenKw, prijzenLijst) {
   const blokGrootte = Math.ceil(uren);
@@ -535,7 +545,7 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v1.8.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v1.9.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
 </script>
 </body>
