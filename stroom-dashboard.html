@@ -54,17 +54,26 @@
   .section { padding:22px 16px 0; }
   .section-title { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:12px; }
 
-  .chart-wrap { position:relative; height:160px; width:100%; }
+  .chart-wrap { position:relative; height:160px; width:100%; touch-action:pan-y; }
+
+  /* Tooltip boven grafiek */
+  .chart-tooltip { position:absolute; top:0; left:50%; transform:translateX(-50%); background:var(--green); color:white; font-size:12px; font-weight:500; padding:4px 10px; border-radius:10px; pointer-events:none; opacity:0; transition:opacity 0.15s; white-space:nowrap; z-index:10; }
+  .chart-tooltip.visible { opacity:1; }
 
   .hours-card { background:var(--card); border-radius:var(--radius); overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.06); }
-  .hour-row { display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:0.5px solid var(--border); font-size:13px; }
+  .hour-row { display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:0.5px solid var(--border); font-size:13px; transition: opacity 0.2s; }
   .hour-row:last-child { border-bottom:none; }
+  .hour-row.past { opacity:0.35; }
+  .hour-row.hidden { display:none; }
   .hour-time { color:var(--muted); width:44px; flex-shrink:0; font-size:12px; }
   .bar-track { flex:1; height:5px; background:var(--border); border-radius:3px; overflow:hidden; }
   .bar-fill { height:100%; border-radius:3px; }
   .hour-price { width:56px; text-align:right; font-weight:500; flex-shrink:0; font-size:13px; }
   .now-badge   { background:var(--green); color:white; font-size:10px; padding:2px 7px; border-radius:10px; flex-shrink:0; font-weight:500; }
   .cheap-badge { background:#c0dd97; color:#27500a; font-size:10px; padding:2px 7px; border-radius:10px; flex-shrink:0; font-weight:500; }
+
+  .show-past-btn { width:100%; background:none; border:none; color:var(--muted); font-size:13px; font-family:inherit; padding:12px; cursor:pointer; text-align:center; border-top:0.5px solid var(--border); }
+  .show-past-btn:active { opacity:0.6; }
 
   .tarief-card { background:var(--card); border-radius:var(--radius); overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.06); }
   .tarief-row { display:flex; justify-content:space-between; align-items:center; padding:11px 16px; border-bottom:0.5px solid var(--border); font-size:13px; }
@@ -117,8 +126,11 @@
 
 <div class="section">
   <div class="section-title" id="chartTitle">Vandaag</div>
-  <div class="chart-wrap">
-    <canvas id="chart" role="img" aria-label="Stroomprijs per uur">Stroomprijs per uur</canvas>
+  <div style="position:relative">
+    <div class="chart-tooltip" id="chartTooltip"></div>
+    <div class="chart-wrap">
+      <canvas id="chart" role="img" aria-label="Stroomprijs per uur">Stroomprijs per uur</canvas>
+    </div>
   </div>
 </div>
 
@@ -149,6 +161,7 @@
 <script>
 const OPSLAG = 0.03073, EB = 0.08930, BTW = 1.21;
 let chart = null, activeDay = 0, cacheVandaag = null, cacheMorgen = null;
+let toonVerleden = false;
 
 function berekenPrijs(epex) { return (epex + OPSLAG + EB) * BTW; }
 function uurStr(d) { return d.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' }); }
@@ -172,6 +185,7 @@ async function fetchPrijzen(offset) {
 
 function switchDay(day) {
   activeDay = day;
+  toonVerleden = false;
   document.getElementById('tab-0').classList.toggle('active', day === 0);
   document.getElementById('tab-1').classList.toggle('active', day === 1);
   const prijzen = day === 0 ? cacheVandaag : cacheMorgen;
@@ -228,18 +242,80 @@ function renderDashboard(prijzen, day) {
   }
 
   const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
-  const barKleuren = prijzen.map(p => day===0 && p.tijd.getHours()===nowUur ? '#1a6e47' : kleur(p.totaal,min,max,gem).bar);
+
+  // Kleur per bar — verleden iets grijs
+  const barKleuren = prijzen.map(p => {
+    const isNu = day === 0 && p.tijd.getHours() === nowUur;
+    const isPast = day === 0 && p.tijd.getHours() < nowUur;
+    if (isNu) return '#1a6e47';
+    if (isPast) return isDark ? '#444' : '#ccc';
+    return kleur(p.totaal, min, max, gem).bar;
+  });
 
   if (chart) chart.destroy();
+
+  // Stippellijn plugin voor huidig uur
+  const nowUurIndex = day === 0 ? prijzen.findIndex(p => p.tijd.getHours() === nowUur) : -1;
+
+  const verticalLinePlugin = {
+    id: 'verticalLine',
+    afterDraw(chart) {
+      if (nowUurIndex < 0) return;
+      const ctx = chart.ctx;
+      const meta = chart.getDatasetMeta(0);
+      const bar = meta.data[nowUurIndex];
+      if (!bar) return;
+      const x = bar.x;
+      const top = chart.chartArea.top;
+      const bottom = chart.chartArea.bottom;
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  const tooltip = document.getElementById('chartTooltip');
+
   chart = new Chart(document.getElementById('chart'), {
     type: 'bar',
+    plugins: [verticalLinePlugin],
     data: {
       labels: prijzen.map(p => uurStr(p.tijd)),
       datasets: [{ data: prijzen.map(p => parseFloat(p.totaal.toFixed(4))), backgroundColor: barKleuren, borderRadius: 3, borderSkipped: false }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx => '€ '+ctx.parsed.y.toFixed(4)+'/kWh' } } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: false,
+          external(context) {
+            const { chart, tooltip: t } = context;
+            if (t.opacity === 0) { tooltip.classList.remove('visible'); return; }
+            const idx = t.dataPoints?.[0]?.dataIndex;
+            if (idx == null) return;
+            const p = prijzen[idx];
+            const timeStr = uurStr(p.tijd) + '–' + String(p.tijd.getHours()+1).padStart(2,'0') + ':00';
+            tooltip.textContent = timeStr + ' · € ' + p.totaal.toFixed(4);
+            // Positie berekenen
+            const canvasRect = chart.canvas.getBoundingClientRect();
+            const x = t.caretX;
+            const containerWidth = chart.canvas.parentElement.offsetWidth;
+            let left = x;
+            if (left < 60) left = 60;
+            if (left > containerWidth - 60) left = containerWidth - 60;
+            tooltip.style.left = left + 'px';
+            tooltip.classList.add('visible');
+          }
+        }
+      },
       scales: {
         x: { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, autoSkip:true, maxTicksLimit:8, maxRotation:0 }, grid:{display:false} },
         y: { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, callback: v => '€'+v.toFixed(2) }, grid:{ color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)' } }
@@ -247,19 +323,38 @@ function renderDashboard(prijzen, day) {
     }
   });
 
-  document.getElementById('urenLijst').innerHTML = prijzen.map(p => {
-    const isNu = day===0 && p.tijd.getHours()===nowUur;
+  // Uuroverzicht bouwen
+  const hasPast = day === 0 && prijzen.some(p => p.tijd.getHours() < nowUur);
+  const aantalVerleden = prijzen.filter(p => p.tijd.getHours() < nowUur).length;
+
+  const rows = prijzen.map(p => {
+    const isNu = day === 0 && p.tijd.getHours() === nowUur;
+    const isPast = day === 0 && p.tijd.getHours() < nowUur;
     const isCheapest = p.totaal === min;
     const k = kleur(p.totaal, min, max, gem);
     const pct = max > min ? Math.round(((p.totaal-min)/(max-min))*100) : 50;
-    return `<div class="hour-row" style="background:${isNu ? k.bg : 'transparent'}">
+    const hiddenClass = isPast && !toonVerleden ? 'hidden' : '';
+    const pastClass = isPast ? 'past' : '';
+    return `<div class="hour-row ${pastClass} ${hiddenClass}" data-past="${isPast}">
       <span class="hour-time">${uurStr(p.tijd)}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${k.bar}"></div></div>
-      <span class="hour-price" style="color:${k.text}">€ ${p.totaal.toFixed(3)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${isPast ? (isDark?'#555':'#bbb') : k.bar}"></div></div>
+      <span class="hour-price" style="color:${isPast ? 'var(--muted)' : k.text}">€ ${p.totaal.toFixed(3)}</span>
       ${isNu ? '<span class="now-badge">Nu</span>' : ''}
-      ${!isNu && isCheapest ? '<span class="cheap-badge">Laagste</span>' : ''}
+      ${!isNu && !isPast && isCheapest ? '<span class="cheap-badge">Laagste</span>' : ''}
     </div>`;
   }).join('');
+
+  const knopje = hasPast ? `<button class="show-past-btn" id="toonVerledenBtn" onclick="toggleVerleden()">
+    ${toonVerleden ? '▲ Verberg vorige uren' : '▼ Toon ' + aantalVerleden + ' vorige uren'}
+  </button>` : '';
+
+  document.getElementById('urenLijst').innerHTML = knopje + rows;
+}
+
+function toggleVerleden() {
+  toonVerleden = !toonVerleden;
+  const prijzen = activeDay === 0 ? cacheVandaag : cacheMorgen;
+  if (prijzen) renderDashboard(prijzen, activeDay);
 }
 
 async function laadPrijzen() {
