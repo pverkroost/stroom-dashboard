@@ -103,6 +103,9 @@
   .loading { display:flex; flex-direction:column; align-items:center; padding:40px; gap:12px; color:var(--muted); font-size:14px; }
   .spinner { width:28px; height:28px; border:2.5px solid var(--border); border-top-color:var(--green); border-radius:50%; animation:spin 0.8s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
+  .solar-toggle-btn { font-size:10px; font-weight:600; padding:4px 10px; border-radius:10px; border:none; cursor:pointer; font-family:inherit; transition:background 0.2s, color 0.2s; }
+  .solar-toggle-btn.aan { background:#c0dd97; color:#27500a; }
+  .solar-toggle-btn.uit { background:var(--border); color:var(--muted); }
 </style>
 </head>
 <body>
@@ -165,7 +168,10 @@
 </div>
 
 <div class="section" id="laadadviesSection">
-  <div class="section-title">Slim inplannen</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div class="section-title" style="margin-bottom:0">Slim inplannen</div>
+    <button class="solar-toggle-btn aan" id="solarToggleBtn" onclick="toggleSolar()">☀️ Zon AAN</button>
+  </div>
   <div id="laadadviesContainer"></div>
 </div>
 
@@ -254,13 +260,18 @@
 <div class="footer">
   Prijzen via EnergyZero API · EPEX day-ahead<br>
   (EPEX + €0,03194 + €0,09161) × 1,21<br>
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.4.1</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.5.0</span>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 const OPSLAG = 0.03194, EB = 0.09161, BTW = 1.21;
-const SOLAR_FORECAST_FACTOR = 4;
+const LAT = 52.3647;
+const LON = 6.4598;
+const SOLAREDGE_PEAK_KW = 3.2;
+const GROWATT_PEAK_KW   = 4.6;
+const TOTAL_PEAK_KW     = 7.8;
+const PANEL_EFFICIENCY  = 0.8;
 const SOLAR_SOURCES = [
   { name: 'SolarEdge', type: 'solaredge' },
   // { name: 'Growatt', type: 'growatt' },
@@ -269,6 +280,8 @@ let chart = null, activeDay = 0, cacheVandaag = null, cacheMorgen = null;
 let toonVerleden = false, geselecteerdStartTijd = null, rAFId = null;
 let solarVandaag = null, solarMorgen = null;
 let isZonTab = false, zonChart = null, voorspellingChart = null;
+let openMeteoVandaag = null;
+let solarToggleAan = localStorage.getItem('solarToggle') !== 'uit';
 
 function berekenPrijs(epex) { return (epex + OPSLAG + EB) * BTW; }
 function uurStr(d) { return d.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' }); }
@@ -365,21 +378,23 @@ async function fetchSolarData() {
   return null;
 }
 
-async function fetchSolarMorgen() {
-  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-  const dateStr = tomorrow.toISOString().slice(0, 10);
-  const lat = 52.37, lon = 4.9; // Amsterdam — pas aan voor jouw locatie
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=shortwave_radiation&start_date=${dateStr}&end_date=${dateStr}&timezone=Europe%2FAmsterdam`;
+async function fetchOpenMeteo() {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=direct_radiation&timezone=Europe%2FAmsterdam&forecast_days=2`;
   const res  = await fetch(url);
   const data = await res.json();
-  const times = data?.hourly?.time || [];
-  const rads  = data?.hourly?.shortwave_radiation || [];
-  return {
-    hourly: times.map((t, i) => ({
-      hour: parseInt(t.slice(11, 13)),
-      watt: Math.round((rads[i] || 0) * SOLAR_FORECAST_FACTOR)
-    })).filter(e => e.watt > 0)
-  };
+  const times  = data?.hourly?.time || [];
+  const direct = data?.hourly?.direct_radiation || [];
+  const today  = new Date(); today.setHours(0,0,0,0);
+  const morgen = new Date(today); morgen.setDate(morgen.getDate() + 1);
+  const vandaag = [], morgenArr = [];
+  times.forEach((t, i) => {
+    const d = new Date(t); d.setHours(0,0,0,0);
+    const watt  = Math.round((direct[i] || 0) * TOTAL_PEAK_KW * PANEL_EFFICIENCY);
+    const entry = { hour: parseInt(t.slice(11, 13)), watt };
+    if (d.getTime() === today.getTime())  vandaag.push(entry);
+    if (d.getTime() === morgen.getTime()) morgenArr.push(entry);
+  });
+  return { vandaag, morgen: morgenArr };
 }
 
 function renderSolarKaartjes() {
@@ -817,11 +832,42 @@ function effectieveKosten(uren, vermogenKw, prijzenLijst, vanIdx) {
   for (let i = vanIdx; i < vanIdx + blokGrootte; i++) {
     const p = prijzenLijst[i];
     const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
-    const src = dagStart.getTime() === morgenStart.getTime() ? solarMorgen : solarVandaag;
+    const isMorgenUur = dagStart.getTime() === morgenStart.getTime();
+    const src = isMorgenUur
+      ? solarMorgen
+      : (solarVandaag?.hourly?.length ? solarVandaag : openMeteoVandaag);
     const nettoKw = Math.max(0, vermogenKw - getSolarForIdx(src, p.tijd.getHours()) / 1000);
     totaal += nettoKw * p.totaal;
   }
   return totaal;
+}
+
+function gemSolarVoorBlok(startIdx, aantalUren, komende18) {
+  const vandaagStart = new Date(); vandaagStart.setHours(0,0,0,0);
+  const morgenStart  = new Date(vandaagStart); morgenStart.setDate(morgenStart.getDate() + 1);
+  let totaalW = 0, n = 0;
+  for (let i = startIdx; i < startIdx + aantalUren && i < komende18.length; i++) {
+    const p = komende18[i];
+    const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
+    const isMorgenUur = dagStart.getTime() === morgenStart.getTime();
+    const src = isMorgenUur
+      ? solarMorgen
+      : (solarVandaag?.hourly?.length ? solarVandaag : openMeteoVandaag);
+    totaalW += getSolarForIdx(src, p.tijd.getHours());
+    n++;
+  }
+  return n > 0 ? (totaalW / n) / 1000 : 0;
+}
+
+function toggleSolar() {
+  solarToggleAan = !solarToggleAan;
+  localStorage.setItem('solarToggle', solarToggleAan ? 'aan' : 'uit');
+  const btn = document.getElementById('solarToggleBtn');
+  if (btn) {
+    btn.textContent = solarToggleAan ? '☀️ Zon AAN' : '☀️ Zon UIT';
+    btn.className = 'solar-toggle-btn ' + (solarToggleAan ? 'aan' : 'uit');
+  }
+  updateApparaatKaarten();
 }
 
 function renderLaadadvies() {
@@ -883,15 +929,17 @@ function renderLaadadvies() {
     if (ap.comboPart === 1) {
       if (!wasdroogRes) return leeg;
       const nuLabel = heeftSelectie ? `Starten om ${hs(komende18[geselecteerdIdx].tijd)}` : 'Nu starten';
-      const kostenNu = berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx);
-      const solarNu  = solarVandaag ? effectieveKosten(2, 1.5, komende18, geselecteerdIdx) : undefined;
-      const isMorgen = wasdroogRes.was.startTijd.getDate() !== now.getDate();
+      const kostenNu   = berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx);
+      const solarNu    = solarToggleAan ? effectieveKosten(2, 1.5, komende18, geselecteerdIdx) : undefined;
+      const isMorgen   = wasdroogRes.was.startTijd.getDate() !== now.getDate();
+      const solarKwWas = gemSolarVoorBlok(wasdroogRes.startIndex, 2, komende18);
       return `<div class="advies-card">
         <div class="advies-device-icon">${ap.icon}</div>
         <div class="advies-device-naam">${ap.naam}</div>
         ${vergelijk(nuLabel, kostenNu, wasdroogRes.was.kosten, solarNu)}
         <div class="advies-row">Beste: ${hs(wasdroogRes.was.startTijd)} – ${wasdroogRes.was.eindStr}${isMorgen ? ' (morgen)' : ''}</div>
         ${statusEl(wasdroogRes.startIndex)}
+        ${solarKwWas > 1.5 ? '<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ zonne-energie beschikbaar</div>' : ''}
       </div>`;
     }
 
@@ -904,10 +952,11 @@ function renderLaadadvies() {
         : 'Na wasmachine';
       const droogNuKosten = berekenKostenVanaf(2, 2.5, komende18, droogNuIdx);
       const wasNuKosten   = berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx);
-      const totaalNu = (wasNuKosten !== null && droogNuKosten !== null) ? wasNuKosten + droogNuKosten : null;
-      const droogSolarNu = solarVandaag ? effectieveKosten(2, 2.5, komende18, droogNuIdx) : undefined;
-      const isMorgen = wasdroogRes.droog.startTijd.getDate() !== now.getDate();
-      const totaalRegel = `<div class="advies-row" style="margin-top:5px;padding-top:5px;border-top:0.5px solid var(--border)">Totaal was+droog: <b>€ ${wasdroogRes.totaalKosten.toFixed(2)}</b>${totaalNu !== null && totaalNu > wasdroogRes.totaalKosten + 0.005 ? ` · nu: € ${totaalNu.toFixed(2)}` : ''}</div>`;
+      const totaalNu      = (wasNuKosten !== null && droogNuKosten !== null) ? wasNuKosten + droogNuKosten : null;
+      const droogSolarNu  = solarToggleAan ? effectieveKosten(2, 2.5, komende18, droogNuIdx) : undefined;
+      const isMorgen      = wasdroogRes.droog.startTijd.getDate() !== now.getDate();
+      const solarKwDroog  = gemSolarVoorBlok(wasdroogRes.startIndex + 2, 2, komende18);
+      const totaalRegel   = `<div class="advies-row" style="margin-top:5px;padding-top:5px;border-top:0.5px solid var(--border)">Totaal was+droog: <b>€ ${wasdroogRes.totaalKosten.toFixed(2)}</b>${totaalNu !== null && totaalNu > wasdroogRes.totaalKosten + 0.005 ? ` · nu: € ${totaalNu.toFixed(2)}` : ''}</div>`;
       return `<div class="advies-card">
         <div class="advies-device-icon">${ap.icon}</div>
         <div class="advies-device-naam">${ap.naam}</div>
@@ -915,21 +964,24 @@ function renderLaadadvies() {
         <div class="advies-row">Beste: ${hs(wasdroogRes.droog.startTijd)} – ${wasdroogRes.droog.eindStr}${isMorgen ? ' (morgen)' : ''} (na was)</div>
         ${statusEl(wasdroogRes.startIndex + 2)}
         ${totaalRegel}
+        ${solarKwDroog > 1.5 ? '<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ zonne-energie beschikbaar</div>' : ''}
       </div>`;
     }
 
     // ── Normaal apparaat ──
     const res = berekenGoedkoopsteBlok(ap.uren, ap.kw, komende18);
     if (!res) return leeg;
-    const kostenNu = berekenKostenVanaf(ap.uren, ap.kw, komende18, geselecteerdIdx);
-    const solarNu  = solarVandaag ? effectieveKosten(ap.uren, ap.kw, komende18, geselecteerdIdx) : undefined;
-    const isMorgen = res.startTijd.getDate() !== now.getDate();
+    const kostenNu  = berekenKostenVanaf(ap.uren, ap.kw, komende18, geselecteerdIdx);
+    const solarNu   = solarToggleAan ? effectieveKosten(ap.uren, ap.kw, komende18, geselecteerdIdx) : undefined;
+    const isMorgen  = res.startTijd.getDate() !== now.getDate();
+    const solarKw   = gemSolarVoorBlok(res.startIndex, Math.ceil(ap.uren), komende18);
     return `<div class="advies-card">
       <div class="advies-device-icon">${ap.icon}</div>
       <div class="advies-device-naam">${ap.naam}</div>
       ${vergelijk(nuLabelBase, kostenNu, res.kosten, solarNu)}
       <div class="advies-row">Beste: ${hs(res.startTijd)} – ${res.eindStr}${isMorgen ? ' (morgen)' : ''}</div>
       ${statusEl(res.startIndex)}
+      ${solarKw > 1.5 ? '<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ zonne-energie beschikbaar</div>' : ''}
     </div>`;
   }).join('');
 
@@ -945,16 +997,17 @@ function toggleVerleden() {
 async function laadPrijzen() {
   document.getElementById('lastUpdate').textContent = 'Ophalen...';
   try {
-    const [vandaag, morgen, solar, solarM] = await Promise.all([
+    const [vandaag, morgen, solar, openMeteo] = await Promise.all([
       fetchPrijzen(0),
       fetchPrijzen(1).catch(() => null),
       fetchSolarData().catch(() => null),
-      fetchSolarMorgen().catch(() => null)
+      fetchOpenMeteo().catch(() => null)
     ]);
-    cacheVandaag = vandaag;
-    cacheMorgen  = morgen;
-    solarVandaag = solar;
-    solarMorgen  = solarM;
+    cacheVandaag     = vandaag;
+    cacheMorgen      = morgen;
+    solarVandaag     = solar;
+    openMeteoVandaag = openMeteo?.vandaag?.length ? { hourly: openMeteo.vandaag } : null;
+    solarMorgen      = openMeteo?.morgen?.length  ? { hourly: openMeteo.morgen  } : null;
     if (isZonTab) {
       renderZonTab();
     } else {
@@ -972,6 +1025,14 @@ async function laadPrijzen() {
 laadPrijzen();
 setInterval(laadPrijzen, 5 * 60 * 1000);
 
+// Solar toggle knop initieel instellen op basis van localStorage
+(function() {
+  if (!solarToggleAan) {
+    const btn = document.getElementById('solarToggleBtn');
+    if (btn) { btn.textContent = '☀️ Zon UIT'; btn.className = 'solar-toggle-btn uit'; }
+  }
+})();
+
 (function() {
   const now = new Date();
   const fmt = new Intl.DateTimeFormat('nl-NL', {
@@ -982,7 +1043,7 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.4.1 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.5.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
 </script>
 </body>
