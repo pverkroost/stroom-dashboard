@@ -98,21 +98,22 @@
 
 <div id="zonContent" style="display:none">
   <div class="hero">
-    <div class="hero-label">Nu opgewekt</div>
-    <div class="hero-price" id="zonNuPrijs">— W</div>
-    <div class="hero-unit">zonnepanelen totaal</div>
+    <div class="hero-label" id="zonHeroLabel">Nu opgewekt</div>
+    <div class="hero-price" id="zonHeroPrice">— W</div>
+    <div class="hero-unit" id="zonHeroUnit">zonnepanelen totaal</div>
   </div>
 
-  <div class="cards">
+  <!-- Vandaag: Nu · Vandaag · Gisteren · Deze maand -->
+  <div id="zonVandaagCards" class="cards">
+    <div class="card">
+      <div class="card-label">Nu</div>
+      <div class="card-val" id="zonNuW">—</div>
+      <div class="card-time" id="zonNuEen">W</div>
+    </div>
     <div class="card">
       <div class="card-label">Vandaag</div>
       <div class="card-val" id="zonTotaalKwh">—</div>
       <div class="card-time">kWh</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Piek vandaag</div>
-      <div class="card-val" id="zonPiekW">—</div>
-      <div class="card-time" id="zonPiekTijd">—</div>
     </div>
     <div class="card">
       <div class="card-label">Gisteren</div>
@@ -126,12 +127,34 @@
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">Opbrengst vandaag per uur</div>
-    <div class="chart-wrap"><canvas id="zonChart"></canvas></div>
+  <!-- Morgen: Verwachte opbrengst · Piek · Zonne-uren -->
+  <div id="zonMorgenCards" class="cards" style="display:none">
+    <div class="card">
+      <div class="card-label">Verwachte opbrengst</div>
+      <div class="card-val" id="zonMorgenKwh">—</div>
+      <div class="card-time">kWh</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Piek verwacht om</div>
+      <div class="card-val" id="zonMorgenPiekUur">—</div>
+      <div class="card-time" id="zonMorgenPiekW">—</div>
+    </div>
+    <div class="card" style="grid-column:1/-1">
+      <div class="card-label">Zonne-uren</div>
+      <div class="card-val" style="font-size:20px" id="zonMorgenZonneUren">—</div>
+      <div class="card-time">verwacht actief</div>
+    </div>
   </div>
 
+  <!-- Grafiek: vandaag (SolarEdge) of morgen (Open-Meteo) -->
   <div class="section">
+    <div class="section-title" id="zonChartTitle">Opbrengst vandaag per uur</div>
+    <div id="zonVandaagChartWrap" class="chart-wrap"><canvas id="zonChart"></canvas></div>
+    <div id="zonMorgenChartWrap" class="chart-wrap" style="display:none"><canvas id="voorspellingChart"></canvas></div>
+  </div>
+
+  <!-- Omvormers: alleen bij vandaag relevant -->
+  <div class="section" id="zonOmvormers" style="padding-bottom:24px">
     <div class="section-title">Omvormers</div>
     <div class="advies-grid">
       <div class="advies-card">
@@ -150,18 +173,12 @@
       </div>
     </div>
   </div>
-
-  <div class="section" style="padding-bottom:24px">
-    <div class="section-title">Verwachting morgen</div>
-    <div class="chart-wrap"><canvas id="voorspellingChart"></canvas></div>
-    <div style="text-align:center;padding:8px 0 0;font-size:12px;color:var(--muted)" id="voorspellingKwh"></div>
-  </div>
 </div><!-- /zonContent -->
 
 <div class="footer">
   Prijzen via EnergyZero API · EPEX day-ahead<br>
   (EPEX + €0,03194 + €0,09161) × 1,21<br>
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.6.0</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.7.0</span>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>

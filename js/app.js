@@ -29,7 +29,7 @@ function switchZon() {
   document.getElementById('tab-0').classList.remove('active');
   document.getElementById('tab-1').classList.remove('active');
   document.getElementById('tab-2').classList.add('active');
-  renderZonTab();
+  renderZonTab(activeDay);
 }
 
 async function laadPrijzen() {
@@ -47,7 +47,7 @@ async function laadPrijzen() {
     openMeteoVandaag = openMeteo?.vandaag?.length ? { hourly: openMeteo.vandaag } : null;
     solarMorgen      = openMeteo?.morgen?.length  ? { hourly: openMeteo.morgen  } : null;
     if (isZonTab) {
-      renderZonTab();
+      renderZonTab(activeDay);
     } else {
       switchDay(activeDay);
       renderLaadadvies();
@@ -80,5 +80,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.6.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.7.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();

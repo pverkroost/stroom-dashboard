@@ -123,34 +123,65 @@ function renderSolarKaartjes() {
   document.getElementById('solarVandaagEen').textContent = 'kWh vandaag';
 }
 
-function renderZonTab() {
-  const w = solarVandaag?.currentWatt ?? 0;
-  document.getElementById('zonNuPrijs').textContent =
-    w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
+function renderZonTab(day) {
+  day = day ?? 0;
+  const isVandaag = day === 0;
 
-  const kwh = solarVandaag?.todayKwh ?? 0;
-  document.getElementById('zonTotaalKwh').textContent = solarVandaag ? kwh.toFixed(1) : '—';
+  document.getElementById('zonVandaagCards').style.display   = isVandaag ? '' : 'none';
+  document.getElementById('zonMorgenCards').style.display    = isVandaag ? 'none' : '';
+  document.getElementById('zonVandaagChartWrap').style.display = isVandaag ? '' : 'none';
+  document.getElementById('zonMorgenChartWrap').style.display  = isVandaag ? 'none' : '';
+  document.getElementById('zonOmvormers').style.display      = isVandaag ? '' : 'none';
 
-  const pWatt = solarVandaag?.piekWatt ?? 0;
-  const pUur  = solarVandaag?.piekUur ?? null;
-  document.getElementById('zonPiekW').textContent =
-    pWatt >= 1000 ? (pWatt/1000).toFixed(2)+' kW' : Math.round(pWatt)+' W';
-  document.getElementById('zonPiekTijd').textContent =
-    pUur !== null ? `om ${String(pUur).padStart(2,'0')}:00` : '—';
+  if (isVandaag) {
+    const w = solarVandaag?.currentWatt ?? 0;
+    document.getElementById('zonHeroLabel').textContent = 'Nu opgewekt';
+    document.getElementById('zonHeroPrice').textContent = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
+    document.getElementById('zonHeroUnit').textContent  = 'zonnepanelen totaal';
+    document.getElementById('zonChartTitle').textContent = 'Opbrengst vandaag per uur';
 
-  const gist = solarVandaag?.gisterenKwh ?? null;
-  document.getElementById('zonGisterenKwh').textContent =
-    gist !== null ? gist.toFixed(1) : '—';
+    document.getElementById('zonNuW').textContent  = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
+    document.getElementById('zonNuEen').textContent = w > 0 ? 'nu opgewekt' : 'geen productie';
 
-  const maand = solarVandaag?.maandKwh ?? 0;
-  document.getElementById('zonMaandKwh').textContent = solarVandaag ? maand.toFixed(1) : '—';
+    const kwh  = solarVandaag?.todayKwh ?? 0;
+    const gist = solarVandaag?.gisterenKwh ?? null;
+    const maand = solarVandaag?.maandKwh ?? 0;
 
-  document.getElementById('zonSEVandaag').textContent  = solarVandaag ? kwh.toFixed(1)+' kWh' : '—';
-  document.getElementById('zonSEGisteren').textContent = gist !== null ? gist.toFixed(1)+' kWh' : '—';
-  document.getElementById('zonSEMaand').textContent    = solarVandaag ? maand.toFixed(1)+' kWh' : '—';
+    document.getElementById('zonTotaalKwh').textContent   = solarVandaag ? kwh.toFixed(2)  : '—';
+    document.getElementById('zonGisterenKwh').textContent = gist !== null ? gist.toFixed(2) : '—';
+    document.getElementById('zonMaandKwh').textContent    = solarVandaag ? maand.toFixed(1) : '—';
 
-  renderZonChart();
-  renderVoorspellingChart();
+    document.getElementById('zonSEVandaag').textContent  = solarVandaag ? kwh.toFixed(2)+' kWh'  : '—';
+    document.getElementById('zonSEGisteren').textContent = gist !== null ? gist.toFixed(2)+' kWh' : '—';
+    document.getElementById('zonSEMaand').textContent    = solarVandaag ? maand.toFixed(1)+' kWh' : '—';
+
+    renderZonChart();
+  } else {
+    const hourly = solarMorgen?.hourly || [];
+    const totaalKwh = hourly.reduce((s, e) => s + e.watt, 0) / 1000;
+
+    document.getElementById('zonHeroLabel').textContent = 'Morgen verwacht';
+    document.getElementById('zonHeroPrice').textContent = solarMorgen ? totaalKwh.toFixed(1)+' kWh' : '— kWh';
+    document.getElementById('zonHeroUnit').textContent  = 'verwachte opbrengst';
+    document.getElementById('zonChartTitle').textContent = 'Verwachting morgen per uur';
+
+    document.getElementById('zonMorgenKwh').textContent = solarMorgen ? totaalKwh.toFixed(2) : '—';
+
+    const piek = hourly.length ? hourly.reduce((b, e) => e.watt > b.watt ? e : b) : null;
+    document.getElementById('zonMorgenPiekUur').textContent = piek ? String(piek.hour).padStart(2,'0')+':00' : '—';
+    document.getElementById('zonMorgenPiekW').textContent   = piek ? Math.round(piek.watt)+' W verwacht' : '—';
+
+    const zonUren = hourly.filter(e => e.watt > 500);
+    if (zonUren.length) {
+      const eerste  = String(zonUren[0].hour).padStart(2,'0') + ':00';
+      const laatste = String(zonUren[zonUren.length - 1].hour + 1).padStart(2,'0') + ':00';
+      document.getElementById('zonMorgenZonneUren').textContent = eerste + ' – ' + laatste;
+    } else {
+      document.getElementById('zonMorgenZonneUren').textContent = 'Geen zon verwacht';
+    }
+
+    renderVoorspellingChart();
+  }
 }
 
 function renderZonChart() {
@@ -190,7 +221,6 @@ function renderVoorspellingChart() {
   if (!canvas) return;
   if (!solarMorgen?.hourly?.length) {
     canvas.parentElement.innerHTML = '<div class="no-data">Geen verwachting beschikbaar.</div>';
-    document.getElementById('voorspellingKwh').textContent = '';
     return;
   }
   const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
@@ -199,8 +229,6 @@ function renderVoorspellingChart() {
     const e = solarMorgen.hourly.find(h => h.hour === i);
     return e ? e.watt : 0;
   });
-  const totaalKwh = (data.reduce((s,v) => s+v, 0) / 1000).toFixed(1);
-  document.getElementById('voorspellingKwh').textContent = `Geschatte opbrengst morgen: ${totaalKwh} kWh`;
   voorspellingChart = new Chart(canvas, {
     type: 'bar',
     data: {
