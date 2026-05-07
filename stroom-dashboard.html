@@ -408,8 +408,10 @@ const VOLVO_SVG = `<svg viewBox="0 0 52 24" width="48" height="22" xmlns="http:/
 </svg>`;
 
 const APPARATEN = [
-  { naam: 'Volvo XC90 PHEV', icon: VOLVO_SVG, uren: 6,   kw: 2.3 },
-  { naam: 'Vaatwasser',       icon: '🍽️',     uren: 3.5, kw: 1.8 }
+  { naam: 'Volvo XC90 PHEV', icon: VOLVO_SVG, uren: 6, kw: 2.3 },
+  { naam: 'Vaatwasser',      icon: '🍽️',     uren: 3, kw: 1.8 },
+  { naam: 'Wasmachine',      icon: '👕',      uren: 2, kw: 1.5 },
+  { naam: 'Droger',          icon: '🌀',      uren: 2, kw: 2.5 }
 ];
 
 function updateApparaatKaarten() {
@@ -545,7 +547,7 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v1.9.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.0.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
 </script>
 </body>
