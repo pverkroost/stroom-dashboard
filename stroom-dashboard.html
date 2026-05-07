@@ -89,7 +89,9 @@
   .av-label { color:var(--muted); }
   .av-prijs { font-weight:600; color:var(--text); }
   .av-prijs.beste { color:#27500a; }
-  .advies-bespaar { font-size:9px; font-weight:600; color:#27500a; background:#c0dd97; padding:2px 6px; border-radius:5px; align-self:flex-end; margin-top:2px; }
+  .advies-badge { font-size:9px; font-weight:600; padding:2px 6px; border-radius:5px; align-self:flex-end; margin-top:2px; }
+  .advies-badge.groen { color:#27500a; background:#c0dd97; }
+  .advies-badge.rood  { color:#791f1f; background:#f09595; }
   .advies-row { font-size:10px; color:var(--muted); margin-bottom:2px; }
   .advies-status { font-size:11px; font-weight:500; margin-top:6px; }
   .advies-status.nu { color:#27500a; }
@@ -410,8 +412,8 @@ const VOLVO_SVG = `<svg viewBox="0 0 52 24" width="48" height="22" xmlns="http:/
 const APPARATEN = [
   { naam: 'Volvo XC90 PHEV', icon: VOLVO_SVG, uren: 6, kw: 2.3 },
   { naam: 'Vaatwasser',      icon: '🍽️',     uren: 3, kw: 1.8 },
-  { naam: 'Wasmachine',      icon: '👕',      uren: 2, kw: 1.5 },
-  { naam: 'Droger',          icon: '🌀',      uren: 2, kw: 2.5 }
+  { naam: 'Wasmachine',      icon: '👕',      uren: 2, kw: 1.5, comboPart: 1 },
+  { naam: 'Droger',          icon: '🌀',      uren: 2, kw: 2.5, comboPart: 2 }
 ];
 
 function updateApparaatKaarten() {
@@ -447,6 +449,33 @@ function berekenKostenVanaf(uren, vermogenKw, prijzenLijst, vanIdx) {
   return uren * vermogenKw * gem;
 }
 
+function berekenComboBlok(uren1, kw1, uren2, kw2, prijzenLijst) {
+  const totaal = uren1 + uren2;
+  if (!prijzenLijst || prijzenLijst.length < totaal) return null;
+  let besteI = 0, besteKosten = Infinity;
+  for (let i = 0; i <= prijzenLijst.length - totaal; i++) {
+    const b1 = prijzenLijst.slice(i, i + uren1);
+    const b2 = prijzenLijst.slice(i + uren1, i + totaal);
+    const g1 = b1.reduce((s, p) => s + p.totaal, 0) / uren1;
+    const g2 = b2.reduce((s, p) => s + p.totaal, 0) / uren2;
+    const k = uren1 * kw1 * g1 + uren2 * kw2 * g2;
+    if (k < besteKosten) { besteKosten = k; besteI = i; }
+  }
+  const b1 = prijzenLijst.slice(besteI, besteI + uren1);
+  const b2 = prijzenLijst.slice(besteI + uren1, besteI + totaal);
+  const g1 = b1.reduce((s, p) => s + p.totaal, 0) / uren1;
+  const g2 = b2.reduce((s, p) => s + p.totaal, 0) / uren2;
+  const e1 = new Date(b1.at(-1).tijd); e1.setHours(e1.getHours() + 1);
+  const e2 = new Date(b2.at(-1).tijd); e2.setHours(e2.getHours() + 1);
+  const hs = d => String(d.getHours()).padStart(2,'0') + ':00';
+  return {
+    startIndex: besteI,
+    was:  { startTijd: b1[0].tijd, eindStr: hs(e1), kosten: uren1 * kw1 * g1 },
+    droog:{ startTijd: b2[0].tijd, eindStr: hs(e2), kosten: uren2 * kw2 * g2 },
+    totaalKosten: besteKosten
+  };
+}
+
 function renderLaadadvies() {
   const container = document.getElementById('laadadviesContainer');
   if (!cacheVandaag) { container.innerHTML = ''; return; }
@@ -458,55 +487,94 @@ function renderLaadadvies() {
     ...(cacheMorgen || [])
   ].slice(0, 18);
 
-  // Vertaal geselecteerd uur naar index in komende18
-  let geselecteerdIdx = 0;
+  // Vertaal geselecteerd uur naar index; heeftSelectie = actieve hover
+  let geselecteerdIdx = 0, heeftSelectie = false;
   if (geselecteerdStartTijd) {
     const gevonden = komende18.findIndex(p => p.tijd.getTime() === geselecteerdStartTijd.getTime());
-    if (gevonden >= 0) geselecteerdIdx = gevonden;
+    if (gevonden >= 0) { geselecteerdIdx = gevonden; heeftSelectie = true; }
   }
 
-  const kaarten = APPARATEN.map(ap => {
-    const res = berekenGoedkoopsteBlok(ap.uren, ap.kw, komende18);
-    if (!res) return `<div class="advies-card">
-      <div class="advies-device-icon">${ap.icon}</div>
-      <div class="advies-device-naam">${ap.naam}</div>
-      <div class="advies-row">Onvoldoende data</div>
-    </div>`;
+  const wasdroogRes = berekenComboBlok(2, 1.5, 2, 2.5, komende18);
+  const hs = d => d ? String(d.getHours()).padStart(2,'0') + ':00' : '—';
 
-    const kostenNu = berekenKostenVanaf(ap.uren, ap.kw, komende18, geselecteerdIdx);
-    const nuLabel  = geselecteerdIdx === 0
-      ? 'Nu starten'
-      : `Om ${String(komende18[geselecteerdIdx].tijd.getHours()).padStart(2,'0')}:00`;
+  function badge(kostenNu, kostenBeste) {
+    if (kostenNu === null) return '';
+    const diff = kostenNu - kostenBeste;
+    if (diff > 0.005)  return `<div class="advies-badge rood">kost € ${diff.toFixed(2)} meer</div>`;
+    if (diff < -0.005) return `<div class="advies-badge groen">bespaar € ${(-diff).toFixed(2)}</div>`;
+    return `<div class="advies-badge groen">beste tijd ✓</div>`;
+  }
 
-    const bespaar = kostenNu !== null ? kostenNu - res.kosten : null;
-    const bespaarHtml = bespaar !== null && bespaar > 0.005
-      ? `<div class="advies-bespaar">bespaar € ${bespaar.toFixed(2)}</div>`
-      : '';
+  function statusEl(startIdx) {
+    if (startIdx === 0) return `<div class="advies-status nu">✓ Nu laden!</div>`;
+    if (startIdx <= 2)  return `<div class="advies-status snel">⏰ Over ${startIdx} uur</div>`;
+    return `<div class="advies-status later">Later: over ${startIdx} uur</div>`;
+  }
 
-    const vergelijkHtml = `<div class="advies-vergelijk">
+  function vergelijk(nuLabel, kostenNu, kostenBeste) {
+    return `<div class="advies-vergelijk">
       <div class="av-rij"><span class="av-label">${nuLabel}</span><span class="av-prijs">${kostenNu !== null ? '€ ' + kostenNu.toFixed(2) : '—'}</span></div>
-      <div class="av-rij"><span class="av-label">Beste tijd</span><span class="av-prijs beste">€ ${res.kosten.toFixed(2)}</span></div>
-      ${bespaarHtml}
+      <div class="av-rij"><span class="av-label">Beste tijd</span><span class="av-prijs beste">€ ${kostenBeste.toFixed(2)}</span></div>
+      ${badge(kostenNu, kostenBeste)}
     </div>`;
+  }
 
-    const startUurStr = String(res.startTijd.getHours()).padStart(2,'0') + ':00';
+  // Bij actieve selectie altijd "Starten om HH:00", anders "Nu starten"
+  const nuLabelBase = heeftSelectie
+    ? `Starten om ${hs(komende18[geselecteerdIdx].tijd)}`
+    : 'Nu starten';
+
+  const kaarten = APPARATEN.map(ap => {
+    const leeg = `<div class="advies-card"><div class="advies-device-icon">${ap.icon}</div><div class="advies-device-naam">${ap.naam}</div><div class="advies-row">Onvoldoende data</div></div>`;
+
+    // ── Wasmachine (combo deel 1) ──
+    if (ap.comboPart === 1) {
+      if (!wasdroogRes) return leeg;
+      const nuLabel = heeftSelectie ? `Starten om ${hs(komende18[geselecteerdIdx].tijd)}` : 'Nu starten';
+      const kostenNu = berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx);
+      const isMorgen = wasdroogRes.was.startTijd.getDate() !== now.getDate();
+      return `<div class="advies-card">
+        <div class="advies-device-icon">${ap.icon}</div>
+        <div class="advies-device-naam">${ap.naam}</div>
+        ${vergelijk(nuLabel, kostenNu, wasdroogRes.was.kosten)}
+        <div class="advies-row">Beste: ${hs(wasdroogRes.was.startTijd)} – ${wasdroogRes.was.eindStr}${isMorgen ? ' (morgen)' : ''}</div>
+        ${statusEl(wasdroogRes.startIndex)}
+      </div>`;
+    }
+
+    // ── Droger (combo deel 2) ──
+    if (ap.comboPart === 2) {
+      if (!wasdroogRes) return leeg;
+      const droogNuIdx = geselecteerdIdx + 2;
+      const droogLabel = (heeftSelectie && droogNuIdx < komende18.length)
+        ? `Starten om ${hs(komende18[droogNuIdx].tijd)} (na was)`
+        : 'Na wasmachine';
+      const droogNuKosten = berekenKostenVanaf(2, 2.5, komende18, droogNuIdx);
+      const wasNuKosten   = berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx);
+      const totaalNu = (wasNuKosten !== null && droogNuKosten !== null) ? wasNuKosten + droogNuKosten : null;
+      const isMorgen = wasdroogRes.droog.startTijd.getDate() !== now.getDate();
+      const totaalRegel = `<div class="advies-row" style="margin-top:5px;padding-top:5px;border-top:0.5px solid var(--border)">Totaal was+droog: <b>€ ${wasdroogRes.totaalKosten.toFixed(2)}</b>${totaalNu !== null && totaalNu > wasdroogRes.totaalKosten + 0.005 ? ` · nu: € ${totaalNu.toFixed(2)}` : ''}</div>`;
+      return `<div class="advies-card">
+        <div class="advies-device-icon">${ap.icon}</div>
+        <div class="advies-device-naam">${ap.naam}</div>
+        ${vergelijk(droogLabel, droogNuKosten, wasdroogRes.droog.kosten)}
+        <div class="advies-row">Beste: ${hs(wasdroogRes.droog.startTijd)} – ${wasdroogRes.droog.eindStr}${isMorgen ? ' (morgen)' : ''} (na was)</div>
+        ${statusEl(wasdroogRes.startIndex + 2)}
+        ${totaalRegel}
+      </div>`;
+    }
+
+    // ── Normaal apparaat ──
+    const res = berekenGoedkoopsteBlok(ap.uren, ap.kw, komende18);
+    if (!res) return leeg;
+    const kostenNu = berekenKostenVanaf(ap.uren, ap.kw, komende18, geselecteerdIdx);
     const isMorgen = res.startTijd.getDate() !== now.getDate();
-    const periodeStr = startUurStr + ' – ' + res.eindStr + (isMorgen ? ' (morgen)' : '');
-    const isNu   = res.startIndex === 0;
-    const isSnel = !isNu && res.startIndex <= 2;
-
-    const statusHtml = isNu
-      ? `<div class="advies-status nu">✓ Nu laden!</div>`
-      : isSnel
-        ? `<div class="advies-status snel">⏰ Over ${res.startIndex} uur</div>`
-        : `<div class="advies-status later">Later: over ${res.startIndex} uur</div>`;
-
     return `<div class="advies-card">
       <div class="advies-device-icon">${ap.icon}</div>
       <div class="advies-device-naam">${ap.naam}</div>
-      ${vergelijkHtml}
-      <div class="advies-row">Beste: ${periodeStr}</div>
-      ${statusHtml}
+      ${vergelijk(nuLabelBase, kostenNu, res.kosten)}
+      <div class="advies-row">Beste: ${hs(res.startTijd)} – ${res.eindStr}${isMorgen ? ' (morgen)' : ''}</div>
+      ${statusEl(res.startIndex)}
     </div>`;
   }).join('');
 
@@ -547,7 +615,7 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.0.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.1.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
 </script>
 </body>
