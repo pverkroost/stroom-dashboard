@@ -6,11 +6,21 @@ let openMeteoVandaag = null;
 let solarToggleAan = localStorage.getItem('solarToggle') !== 'uit';
 
 function switchDay(day) {
-  isZonTab = false;
   activeDay = day;
   toonVerleden = false;
   geselecteerdStartTijd = null;
   if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
+
+  if (isZonTab) {
+    // Blijf op Zon tab, update alleen de dag-inhoud
+    document.getElementById('tab-0').classList.toggle('active', day === 0);
+    document.getElementById('tab-1').classList.toggle('active', day === 1);
+    document.getElementById('tab-2').classList.add('active');
+    renderZonTab(day);
+    return;
+  }
+
+  isZonTab = false;
   document.getElementById('mainContent').style.display = '';
   document.getElementById('zonContent').style.display = 'none';
   document.getElementById('tab-0').classList.toggle('active', day === 0);
@@ -80,5 +90,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.7.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.8.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
