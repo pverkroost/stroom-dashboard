@@ -254,7 +254,7 @@
 <div class="footer">
   Prijzen via EnergyZero API · EPEX day-ahead<br>
   (EPEX + €0,03194 + €0,09161) × 1,21<br>
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.4.0</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.4.1</span>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -297,28 +297,54 @@ async function fetchSolarEdge() {
   const dateStr = new Date().toISOString().slice(0, 10);
   const gisterenDate = new Date(); gisterenDate.setDate(gisterenDate.getDate() - 1);
   const gisterenStr  = gisterenDate.toISOString().slice(0, 10);
+
   const [powerRes, overviewRes, gisterenRes] = await Promise.all([
-    fetch(`/api/solaredge?type=power&date=${dateStr}`),
+    fetch(`/api/solaredge?type=power&date=${dateStr}`).catch(() => null),
     fetch(`/api/solaredge?type=overview`),
-    fetch(`/api/solaredge?type=energy&startDate=${gisterenStr}&endDate=${gisterenStr}`)
+    fetch(`/api/solaredge?type=energy&startDate=${gisterenStr}&endDate=${gisterenStr}`).catch(() => null)
   ]);
-  if (!powerRes.ok || !overviewRes.ok) return null;
-  const powerData    = await powerRes.json();
-  const overviewData = await overviewRes.json();
-  if (powerData.error || overviewData.error) return null;
-  const hourly      = aggregateToHourly(powerData?.power?.values || []);
+
+  // Overview is verplicht; power en gisteren zijn optioneel
+  if (!overviewRes?.ok) {
+    console.warn('[SolarEdge] overview call mislukt', overviewRes?.status);
+    return null;
+  }
+  const overviewData = await overviewRes.json().catch(() => null);
+  if (!overviewData || overviewData.error) {
+    console.warn('[SolarEdge] overview parse mislukt of bevat error', overviewData);
+    return null;
+  }
+
   const currentWatt = overviewData?.overview?.currentPower?.power ?? 0;
   const todayKwh    = (overviewData?.overview?.lastDayData?.energy ?? 0) / 1000;
   const maandKwh    = (overviewData?.overview?.lastMonthData?.energy ?? 0) / 1000;
-  const gisterenData = gisterenRes.ok ? await gisterenRes.json() : null;
-  const gisterenWh   = gisterenData?.energy?.values?.[0]?.value ?? null;
-  const piekEntry    = hourly.length ? hourly.reduce((b, e) => e.watt > b.watt ? e : b) : null;
-  return {
-    hourly, currentWatt, todayKwh, maandKwh,
-    gisterenKwh: gisterenWh !== null ? gisterenWh / 1000 : null,
-    piekWatt: piekEntry?.watt ?? 0,
-    piekUur:  piekEntry?.hour ?? null
-  };
+  console.log('[SolarEdge] overview OK — currentWatt:', currentWatt, 'todayKwh:', todayKwh, 'maandKwh:', maandKwh);
+
+  // Power (uurdata) — optioneel, bijv. 's nachts geen data
+  let hourly = [], piekWatt = 0, piekUur = null;
+  if (powerRes?.ok) {
+    const powerData = await powerRes.json().catch(() => null);
+    if (powerData && !powerData.error) {
+      hourly = aggregateToHourly(powerData?.power?.values || []);
+      const piekEntry = hourly.length ? hourly.reduce((b, e) => e.watt > b.watt ? e : b) : null;
+      piekWatt = piekEntry?.watt ?? 0;
+      piekUur  = piekEntry?.hour ?? null;
+    } else {
+      console.warn('[SolarEdge] power response leeg of fout', powerData);
+    }
+  } else {
+    console.warn('[SolarEdge] power call mislukt (status:', powerRes?.status, ') — geen uurdata');
+  }
+
+  // Gisteren energy — optioneel
+  let gisterenKwh = null;
+  if (gisterenRes?.ok) {
+    const gisterenData = await gisterenRes.json().catch(() => null);
+    const gisterenWh   = gisterenData?.energy?.values?.[0]?.value ?? null;
+    if (gisterenWh !== null) gisterenKwh = gisterenWh / 1000;
+  }
+
+  return { hourly, currentWatt, todayKwh, maandKwh, gisterenKwh, piekWatt, piekUur };
 }
 
 async function fetchGrowatt() {
@@ -357,6 +383,7 @@ async function fetchSolarMorgen() {
 }
 
 function renderSolarKaartjes() {
+  console.log('[Solar] solarVandaag:', solarVandaag);
   if (!solarVandaag) {
     document.getElementById('solarNu').textContent = '—';
     document.getElementById('solarNuEen').textContent = 'W';
@@ -367,10 +394,10 @@ function renderSolarKaartjes() {
   const nowH  = new Date().getHours();
   const entry = solarVandaag.hourly?.find(e => e.hour === nowH);
   const w     = solarVandaag.currentWatt ?? entry?.watt ?? 0;
-  document.getElementById('solarNu').textContent = w >= 1000 ? (w/1000).toFixed(1)+' kW' : Math.round(w)+' W';
+  document.getElementById('solarNu').textContent = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
   document.getElementById('solarNuEen').textContent = w > 0 ? 'nu opgewekt' : 'geen productie';
   const kwh = solarVandaag.todayKwh ?? 0;
-  document.getElementById('solarVandaagKwh').textContent = kwh.toFixed(1);
+  document.getElementById('solarVandaagKwh').textContent = kwh.toFixed(2);
   document.getElementById('solarVandaagEen').textContent = 'kWh vandaag';
 }
 
@@ -955,7 +982,7 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.4.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.4.1 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
 </script>
 </body>
