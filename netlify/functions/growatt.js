@@ -17,42 +17,48 @@ exports.handler = async (event) => {
   }
 
   const [y, m, d] = date.split('-');
-  const dateFormats = [
-    { label: 'YYYY-MM-DD', value: date },
-    { label: 'YYYYMMDD',   value: `${y}${m}${d}` },
-    { label: 'DD-MM-YYYY', value: `${d}-${m}-${y}` },
-    { label: 'MM/DD/YYYY', value: `${m}/${d}/${y}` }
-  ];
-
   const endpoint = type === 'power'
     ? 'https://openapi.growatt.com/v1/plant/power'
     : 'https://openapi.growatt.com/v1/plant/energy';
 
+  // Alle combinaties van datumformaat × parameternaam
+  const variants = [
+    { paramName: 'date',      dateValue: `${y}-${m}-${d}` },   // YYYY-MM-DD
+    { paramName: 'date',      dateValue: `${y}-${m}` },          // YYYY-MM
+    { paramName: 'date',      dateValue: `${y}${m}${d}` },       // YYYYMMDD
+    { paramName: 'time',      dateValue: `${y}-${m}-${d}` },
+    { paramName: 'time',      dateValue: `${y}-${m}` },
+    { paramName: 'time',      dateValue: `${y}${m}${d}` },
+    { paramName: 'startDate', dateValue: `${y}-${m}-${d}` },
+    { paramName: 'startDate', dateValue: `${y}-${m}` },
+  ];
+
   const attempts = [];
 
-  for (const fmt of dateFormats) {
+  for (const v of variants) {
     try {
-      const url = `${endpoint}?plant_id=${plantId}&date=${encodeURIComponent(fmt.value)}`;
+      const url = `${endpoint}?plant_id=${plantId}&${v.paramName}=${encodeURIComponent(v.dateValue)}`;
       const res  = await fetch(url, { headers: { token: apiToken } });
       const text = await res.text();
-      const isHtml = text.trimStart().startsWith('<');
       let json = null;
       try { json = JSON.parse(text); } catch (_) {}
-      attempts.push({ dateFormat: fmt.label, dateValue: fmt.value, status: res.status, isHtml, bodySnippet: text.slice(0, 300), json });
-      if (json && !isHtml) break; // stop bij eerste werkend formaat
+      const isHtml   = text.trimStart().startsWith('<');
+      const hasError = json?.error_code && json.error_code !== 0;
+      attempts.push({ paramName: v.paramName, dateValue: v.dateValue, status: res.status, isHtml, hasError, errorMsg: json?.error_msg ?? null, json });
+      if (json && !isHtml && !hasError) break; // stop bij echte succesresponse
     } catch (e) {
-      attempts.push({ dateFormat: fmt.label, dateValue: fmt.value, error: e.message });
+      attempts.push({ paramName: v.paramName, dateValue: v.dateValue, error: e.message });
     }
   }
 
-  const winner = attempts.find(a => a.json && !a.isHtml);
+  const winner = attempts.find(a => a.json && !a.isHtml && !a.hasError);
 
   return {
     statusCode: 200,
     headers: HEADERS_JSON,
     body: JSON.stringify({
-      winner: winner ? winner.dateFormat : null,
-      data: winner?.json ?? null,
+      winner: winner ? `${winner.paramName}=${winner.dateValue}` : null,
+      data:   winner?.json ?? null,
       attempts
     })
   };
