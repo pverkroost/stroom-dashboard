@@ -244,13 +244,20 @@ function renderDashboard(prijzen, day) {
 
   const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
 
-  // Kleur per bar — verleden iets grijs
+  // Kleur per bar — verleden iets grijs, huidig uur krijgt normale prijskleur
   const barKleuren = prijzen.map(p => {
-    const isNu = day === 0 && p.tijd.getHours() === nowUur;
     const isPast = day === 0 && p.tijd.getHours() < nowUur;
-    if (isNu) return '#1a6e47';
     if (isPast) return isDark ? '#444' : '#ccc';
     return kleur(p.totaal, min, max, gem).bar;
+  });
+
+  const barBorders = prijzen.map(p => {
+    const isNu = day === 0 && p.tijd.getHours() === nowUur;
+    return isNu ? (isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.55)') : 'transparent';
+  });
+
+  const barBorderWidths = prijzen.map(p => {
+    return day === 0 && p.tijd.getHours() === nowUur ? 2 : 0;
   });
 
   if (chart) chart.destroy();
@@ -290,7 +297,7 @@ function renderDashboard(prijzen, day) {
     plugins: [verticalLinePlugin],
     data: {
       labels: prijzen.map(p => uurStr(p.tijd)),
-      datasets: [{ data: prijzen.map(p => parseFloat(p.totaal.toFixed(3))), backgroundColor: barKleuren, borderRadius: 3, borderSkipped: false }]
+      datasets: [{ data: prijzen.map(p => parseFloat(p.totaal.toFixed(3))), backgroundColor: barKleuren, borderColor: barBorders, borderWidth: barBorderWidths, borderRadius: 3, borderSkipped: false }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -387,7 +394,7 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v1.4.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v1.5.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
 </script>
 </body>
