@@ -1,3 +1,5 @@
+const fetch = require('node-fetch');
+
 exports.handler = async (event) => {
   const { type, date } = event.queryStringParameters || {};
   const apiKey = process.env.SOLAREDGE_API_KEY;
