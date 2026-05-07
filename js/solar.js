@@ -106,21 +106,15 @@ function getSolarForIdx(solarData, hour) {
 
 function renderSolarKaartjes() {
   const isMorgen = activeDay === 1;
-  document.getElementById('solarNuCard').style.display = isMorgen ? 'none' : '';
+  document.getElementById('solarNuCard').style.display      = isMorgen ? 'none' : '';
+  document.getElementById('solarVandaagCard').style.display = isMorgen ? 'none' : '';
 
-  if (isMorgen) {
-    const hourly    = solarMorgen?.hourly || [];
-    const verwacht  = (hourly.reduce((s, e) => s + e.watt, 0) / 1000).toFixed(2);
-    document.getElementById('solarVandaagLabel').textContent = '☀️ Verwacht morgen';
-    document.getElementById('solarVandaagKwh').textContent   = solarMorgen ? verwacht : '—';
-    document.getElementById('solarVandaagEen').textContent   = 'kWh verwacht';
-    return;
-  }
+  if (isMorgen) return;
 
   document.getElementById('solarVandaagLabel').textContent = '☀️ Vandaag';
   if (!solarVandaag) {
-    document.getElementById('solarNu').textContent        = '—';
-    document.getElementById('solarNuEen').textContent     = 'W';
+    document.getElementById('solarNu').textContent         = '—';
+    document.getElementById('solarNuEen').textContent      = 'W';
     document.getElementById('solarVandaagKwh').textContent = '—';
     document.getElementById('solarVandaagEen').textContent = 'kWh';
     return;

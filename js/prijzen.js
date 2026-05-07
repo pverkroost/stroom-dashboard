@@ -16,9 +16,9 @@ function renderGeenData() {
   document.getElementById('huidigUur').textContent = 'per kWh';
   document.getElementById('prijsPill').style.display = 'none';
   document.getElementById('laagstePrijs').textContent = '—';
-  document.getElementById('laagsteUur').textContent = '—';
+  document.getElementById('laagsteUur').textContent = 'Beschikbaar na 14:00';
   document.getElementById('hoogstePrijs').textContent = '—';
-  document.getElementById('hoogsteUur').textContent = '—';
+  document.getElementById('hoogsteUur').textContent = 'Beschikbaar na 14:00';
   document.getElementById('chartTitle').textContent = 'Morgen';
   document.getElementById('urenLijst').innerHTML = '<div class="no-data">Prijzen voor morgen zijn nog niet beschikbaar.<br>EPEX publiceert ze rond 14:00 uur.</div>';
   if (chart) { chart.destroy(); chart = null; }
