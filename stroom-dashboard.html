@@ -140,6 +140,16 @@
     <div class="card-val" id="hoogstePrijs">—</div>
     <div class="card-time" id="hoogsteUur">—</div>
   </div>
+  <div class="card">
+    <div class="card-label">☀️ Nu</div>
+    <div class="card-val" id="solarNu">—</div>
+    <div class="card-time" id="solarNuEen">W</div>
+  </div>
+  <div class="card">
+    <div class="card-label">☀️ Vandaag</div>
+    <div class="card-val" id="solarVandaagKwh">—</div>
+    <div class="card-time" id="solarVandaagEen">kWh</div>
+  </div>
 </div>
 
 <div class="section">
@@ -178,14 +188,22 @@
 <div class="footer">
   Prijzen via EnergyZero API · EPEX day-ahead<br>
   (EPEX + €0,03194 + €0,09161) × 1,21<br>
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v1.4.0</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.2.0</span>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 const OPSLAG = 0.03194, EB = 0.09161, BTW = 1.21;
+const SOLAREDGE_API_KEY = 'VERVANG_MET_JOUW_KEY';
+const SOLAREDGE_SITE_ID = '4066538';
+const SOLAR_FORECAST_FACTOR = 4;
+const SOLAR_SOURCES = [
+  { name: 'SolarEdge', siteId: SOLAREDGE_SITE_ID, apiKey: SOLAREDGE_API_KEY, type: 'solaredge' },
+  // { name: 'Growatt', apiKey: '...', type: 'growatt' },
+];
 let chart = null, activeDay = 0, cacheVandaag = null, cacheMorgen = null;
 let toonVerleden = false, geselecteerdStartTijd = null, rAFId = null;
+let solarVandaag = null, solarMorgen = null;
 
 function berekenPrijs(epex) { return (epex + OPSLAG + EB) * BTW; }
 function uurStr(d) { return d.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' }); }
@@ -195,6 +213,85 @@ function kleur(p, min, max, gem) {
   if (p >= max * 0.95) return { bar:'#a32d2d', text:'#791f1f', bg:'rgba(240,149,149,0.2)' };
   if (p < gem)         return { bar:'#639922', text:'#3b6d11', bg:'transparent' };
   return                      { bar:'#ba7517', text:'#854f0b', bg:'transparent' };
+}
+
+function aggregateToHourly(values) {
+  const byHour = {};
+  for (const v of values) {
+    const h = new Date(v.date).getHours();
+    if (!byHour[h]) byHour[h] = [];
+    byHour[h].push(v.value);
+  }
+  return Object.entries(byHour).map(([h, vals]) => ({
+    hour: parseInt(h),
+    watt: vals.reduce((s, v) => s + v, 0) / vals.length
+  }));
+}
+
+async function fetchSolarEdge() {
+  const src = SOLAR_SOURCES.find(s => s.type === 'solaredge');
+  if (!src || src.apiKey === 'VERVANG_MET_JOUW_KEY') return null;
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+  const startTime = encodeURIComponent(dateStr + ' 00:00:00');
+  const endTime   = encodeURIComponent(dateStr + ' 23:59:59');
+  const [powerRes, overviewRes] = await Promise.all([
+    fetch(`https://monitoringapi.solaredge.com/site/${src.siteId}/power?startTime=${startTime}&endTime=${endTime}&api_key=${src.apiKey}`),
+    fetch(`https://monitoringapi.solaredge.com/site/${src.siteId}/overview?api_key=${src.apiKey}`)
+  ]);
+  const powerData    = await powerRes.json();
+  const overviewData = await overviewRes.json();
+  const hourly      = aggregateToHourly(powerData?.power?.values || []);
+  const currentWatt = overviewData?.overview?.currentPower?.power ?? 0;
+  const todayKwh    = (overviewData?.overview?.lastDayData?.energy ?? 0) / 1000;
+  return { hourly, currentWatt, todayKwh };
+}
+
+// async function fetchGrowatt(src) { /* TODO: Growatt API */ return null; }
+
+async function fetchSolarData() {
+  for (const src of SOLAR_SOURCES) {
+    try {
+      if (src.type === 'solaredge') { const d = await fetchSolarEdge(); if (d) return d; }
+      // if (src.type === 'growatt')   { const d = await fetchGrowatt(src); if (d) return d; }
+    } catch(e) { /* volgende bron proberen */ }
+  }
+  return null;
+}
+
+async function fetchSolarMorgen() {
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+  const dateStr = tomorrow.toISOString().slice(0, 10);
+  const lat = 52.37, lon = 4.9; // Amsterdam — pas aan voor jouw locatie
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=shortwave_radiation&start_date=${dateStr}&end_date=${dateStr}&timezone=Europe%2FAmsterdam`;
+  const res  = await fetch(url);
+  const data = await res.json();
+  const times = data?.hourly?.time || [];
+  const rads  = data?.hourly?.shortwave_radiation || [];
+  return {
+    hourly: times.map((t, i) => ({
+      hour: parseInt(t.slice(11, 13)),
+      watt: Math.round((rads[i] || 0) * SOLAR_FORECAST_FACTOR)
+    })).filter(e => e.watt > 0)
+  };
+}
+
+function renderSolarKaartjes() {
+  if (!solarVandaag) {
+    document.getElementById('solarNu').textContent = '—';
+    document.getElementById('solarNuEen').textContent = 'W';
+    document.getElementById('solarVandaagKwh').textContent = '—';
+    document.getElementById('solarVandaagEen').textContent = 'kWh';
+    return;
+  }
+  const nowH  = new Date().getHours();
+  const entry = solarVandaag.hourly?.find(e => e.hour === nowH);
+  const w     = solarVandaag.currentWatt ?? entry?.watt ?? 0;
+  document.getElementById('solarNu').textContent = w >= 1000 ? (w/1000).toFixed(1)+' kW' : Math.round(w)+' W';
+  document.getElementById('solarNuEen').textContent = w > 0 ? 'nu opgewekt' : 'geen productie';
+  const kwh = solarVandaag.todayKwh ?? 0;
+  document.getElementById('solarVandaagKwh').textContent = kwh.toFixed(1);
+  document.getElementById('solarVandaagEen').textContent = 'kWh vandaag';
 }
 
 async function fetchPrijzen(offset) {
@@ -285,6 +382,11 @@ function renderDashboard(prijzen, day) {
     return day === 0 && p.tijd.getHours() === nowUur ? 2 : 0;
   });
 
+  const solarSrc = day === 0 ? solarVandaag : solarMorgen;
+  const solarUurData = solarSrc?.hourly
+    ? prijzen.map(p => { const h = solarSrc.hourly.find(e => e.hour === p.tijd.getHours()); return h ? Math.round(h.watt) : 0; })
+    : null;
+
   if (chart) chart.destroy();
 
   // Stippellijn plugin voor huidig uur
@@ -294,7 +396,8 @@ function renderDashboard(prijzen, day) {
     id: 'verticalLine',
     afterDraw(chart) {
       const active = chart.tooltip?._active;
-      const idx = (active && active.length > 0) ? active[0].index : nowUurIndex;
+      const activeEl = active?.find(el => el.datasetIndex === 0) ?? (active?.[0] ?? null);
+      const idx = activeEl ? activeEl.index : nowUurIndex;
       if (idx < 0) return;
       const ctx = chart.ctx;
       const meta = chart.getDatasetMeta(0);
@@ -322,7 +425,10 @@ function renderDashboard(prijzen, day) {
     plugins: [verticalLinePlugin],
     data: {
       labels: prijzen.map(p => uurStr(p.tijd)),
-      datasets: [{ data: prijzen.map(p => parseFloat(p.totaal.toFixed(3))), backgroundColor: barKleuren, borderColor: barBorders, borderWidth: barBorderWidths, borderRadius: 3, borderSkipped: false }]
+      datasets: [
+        { data: prijzen.map(p => parseFloat(p.totaal.toFixed(3))), backgroundColor: barKleuren, borderColor: barBorders, borderWidth: barBorderWidths, borderRadius: 3, borderSkipped: false, yAxisID: 'y' },
+        ...(solarUurData ? [{ type: 'line', data: solarUurData, borderColor: 'rgba(255,200,50,0.8)', backgroundColor: 'rgba(255,200,50,0.12)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5, yAxisID: 'ySolar' }] : [])
+      ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -362,7 +468,8 @@ function renderDashboard(prijzen, day) {
       },
       scales: {
         x: { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, autoSkip:true, maxTicksLimit:8, maxRotation:0 }, grid:{display:false} },
-        y: { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, callback: v => '€'+v.toFixed(2) }, grid:{ color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)' } }
+        y: { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, callback: v => '€'+v.toFixed(2) }, grid:{ color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)' } },
+        ySolar: { display: false, beginAtZero: true, position: 'right' }
       }
     }
   });
@@ -476,6 +583,28 @@ function berekenComboBlok(uren1, kw1, uren2, kw2, prijzenLijst) {
   };
 }
 
+function getSolarForIdx(solarData, hour) {
+  if (!solarData?.hourly) return 0;
+  const entry = solarData.hourly.find(e => e.hour === hour);
+  return entry ? entry.watt : 0;
+}
+
+function effectieveKosten(uren, vermogenKw, prijzenLijst, vanIdx) {
+  const blokGrootte = Math.ceil(uren);
+  if (!prijzenLijst || vanIdx + blokGrootte > prijzenLijst.length) return null;
+  const vandaagStart = new Date(); vandaagStart.setHours(0,0,0,0);
+  const morgenStart  = new Date(vandaagStart); morgenStart.setDate(morgenStart.getDate() + 1);
+  let totaal = 0;
+  for (let i = vanIdx; i < vanIdx + blokGrootte; i++) {
+    const p = prijzenLijst[i];
+    const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
+    const src = dagStart.getTime() === morgenStart.getTime() ? solarMorgen : solarVandaag;
+    const nettoKw = Math.max(0, vermogenKw - getSolarForIdx(src, p.tijd.getHours()) / 1000);
+    totaal += nettoKw * p.totaal;
+  }
+  return totaal;
+}
+
 function renderLaadadvies() {
   const container = document.getElementById('laadadviesContainer');
   if (!cacheVandaag) { container.innerHTML = ''; return; }
@@ -511,11 +640,15 @@ function renderLaadadvies() {
     return `<div class="advies-status later">Later: over ${startIdx} uur</div>`;
   }
 
-  function vergelijk(nuLabel, kostenNu, kostenBeste) {
+  function vergelijk(nuLabel, kostenNu, kostenBeste, solarNuKosten) {
+    const showSolar = solarNuKosten !== undefined && solarNuKosten !== null
+      && kostenNu !== null && Math.abs(solarNuKosten - kostenNu) > 0.001;
+    const effectief = showSolar ? solarNuKosten : kostenNu;
     return `<div class="advies-vergelijk">
       <div class="av-rij"><span class="av-label">${nuLabel}</span><span class="av-prijs">${kostenNu !== null ? '€ ' + kostenNu.toFixed(2) : '—'}</span></div>
       <div class="av-rij"><span class="av-label">Beste tijd</span><span class="av-prijs beste">€ ${kostenBeste.toFixed(2)}</span></div>
-      ${badge(kostenNu, kostenBeste)}
+      ${showSolar ? `<div class="av-rij"><span class="av-label">☀️ Met zon</span><span class="av-prijs" style="color:#b8800a">€ ${solarNuKosten.toFixed(2)}</span></div>` : ''}
+      ${badge(effectief, kostenBeste)}
     </div>`;
   }
 
@@ -532,11 +665,12 @@ function renderLaadadvies() {
       if (!wasdroogRes) return leeg;
       const nuLabel = heeftSelectie ? `Starten om ${hs(komende18[geselecteerdIdx].tijd)}` : 'Nu starten';
       const kostenNu = berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx);
+      const solarNu  = solarVandaag ? effectieveKosten(2, 1.5, komende18, geselecteerdIdx) : undefined;
       const isMorgen = wasdroogRes.was.startTijd.getDate() !== now.getDate();
       return `<div class="advies-card">
         <div class="advies-device-icon">${ap.icon}</div>
         <div class="advies-device-naam">${ap.naam}</div>
-        ${vergelijk(nuLabel, kostenNu, wasdroogRes.was.kosten)}
+        ${vergelijk(nuLabel, kostenNu, wasdroogRes.was.kosten, solarNu)}
         <div class="advies-row">Beste: ${hs(wasdroogRes.was.startTijd)} – ${wasdroogRes.was.eindStr}${isMorgen ? ' (morgen)' : ''}</div>
         ${statusEl(wasdroogRes.startIndex)}
       </div>`;
@@ -552,12 +686,13 @@ function renderLaadadvies() {
       const droogNuKosten = berekenKostenVanaf(2, 2.5, komende18, droogNuIdx);
       const wasNuKosten   = berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx);
       const totaalNu = (wasNuKosten !== null && droogNuKosten !== null) ? wasNuKosten + droogNuKosten : null;
+      const droogSolarNu = solarVandaag ? effectieveKosten(2, 2.5, komende18, droogNuIdx) : undefined;
       const isMorgen = wasdroogRes.droog.startTijd.getDate() !== now.getDate();
       const totaalRegel = `<div class="advies-row" style="margin-top:5px;padding-top:5px;border-top:0.5px solid var(--border)">Totaal was+droog: <b>€ ${wasdroogRes.totaalKosten.toFixed(2)}</b>${totaalNu !== null && totaalNu > wasdroogRes.totaalKosten + 0.005 ? ` · nu: € ${totaalNu.toFixed(2)}` : ''}</div>`;
       return `<div class="advies-card">
         <div class="advies-device-icon">${ap.icon}</div>
         <div class="advies-device-naam">${ap.naam}</div>
-        ${vergelijk(droogLabel, droogNuKosten, wasdroogRes.droog.kosten)}
+        ${vergelijk(droogLabel, droogNuKosten, wasdroogRes.droog.kosten, droogSolarNu)}
         <div class="advies-row">Beste: ${hs(wasdroogRes.droog.startTijd)} – ${wasdroogRes.droog.eindStr}${isMorgen ? ' (morgen)' : ''} (na was)</div>
         ${statusEl(wasdroogRes.startIndex + 2)}
         ${totaalRegel}
@@ -568,11 +703,12 @@ function renderLaadadvies() {
     const res = berekenGoedkoopsteBlok(ap.uren, ap.kw, komende18);
     if (!res) return leeg;
     const kostenNu = berekenKostenVanaf(ap.uren, ap.kw, komende18, geselecteerdIdx);
+    const solarNu  = solarVandaag ? effectieveKosten(ap.uren, ap.kw, komende18, geselecteerdIdx) : undefined;
     const isMorgen = res.startTijd.getDate() !== now.getDate();
     return `<div class="advies-card">
       <div class="advies-device-icon">${ap.icon}</div>
       <div class="advies-device-naam">${ap.naam}</div>
-      ${vergelijk(nuLabelBase, kostenNu, res.kosten)}
+      ${vergelijk(nuLabelBase, kostenNu, res.kosten, solarNu)}
       <div class="advies-row">Beste: ${hs(res.startTijd)} – ${res.eindStr}${isMorgen ? ' (morgen)' : ''}</div>
       ${statusEl(res.startIndex)}
     </div>`;
@@ -590,11 +726,19 @@ function toggleVerleden() {
 async function laadPrijzen() {
   document.getElementById('lastUpdate').textContent = 'Ophalen...';
   try {
-    const [vandaag, morgen] = await Promise.all([fetchPrijzen(0), fetchPrijzen(1).catch(() => null)]);
+    const [vandaag, morgen, solar, solarM] = await Promise.all([
+      fetchPrijzen(0),
+      fetchPrijzen(1).catch(() => null),
+      fetchSolarData().catch(() => null),
+      fetchSolarMorgen().catch(() => null)
+    ]);
     cacheVandaag = vandaag;
-    cacheMorgen = morgen;
+    cacheMorgen  = morgen;
+    solarVandaag = solar;
+    solarMorgen  = solarM;
     switchDay(activeDay);
     renderLaadadvies();
+    renderSolarKaartjes();
     document.getElementById('lastUpdate').textContent = 'Bijgewerkt ' + uurStr(new Date());
   } catch(e) {
     document.getElementById('lastUpdate').textContent = 'Fout bij laden';
@@ -615,7 +759,7 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.1.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.2.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
 </script>
 </body>
