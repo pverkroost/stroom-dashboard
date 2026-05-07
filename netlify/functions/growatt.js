@@ -1,56 +1,71 @@
-const fetch = require('node-fetch');
+const fetch  = require('node-fetch');
+const crypto = require('crypto');
 
-const BASE_URL = 'https://server.growatt.com';
 const HEADERS_JSON = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
 
 exports.handler = async (event) => {
-  const token   = process.env.GROWATT_API_TOKEN;
-  const plantId = process.env.GROWATT_PLANT_ID;
+  const username = process.env.GROWATT_USERNAME;
+  const password = process.env.GROWATT_PASSWORD;
+  const plantId  = process.env.GROWATT_PLANT_ID;
 
-  if (!token || !plantId) {
+  if (!username || !password || !plantId) {
     return {
       statusCode: 503,
       headers: HEADERS_JSON,
-      body: JSON.stringify({ error: 'Growatt niet geconfigureerd (GROWATT_API_TOKEN of GROWATT_PLANT_ID ontbreekt)' })
+      body: JSON.stringify({ error: 'Growatt niet geconfigureerd (GROWATT_USERNAME, GROWATT_PASSWORD of GROWATT_PLANT_ID ontbreekt)' })
     };
   }
 
   const date = event.queryStringParameters?.date || new Date().toISOString().split('T')[0];
-  const authHeader = { Authorization: `Bearer ${token}` };
+  const passwordMd5 = crypto.createHash('md5').update(password).digest('hex');
 
   try {
-    const [powerRes, energyRes] = await Promise.all([
-      fetch(`${BASE_URL}/v1/plant/power?plantId=${plantId}&date=${date}`, { headers: authHeader }),
-      fetch(`${BASE_URL}/v1/plant/energy?plantId=${plantId}&date=${date}`, { headers: authHeader })
-    ]);
+    // Stap 1: inloggen en cookie ophalen
+    const loginRes = await fetch('https://server.growatt.com/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `account=${encodeURIComponent(username)}&password=${encodeURIComponent(passwordMd5)}`,
+      redirect: 'manual'
+    });
 
-    if (!powerRes.ok) {
-      const text = await powerRes.text().catch(() => '');
+    const rawCookies = loginRes.headers.raw()['set-cookie'];
+    if (!rawCookies?.length) {
+      const body = await loginRes.text().catch(() => '');
       return {
-        statusCode: powerRes.status,
+        statusCode: 401,
         headers: HEADERS_JSON,
-        body: JSON.stringify({ error: `Growatt power API fout ${powerRes.status}`, detail: text })
+        body: JSON.stringify({ error: 'Growatt login mislukt — geen cookie ontvangen', detail: body.slice(0, 200) })
       };
     }
+    const cookieStr = rawCookies.map(c => c.split(';')[0]).join('; ');
 
-    const powerData  = await powerRes.json();
+    // Stap 2: power data ophalen
+    const [powerRes, energyRes] = await Promise.all([
+      fetch(`https://server.growatt.com/device/getDeviceDayChart?date=${date}&plantId=${plantId}`, {
+        headers: { Cookie: cookieStr }
+      }),
+      fetch(`https://server.growatt.com/panel/getPlantData?plantId=${plantId}`, {
+        headers: { Cookie: cookieStr }
+      })
+    ]);
+
+    const powerData  = powerRes.ok  ? await powerRes.json().catch(() => null)  : null;
     const energyData = energyRes.ok ? await energyRes.json().catch(() => null) : null;
 
-    // Growatt returns power values as array of { time, value } where value is in W
-    const rawValues = powerData?.data?.power || powerData?.power || [];
-    const power = rawValues.map(entry => ({
-      time:  entry.time  || entry.date || '',
-      value: Number(entry.value ?? entry.power ?? 0)
+    // Power per uur: Growatt chart-endpoint geeft { obj: { power: [...] } }
+    const rawPower = powerData?.obj?.power || powerData?.power || [];
+    const power = rawPower.map(entry => ({
+      time:  entry.time || '',
+      value: Number(entry.value ?? entry.pac ?? 0)
     }));
 
-    // Current power: last non-zero entry, or last entry
     const nonZero = power.filter(e => e.value > 0);
     const current = nonZero.length ? nonZero[nonZero.length - 1].value : 0;
 
-    // Today's total energy in kWh
+    // Vandaag totaal kWh
     const todayKwh = Number(
-      energyData?.data?.eToday ?? energyData?.eToday ??
-      energyData?.data?.today  ?? energyData?.today  ?? 0
+      energyData?.obj?.eToday ?? energyData?.obj?.today ??
+      energyData?.eToday      ?? energyData?.today      ?? 0
     );
 
     return {
@@ -58,7 +73,11 @@ exports.handler = async (event) => {
       headers: HEADERS_JSON,
       body: JSON.stringify({
         power,
-        overview: { today: todayKwh, current }
+        overview: { today: todayKwh, current },
+        _debug: {
+          powerEndpointStatus: powerRes.status,
+          energyEndpointStatus: energyRes.status
+        }
       })
     };
   } catch (err) {
