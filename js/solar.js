@@ -107,9 +107,16 @@ function getSolarForIdx(solarData, hour) {
 function renderSolarKaartjes() {
   const isMorgen = activeDay === 1;
   document.getElementById('solarNuCard').style.display      = isMorgen ? 'none' : '';
-  document.getElementById('solarVandaagCard').style.display = isMorgen ? 'none' : '';
+  document.getElementById('solarSchatting').style.display   = isMorgen ? '' : 'none';
 
-  if (isMorgen) return;
+  if (isMorgen) {
+    const hourly   = solarMorgen?.hourly || [];
+    const verwacht = (hourly.reduce((s, e) => s + e.watt, 0) / 1000).toFixed(2);
+    document.getElementById('solarVandaagLabel').textContent = '☀️ Verwacht morgen';
+    document.getElementById('solarVandaagKwh').textContent   = solarMorgen ? verwacht : '—';
+    document.getElementById('solarVandaagEen').textContent   = 'kWh (schatting)';
+    return;
+  }
 
   document.getElementById('solarVandaagLabel').textContent = '☀️ Vandaag';
   if (!solarVandaag) {
