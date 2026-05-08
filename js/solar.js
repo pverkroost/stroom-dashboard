@@ -447,7 +447,15 @@ function renderZonChart() {
             if (idx == null) return;
             const watt = t.dataPoints.reduce((best, dp) => dp.parsed.y != null && dp.parsed.y > best ? dp.parsed.y : best, 0);
             const suffix = idx > nowH ? ' W (verwacht)' : ' W';
-            zonTooltip.textContent = String(idx).padStart(2,'0') + ':00 · ' + Math.round(watt) + suffix;
+            const terugEntry = cacheVandaag?.find(p => p.tijd.getHours() === idx);
+            let terugBadge = '';
+            if (terugEntry?.terug !== undefined) {
+              const tp = terugEntry.terug;
+              if (tp < 0) terugBadge = ' · ⚠️ terugleveren kost geld!';
+              else if (tp < 0.05) terugBadge = ' · ⚠️ liever zelf verbruiken';
+              else if (tp > 0.10) terugBadge = ` · ↩ terugleveren loont (€ ${tp.toFixed(2)})`;
+            }
+            zonTooltip.textContent = String(idx).padStart(2,'0') + ':00 · ' + Math.round(watt) + suffix + terugBadge;
             const x = t.caretX;
             const containerWidth = chart.canvas.parentElement.offsetWidth;
             let left = x;

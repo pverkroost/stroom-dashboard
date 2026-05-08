@@ -100,8 +100,8 @@ function renderDashboard(prijzen, day) {
   document.getElementById('chartTitle').innerHTML =
     (day === 0 ? 'Vandaag' : 'Morgen') +
     ' <span style="font-size:9px;font-weight:400;color:var(--muted);margin-left:4px">' +
-    '<span style="color:#3b6d11">&#x2014;</span> verbruik &nbsp;' +
-    '<span style="color:rgba(200,50,50,0.75)">- -</span> teruglevering</span>';
+    '<span style="color:#3b6d11">▪</span> Verbruik &nbsp;' +
+    '<span style="color:rgba(200,50,50,0.75)">↩</span> Teruglevering</span>';
   document.getElementById('laagstePrijs').textContent = '€ ' + min.toFixed(3);
   document.getElementById('laagsteUur').textContent = uurStr(laagste.tijd);
   document.getElementById('hoogstePrijs').textContent = '€ ' + max.toFixed(3);
@@ -248,7 +248,9 @@ function renderDashboard(prijzen, day) {
             if (idx == null) return;
             const p = prijzen[idx];
             const timeStr = uurStr(p.tijd) + '–' + String(p.tijd.getHours()+1).padStart(2,'0') + ':00';
-            const terugStr = p.terug !== undefined ? ' · ↩ € ' + p.terug.toFixed(3) : '';
+            const terugStr = p.terug !== undefined
+              ? (p.terug < 0 ? ' · ↩ € ' + p.terug.toFixed(3) + ' ⚠️ kost geld' : ' · ↩ € ' + p.terug.toFixed(3) + ' terugleveren')
+              : '';
             tooltip.textContent = timeStr + ' · € ' + p.totaal.toFixed(3) + terugStr;
             const x = t.caretX;
             const containerWidth = chart.canvas.parentElement.offsetWidth;
@@ -288,7 +290,7 @@ function renderDashboard(prijzen, day) {
       <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${isPast ? (isDark?'#555':'#bbb') : k.bar}"></div></div>
       <div class="hour-price-group">
         <span class="hour-price" style="color:${isPast ? 'var(--muted)' : k.text}">€ ${p.totaal.toFixed(3)}</span>
-        ${p.terug !== undefined ? `<span class="hour-terug${p.terug < 0 ? ' negatief' : ''}">↩ ${p.terug.toFixed(3)}</span>` : ''}
+        ${p.terug !== undefined ? `<span class="hour-terug${p.terug < 0 ? ' negatief' : ''}">↩ € ${p.terug.toFixed(3)} ${p.terug < 0 ? '⚠️ kost geld' : 'terugleveren'}</span>` : ''}
       </div>
       ${isNu ? '<span class="now-badge">Nu</span>' : ''}
       ${!isNu && !isPast && isCheapest ? '<span class="cheap-badge">Laagste</span>' : ''}

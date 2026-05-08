@@ -203,6 +203,12 @@ function renderLaadadvies() {
       else                    vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
     }
 
+    const besteBlok = planUren.slice(besteStartIdx, besteStartIdx + Math.ceil(uren));
+    const heeftNegatieveTeruglevering = besteBlok.some(p => (p.terug ?? 0) < 0);
+    const terugWaarschuwing = heeftNegatieveTeruglevering
+      ? '<div class="advies-badge rood" style="margin-top:4px">☀️ tijdens dit blok lever je anders terug tegen verlies</div>'
+      : '';
+
     const selTijdStr = (() => {
       const t = selStartIdx < planUren.length ? planUren[selStartIdx]?.tijd : null;
       if (!t) return '';
@@ -251,6 +257,7 @@ function renderLaadadvies() {
         <div style="height:0.5px;background:var(--border);margin:3px 0"></div>
         ${blokRijen(selLabel, selTijdStr, false, selNetstroom, selSolar, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
         ${vergelijkBadge}
+        ${terugWaarschuwing}
         ${isBesteMorgenGemist ? '<div style="font-size:9px;color:var(--muted);margin-top:2px">* morgen prijzen nog niet beschikbaar</div>' : ''}
       </div>
       ${statusStr}
