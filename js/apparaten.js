@@ -337,38 +337,60 @@ function renderApDetail() {
       <div class="section-title">Slimme stekker</div>
       <button class="ap-cta-btn ap-cta-groen" onclick="homeyActie('start')" id="homeyStartBtn">⚡ Start laden</button>
       <button class="ap-cta-btn ap-cta-wit" onclick="homeyActie('stop')" id="homeyStopBtn">⏹ Stop laden</button>
+      <div id="homeyPincodeSection" style="display:none;margin-top:10px">
+        <input type="tel" id="homeyPinInput" placeholder="Pincode" maxlength="6"
+               style="width:100%;padding:12px;border-radius:10px;border:1.5px solid var(--border);font-size:18px;font-family:inherit;background:var(--card);color:var(--text);text-align:center;letter-spacing:4px;box-sizing:border-box"
+               onkeydown="if(event.key==='Enter')bevestigHomey()">
+        <button class="ap-cta-btn ap-cta-groen" onclick="bevestigHomey()" style="margin-top:8px" id="homeyBevestigBtn">Bevestigen</button>
+      </div>
       <div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>
     </div>` : ''}`;
 }
 
-async function homeyActie(action) {
-  const statusEl = document.getElementById('homeyStatus');
-  const pin = prompt('Voer pincode in:');
-  if (!pin) return;
+let _homeyPendingAction = null;
 
-  const knopId = action === 'start' ? 'homeyStartBtn' : 'homeyStopBtn';
-  const knop = document.getElementById(knopId);
-  if (knop) { knop.disabled = true; knop.textContent = '…'; }
-  if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--muted)'; }
+function homeyActie(action) {
+  _homeyPendingAction = action;
+  const section = document.getElementById('homeyPincodeSection');
+  const input   = document.getElementById('homeyPinInput');
+  const statusEl = document.getElementById('homeyStatus');
+  if (section)  { section.style.display = 'block'; }
+  if (input)    { input.value = ''; input.focus(); }
+  if (statusEl) { statusEl.textContent = ''; }
+}
+
+async function bevestigHomey() {
+  const pin     = document.getElementById('homeyPinInput')?.value?.trim();
+  const statusEl = document.getElementById('homeyStatus');
+  const section  = document.getElementById('homeyPincodeSection');
+  const action   = _homeyPendingAction;
+  const bevestigBtn = document.getElementById('homeyBevestigBtn');
+  if (!pin || !action) return;
+
+  if (bevestigBtn) { bevestigBtn.disabled = true; bevestigBtn.textContent = '…'; }
+  if (statusEl)    { statusEl.textContent = ''; }
 
   try {
-    const r = await fetch(`/api/homey?action=${action}&pin=${encodeURIComponent(pin)}`);
+    const r = await fetch('/api/homey', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin, action })
+    });
     const data = await r.json();
-    if (!r.ok || data.error) throw new Error(data.error || `HTTP ${r.status}`);
+    if (r.status === 401) throw new Error('Ongeldige pincode');
+    if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
+    if (section)  section.style.display = 'none';
     if (statusEl) {
       statusEl.textContent = action === 'start' ? '✓ Laden gestart!' : '✓ Laden gestopt.';
       statusEl.style.color = 'var(--green)';
     }
   } catch (e) {
     if (statusEl) {
-      statusEl.textContent = `Fout: ${e.message}`;
+      statusEl.textContent = `✗ ${e.message}`;
       statusEl.style.color = '#a32d2d';
     }
   } finally {
-    if (knop) {
-      knop.disabled = false;
-      knop.textContent = action === 'start' ? '⚡ Start laden' : '⏹ Stop laden';
-    }
+    if (bevestigBtn) { bevestigBtn.disabled = false; bevestigBtn.textContent = 'Bevestigen'; }
   }
 }
 
