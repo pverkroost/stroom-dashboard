@@ -12,12 +12,15 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
 ## Vercel Environment Variables
 De volgende environment variables moeten ingesteld zijn in het Vercel dashboard (Settings → Environment Variables):
 
-| Variable               | Waarde / omschrijving                        |
-|------------------------|----------------------------------------------|
-| `GROWATT_API_TOKEN`    | Growatt OpenAPI token                        |
-| `GROWATT_DEVICE_SN`    | `CUE294500F` — inverter device serial number |
-| `SOLAREDGE_API_KEY`    | SolarEdge Monitoring API key                 |
-| `SOLAREDGE_SITE_ID`    | SolarEdge site ID                            |
+| Variable               | Waarde / omschrijving                                        |
+|------------------------|--------------------------------------------------------------|
+| `GROWATT_API_TOKEN`    | Growatt OpenAPI token                                        |
+| `GROWATT_DEVICE_SN`    | `CUE294500F` — inverter device serial number                 |
+| `GROWATT_PLANT_ID`     | Growatt plant ID (voor legacy ShinePhone API)                |
+| `GROWATT_USERNAME`     | Growatt account e-mailadres (voor legacy ShinePhone API)     |
+| `GROWATT_PASSWORD`     | Growatt account wachtwoord (voor legacy ShinePhone API)      |
+| `SOLAREDGE_API_KEY`    | SolarEdge Monitoring API key                                 |
+| `SOLAREDGE_SITE_ID`    | SolarEdge site ID                                            |
 
 Client-side constanten (niet als env var — staan in `js/config.js`):
 - `LAT` / `LON` — locatiecoördinaten voor Open-Meteo
