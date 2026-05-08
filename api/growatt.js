@@ -8,19 +8,16 @@ module.exports = async (req, res) => {
       'https://openapi.growatt.com/v1/plant/list?page=1&perpage=10',
       { headers: { token: apiToken } }
     );
-    const data  = await r.json();
-    const plant = data?.data?.plants?.[0];
+    const text = await r.text();
+    const json = JSON.parse(text);
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.json({
-      currentPower: parseFloat(plant?.current_power) || 0,
-      totalEnergy:  parseFloat(plant?.total_energy)  || 0,
-      peakPower:    parseFloat(plant?.peak_power)    || 0,
-      status:       plant?.status        || 0,
-      lastUpdate:   plant?.last_update_time || null,
-      todayEnergy:  null,
+      rawText: text.substring(0, 1000),
+      parsed:  json,
+      plant:   json?.data?.plants?.[0],
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message, stack: e.stack });
   }
 };
