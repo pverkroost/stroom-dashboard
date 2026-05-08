@@ -53,6 +53,7 @@ function switchTab(newTab) {
     if (prijzen) renderDashboard(prijzen, newTab);
     else renderGeenData();
     renderSolarKaartjes();
+    renderLaadadvies();
   }
 }
 
@@ -104,5 +105,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.10.19 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.10.20 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
