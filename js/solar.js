@@ -150,12 +150,10 @@ function renderSolarKaartjes() {
     .filter(e => e.hour > nowH)
     .reduce((s, e) => s + e.watt, 0) / 1000;
 
-  document.getElementById('solarNu').textContent         = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
-  document.getElementById('solarNuEen').textContent      = w > 0 ? 'nu opgewekt' : 'geen productie';
-  document.getElementById('solarVandaagKwh').textContent = actKwh.toFixed(2)+' kWh';
-  document.getElementById('solarVandaagEen').textContent = verwKwh > 0.01
-    ? `+ ~${verwKwh.toFixed(2)} verwacht · ≈ ${(actKwh + verwKwh).toFixed(2)} totaal`
-    : 'geproduceerd vandaag';
+  document.getElementById('solarNu').textContent         = (w / 1000).toFixed(2);
+  document.getElementById('solarNuEen').textContent      = 'kW live';
+  document.getElementById('solarVandaagKwh').textContent = actKwh.toFixed(2);
+  document.getElementById('solarVandaagEen').textContent = 'kWh vandaag';
   totaalEl.style.display = 'none';
 }
 
