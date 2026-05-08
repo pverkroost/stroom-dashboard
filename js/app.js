@@ -3,7 +3,6 @@ let toonVerleden = false, geselecteerdStartTijd = null, rAFId = null;
 let solarVandaag = null, solarMorgen = null;
 let isZonTab = false, zonChart = null, voorspellingChart = null;
 let openMeteoVandaag = null, growattVandaag = null;
-let solarToggleAan = localStorage.getItem('solarToggle') !== 'uit';
 
 function resetZonCanvassen() {
   if (zonChart)          { zonChart.destroy(); zonChart = null; }
@@ -86,12 +85,6 @@ async function laadPrijzen() {
 laadPrijzen();
 setInterval(laadPrijzen, 5 * 60 * 1000);
 
-(function() {
-  if (!solarToggleAan) {
-    const btn = document.getElementById('solarToggleBtn');
-    if (btn) { btn.textContent = '☀️ Zon UIT'; btn.className = 'solar-toggle-btn uit'; }
-  }
-})();
 
 (function() {
   const now = new Date();
@@ -103,5 +96,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.10.11 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.10.12 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();

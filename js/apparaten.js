@@ -94,16 +94,6 @@ function gemSolarVoorBlok(startIdx, aantalUren, komende18) {
   return n > 0 ? (totaalW / n) / 1000 : 0;
 }
 
-function toggleSolar() {
-  solarToggleAan = !solarToggleAan;
-  localStorage.setItem('solarToggle', solarToggleAan ? 'aan' : 'uit');
-  const btn = document.getElementById('solarToggleBtn');
-  if (btn) {
-    btn.textContent = solarToggleAan ? '☀️ Zon AAN' : '☀️ Zon UIT';
-    btn.className = 'solar-toggle-btn ' + (solarToggleAan ? 'aan' : 'uit');
-  }
-  updateApparaatKaarten();
-}
 
 function renderLaadadvies() {
   const container = document.getElementById('laadadviesContainer');
@@ -143,7 +133,7 @@ function renderLaadadvies() {
   function vergelijk(nuLabel, kostenNu, kostenBeste, solarKosten, vermogenKw, gemSolarKw) {
     const heeftSolar  = solarKosten !== null && solarKosten !== undefined && kostenNu !== null;
     const besparing   = heeftSolar ? Math.max(0, kostenNu - solarKosten) : 0;
-    const effectief   = (solarToggleAan && heeftSolar) ? solarKosten : kostenNu;
+    const effectief   = heeftSolar ? solarKosten : kostenNu;
 
     const dekPct      = (heeftSolar && vermogenKw > 0)
       ? Math.min(100, Math.round((gemSolarKw / vermogenKw) * 100)) : 0;
