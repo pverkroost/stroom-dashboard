@@ -19,9 +19,32 @@ function renderGeenData() {
   document.getElementById('laagsteUur').textContent = 'Beschikbaar na 14:00';
   document.getElementById('hoogstePrijs').textContent = '—';
   document.getElementById('hoogsteUur').textContent = 'Beschikbaar na 14:00';
-  document.getElementById('chartTitle').textContent = 'Morgen';
   document.getElementById('urenLijst').innerHTML = '<div class="no-data">Prijzen voor morgen zijn nog niet beschikbaar.<br>EPEX publiceert ze rond 14:00 uur.</div>';
   if (chart) { chart.destroy(); chart = null; }
+
+  if (solarMorgen?.hourly?.length) {
+    document.getElementById('chartTitle').textContent = 'Zonverwachting morgen';
+    const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+    const labels = Array.from({length:24}, (_, i) => String(i).padStart(2,'0')+':00');
+    const data   = Array.from({length:24}, (_, i) => {
+      const e = solarMorgen.hourly.find(h => h.hour === i);
+      return e ? e.watt : 0;
+    });
+    chart = new Chart(document.getElementById('chart'), {
+      type: 'line',
+      data: { labels, datasets: [{ data, borderColor: 'rgba(255,200,50,0.8)', backgroundColor: 'rgba(255,200,50,0.12)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ctx.parsed.y+' W' } } },
+        scales: {
+          x: { ticks:{color:isDark?'#888':'#888780', font:{size:10}, maxTicksLimit:8, maxRotation:0}, grid:{display:false} },
+          y: { beginAtZero:true, ticks:{color:isDark?'#888':'#888780', font:{size:10}, callback: v => v+' W'}, grid:{color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'} }
+        }
+      }
+    });
+  } else {
+    document.getElementById('chartTitle').textContent = 'Morgen';
+  }
 }
 
 function renderDashboard(prijzen, day) {

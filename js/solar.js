@@ -106,8 +106,9 @@ function getSolarForIdx(solarData, hour) {
 
 function renderSolarKaartjes() {
   const isMorgen = activeDay === 1;
-  document.getElementById('solarNuCard').style.display      = isMorgen ? 'none' : '';
-  document.getElementById('solarSchatting').style.display   = isMorgen ? '' : 'none';
+  document.getElementById('solarNuCard').style.display         = isMorgen ? 'none' : '';
+  document.getElementById('solarSchatting').style.display      = isMorgen ? '' : 'none';
+  document.getElementById('solarVandaagCard').style.gridColumn = isMorgen ? '1/-1' : '';
 
   if (isMorgen) {
     const hourly   = solarMorgen?.hourly || [];
@@ -139,33 +140,32 @@ function renderZonTab(day) {
   day = day ?? 0;
   const isVandaag = day === 0;
 
-  document.getElementById('zonVandaagCards').style.display   = isVandaag ? '' : 'none';
-  document.getElementById('zonMorgenCards').style.display    = isVandaag ? 'none' : '';
+  document.getElementById('zonVandaagCards').style.display     = isVandaag ? '' : 'none';
+  document.getElementById('zonMorgenCards').style.display      = isVandaag ? 'none' : '';
   document.getElementById('zonVandaagChartWrap').style.display = isVandaag ? '' : 'none';
   document.getElementById('zonMorgenChartWrap').style.display  = isVandaag ? 'none' : '';
-  document.getElementById('zonOmvormers').style.display      = isVandaag ? '' : 'none';
+
+  // Omvormers altijd zichtbaar; SE-waarden altijd bijwerken
+  const kwh   = solarVandaag?.todayKwh ?? 0;
+  const gist  = solarVandaag?.gisterenKwh ?? null;
+  const maand = solarVandaag?.maandKwh ?? 0;
+  document.getElementById('zonSEVandaag').textContent  = solarVandaag ? kwh.toFixed(2)+' kWh'  : 'Laden...';
+  document.getElementById('zonSEGisteren').textContent = gist !== null ? gist.toFixed(2)+' kWh' : '—';
+  document.getElementById('zonSEMaand').textContent    = solarVandaag ? maand.toFixed(1)+' kWh' : '—';
 
   if (isVandaag) {
     const w = solarVandaag?.currentWatt ?? 0;
-    document.getElementById('zonHeroLabel').textContent = 'Nu opgewekt';
-    document.getElementById('zonHeroPrice').textContent = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
-    document.getElementById('zonHeroUnit').textContent  = 'zonnepanelen totaal';
+    document.getElementById('zonHeroLabel').textContent  = 'Nu opgewekt';
+    document.getElementById('zonHeroPrice').textContent  = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
+    document.getElementById('zonHeroUnit').textContent   = 'zonnepanelen totaal';
     document.getElementById('zonChartTitle').textContent = 'Opbrengst vandaag per uur';
 
-    document.getElementById('zonNuW').textContent  = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
+    document.getElementById('zonNuW').textContent   = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
     document.getElementById('zonNuEen').textContent = w > 0 ? 'nu opgewekt' : 'geen productie';
-
-    const kwh  = solarVandaag?.todayKwh ?? 0;
-    const gist = solarVandaag?.gisterenKwh ?? null;
-    const maand = solarVandaag?.maandKwh ?? 0;
 
     document.getElementById('zonTotaalKwh').textContent   = solarVandaag ? kwh.toFixed(2)  : '—';
     document.getElementById('zonGisterenKwh').textContent = gist !== null ? gist.toFixed(2) : '—';
     document.getElementById('zonMaandKwh').textContent    = solarVandaag ? maand.toFixed(1) : '—';
-
-    document.getElementById('zonSEVandaag').textContent  = solarVandaag ? kwh.toFixed(2)+' kWh'  : '—';
-    document.getElementById('zonSEGisteren').textContent = gist !== null ? gist.toFixed(2)+' kWh' : '—';
-    document.getElementById('zonSEMaand').textContent    = solarVandaag ? maand.toFixed(1)+' kWh' : '—';
 
     renderZonChart();
   } else {

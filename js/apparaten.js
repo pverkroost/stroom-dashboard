@@ -158,7 +158,7 @@ function renderLaadadvies() {
     return `<div class="advies-vergelijk">
       <div class="av-rij" style="margin-bottom:2px"><span class="av-label" style="font-weight:600;color:var(--text)">${nuLabel}</span></div>
       <div class="av-rij"><span class="av-label">Op netstroom</span><span class="av-prijs">${kostenNu !== null ? '€ ' + kostenNu.toFixed(2) : '—'}</span></div>
-      ${heeftSolar ? `<div class="av-rij"><span class="av-label">Met zonne-energie</span><span class="av-prijs" style="color:#3b6d11">€ ${solarKosten.toFixed(2)} ☀️</span></div>` : ''}
+      ${heeftSolar ? `<div class="av-rij"><span class="av-label">Met zon</span><span class="av-prijs" style="color:#3b6d11">€ ${solarKosten.toFixed(2)} ☀️</span></div>` : ''}
       ${besparing > 0.005 ? `<div class="av-rij"><span class="av-label" style="color:#27500a">Besparing</span><span class="av-prijs" style="color:#27500a;font-weight:700">€ ${besparing.toFixed(2)}</span></div>` : ''}
       <div class="av-rij" style="margin-top:3px"><span class="av-label">Beste tijd</span><span class="av-prijs beste">€ ${kostenBeste.toFixed(2)}</span></div>
       ${badge(effectief, kostenBeste)}
