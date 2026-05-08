@@ -177,8 +177,8 @@ function renderLaadadvies() {
     const heeftZon    = gemSolarKw    > 0.01;
     const heeftZonSel = gemSolarKwSel > 0.01;
 
-    const dekPct         = (heeftZon && kw > 0) ? Math.min(100, Math.round((gemSolarKw / kw) * 100)) : 0;
-    const volledigGratis = heeftZon && gemSolarKw >= kw;
+    const dekPct    = kw > 0 ? Math.min(100, Math.round((gemSolarKw    / kw) * 100)) : 0;
+    const dekPctSel = kw > 0 ? Math.min(100, Math.round((gemSolarKwSel / kw) * 100)) : 0;
 
     // Effectieve prijs gebruikt dezelfde heeftZon/heeftZonSel vlag als het label
     const besteEff = heeftZon && besteSolar !== null ? besteSolar : besteNetstroom;
@@ -200,11 +200,23 @@ function renderLaadadvies() {
       else                    vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
     }
 
-    const zonBadge = volledigGratis
-      ? '<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ volledig gratis op zonne-energie</div>'
-      : dekPct >= 5
-        ? `<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ zonne-energie dekt ${dekPct}%</div>`
-        : '';
+    const heeftSelectieToon = selStartIdx < komende18.length;
+    const sameDekking       = !heeftSelectieToon || dekPct === dekPctSel;
+    function zonLabel(pct) {
+      if (pct >= 100) return 'volledig gratis op zonne-energie';
+      if (pct >= 5)   return `zonne-energie dekt ${pct}%`;
+      return 'geen zonne-energie';
+    }
+    let zonBadge = '';
+    if (dekPct >= 5 || (heeftSelectieToon && dekPctSel >= 5)) {
+      if (sameDekking) {
+        zonBadge = `<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ ${zonLabel(dekPct)}</div>`;
+      } else {
+        const besteLijn = dekPct >= 5 ? `<div>☀️ Beste tijdvak: ${zonLabel(dekPct)}</div>` : '';
+        const selLijn   = `<div>☀️ Geselecteerd: ${zonLabel(dekPctSel)}</div>`;
+        zonBadge = `<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px;line-height:1.7">${besteLijn}${selLijn}</div>`;
+      }
+    }
 
     const isAuto    = naam.toLowerCase().includes('auto') || naam.toLowerCase().includes('phev');
     const nuTekst   = isAuto ? 'Nu laden!'  : 'Nu starten!';
