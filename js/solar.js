@@ -223,11 +223,9 @@ function renderZonTab(day) {
       .filter(e => e.hour <= nowH).reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
     const grVerwKwh = (openMeteoVandaag?.hourly || [])
       .filter(e => e.hour > nowH).reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
-    const grTotKwh = growattVandaag?.totalEnergy ?? null;
     grEl.innerHTML = `<div class="advies-vergelijk">
       <div class="av-rij"><span class="av-label">Actueel</span><span class="av-prijs">${grActKwh.toFixed(2)} kWh</span></div>
       ${grVerwKwh > 0.01 ? `<div class="av-rij"><span class="av-label">+ verwacht</span><span class="av-prijs">~${grVerwKwh.toFixed(2)} kWh</span></div>` : ''}
-      ${grTotKwh !== null ? `<div class="av-rij"><span class="av-label">Totaal</span><span class="av-prijs">${Math.round(grTotKwh).toLocaleString('nl-NL')} kWh</span></div>` : ''}
       <div class="av-rij" style="margin-top:2px;font-size:9px;color:var(--muted)">* gisteren/maand niet beschikbaar via API</div>
     </div>`;
   } else {
