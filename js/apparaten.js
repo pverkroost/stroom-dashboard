@@ -222,9 +222,8 @@ function renderLaadadvies() {
           ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
           : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
 
-    function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar, heeftZonHier, dekking, isGedeeltelijk = false) {
-      const effPrijs = (heeftZonHier && solar !== null) ? solar : netstroom;
-      const priceStr = effPrijs === null ? '—' : `€ ${effPrijs.toFixed(2)}`;
+    function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, heeftZonHier, dekking, isGedeeltelijk = false) {
+      const priceStr = netstroom === null ? '—' : `€ ${netstroom.toFixed(2)}`;
       const bronStr  = heeftZonHier ? `☀️ ${dekking}%` : 'geen zon';
       const morgenStr = (tijdStr && isMorgen) ? '<span style="opacity:0.65"> (morgen)</span>' : '';
       const subParts = [tijdStr, bronStr].filter(Boolean);
@@ -245,12 +244,12 @@ function renderLaadadvies() {
       <div class="advies-device-icon">${icon}</div>
       <div class="advies-device-naam">${naam}</div>
       <div class="advies-vergelijk">
-        ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, besteSolar, heeftZon, dekPct)}
+        ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, heeftZon, dekPct)}
+        ${terugWaarschuwing}
         ${selStartIdx < planUren.length ? `
         <div style="height:0.5px;background:var(--border);margin:3px 0"></div>
-        ${blokRijen(selLabel, selTijdStr, false, selNetstroom, selSolar, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
+        ${blokRijen(selLabel, selTijdStr, false, selNetstroom, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
         ${vergelijkBadge}
-        ${terugWaarschuwing}
         ${isBesteMorgenGemist ? '<div style="font-size:9px;color:var(--muted);margin-top:2px">* morgen prijzen nog niet beschikbaar</div>' : ''}
       </div>
       ${statusStr}
