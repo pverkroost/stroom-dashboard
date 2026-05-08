@@ -232,9 +232,7 @@ function renderLaadadvies() {
 
     function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar, heeftZonHier, dekking, isGedeeltelijk = false) {
       const effPrijs = (heeftZonHier && solar !== null) ? solar : netstroom;
-      const priceStr = effPrijs === null ? '—'
-        : effPrijs < -0.005 ? `<span style="color:#27500a">bespaart € ${(-effPrijs).toFixed(2)}</span>`
-        : `€ ${effPrijs.toFixed(2)}`;
+      const priceStr = effPrijs === null ? '—' : `€ ${effPrijs.toFixed(2)}`;
       const bronStr  = heeftZonHier ? `☀️ ${dekking}%` : 'geen zon';
       const morgenStr = (tijdStr && isMorgen) ? '<span style="opacity:0.65"> (morgen)</span>' : '';
       const subParts = [tijdStr, bronStr].filter(Boolean);
