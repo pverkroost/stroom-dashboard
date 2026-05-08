@@ -93,18 +93,27 @@ body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif; ba
 .advies-status.snel { color:#633806; }
 .advies-status.later { color:var(--muted); }
 
-.detail-panel { max-height:0; overflow:hidden; transition:max-height 0.35s ease; }
-.dp-body { padding:8px 0 2px; border-top:0.5px solid var(--border); margin-top:8px; display:flex; flex-direction:column; gap:5px; }
-.dp-section { font-size:9px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px; margin-top:4px; }
-.dp-rij { display:flex; justify-content:space-between; align-items:center; font-size:11px; }
-.dp-label { color:var(--muted); }
-.dp-val { font-weight:600; }
-.dp-tijd-adj { display:flex; align-items:center; gap:8px; }
-.dp-btn { background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; width:30px; height:30px; font-size:18px; line-height:1; font-family:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.dp-btn:disabled { opacity:0.25; cursor:default; }
-.dp-tijd { font-size:12px; font-weight:500; flex:1; text-align:center; }
-.dp-gebruik-btn { width:100%; background:var(--green); color:white; border:none; border-radius:8px; padding:9px; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; margin-top:4px; }
-.dp-gebruik-btn:active { opacity:0.85; }
+.ap-detail-panel { position:fixed; top:0; right:0; bottom:0; left:0; background:var(--bg); transform:translateX(100%); transition:transform 0.3s cubic-bezier(0.4,0,0.2,1); z-index:100; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.ap-detail-panel.open { transform:translateX(0); }
+.ap-detail-header { background:var(--green); padding:env(safe-area-inset-top,44px) 20px 0; }
+.ap-detail-header-inner { padding:12px 0 12px; display:flex; flex-direction:column; gap:4px; }
+.ap-back-btn { background:none; border:none; color:rgba(255,255,255,0.8); font-size:14px; font-family:inherit; cursor:pointer; padding:0; text-align:left; }
+.ap-back-btn:active { opacity:0.7; }
+.ap-detail-header-naam { color:white; font-size:16px; font-weight:600; }
+.ap-detail-hero { padding:24px 20px 16px; text-align:center; }
+.ap-detail-naam-groot { font-size:20px; font-weight:600; margin-bottom:4px; }
+.ap-detail-sub { font-size:13px; color:var(--muted); }
+.ap-tijd-row { display:flex; align-items:center; gap:16px; background:var(--card); border-radius:var(--radius); padding:16px; box-shadow:0 2px 12px rgba(0,0,0,0.06); }
+.ap-tijd-btn { background:var(--bg); border:1.5px solid var(--border); color:var(--text); border-radius:10px; width:44px; height:44px; font-size:24px; font-family:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ap-tijd-btn:disabled { opacity:0.25; cursor:default; }
+.ap-tijd-display { flex:1; text-align:center; }
+.ap-tijd-main { font-size:32px; font-weight:300; letter-spacing:-1px; }
+.ap-tijd-eind-label { font-size:12px; color:var(--muted); margin-top:2px; }
+.ap-cta-btn { display:block; width:100%; border:none; border-radius:12px; padding:14px; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer; margin-bottom:10px; }
+.ap-cta-groen { background:var(--green); color:white; }
+.ap-cta-groen:active { opacity:0.85; }
+.ap-cta-wit { background:var(--card); color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+.ap-cta-wit:active { opacity:0.75; }
 
 .no-data { padding:32px 20px; text-align:center; color:var(--muted); font-size:14px; line-height:1.7; }
 .footer { padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px)); text-align:center; font-size:11px; color:var(--muted); line-height:1.6; }

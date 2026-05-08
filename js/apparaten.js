@@ -109,8 +109,8 @@ function gemSolarDekking(startIdx, aantalUren, vermogenKw, planUren) {
   return n > 0 && vermogenKw > 0 ? gedektKwh / (n * vermogenKw) : 0;
 }
 
-// ── Detail panel state ───────────────────────────────────────────────────────
-const detailState = {};
+// ── Apparaat detail slide-in panel ───────────────────────────────────────────
+let apDetailState = null;
 
 function hStr(d) {
   return d ? String(d.getHours()).padStart(2,'0') + ':00' : '—';
@@ -124,110 +124,180 @@ function getPlanUren() {
   return [...cacheVandaag.filter(p => p.tijd.getHours() >= nowUur), ...(cacheMorgen || [])];
 }
 
-function renderDetailPanel(apId) {
-  const state = detailState[apId];
-  if (!state) return;
-  const panel = document.getElementById('dp-' + apId);
-  if (!panel) return;
-  const { startIdx, besteStartIdx, uren, vermogen } = state;
+function openApDetail(apIdx) {
+  const ap = APPARATEN[apIdx];
+  if (!ap) return;
   const planUren = getPlanUren();
-  const maxIdx = Math.max(0, planUren.length - Math.ceil(uren));
-  const startUur = planUren[startIdx]?.tijd;
-  if (!startUur) {
-    panel.innerHTML = '<div class="dp-body"><div class="dp-rij"><span class="dp-label">Geen data beschikbaar</span></div></div>';
-    return;
-  }
-  const eindUur = new Date(startUur);
-  eindUur.setHours(eindUur.getHours() + Math.ceil(uren));
-  const tijdStr = `${hStr(startUur)}–${String(eindUur.getHours()).padStart(2,'0')}:00`;
+  if (!planUren.length) return;
+  const res = berekenGoedkoopsteBlok(ap.uren, ap.vermogen, planUren);
+  const besteStartIdx = res ? res.startIndex : 0;
+  apDetailState = {
+    apIdx, ap, planUren, besteStartIdx,
+    currentStartIdx: besteStartIdx,
+    maxIdx: Math.max(0, planUren.length - Math.ceil(ap.uren)),
+  };
+  renderApDetail();
+  document.getElementById('apparaatDetail').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function sluitApDetail() {
+  document.getElementById('apparaatDetail').classList.remove('open');
+  document.body.style.overflow = '';
+  apDetailState = null;
+}
+
+function adjustApDetail(delta) {
+  if (!apDetailState) return;
+  apDetailState.currentStartIdx = Math.max(0, Math.min(apDetailState.maxIdx, apDetailState.currentStartIdx + delta));
+  renderApDetail();
+}
+
+function gebruikTijdDetail() {
+  if (!apDetailState) return;
+  const { apIdx, currentStartIdx, planUren } = apDetailState;
+  const p = planUren[currentStartIdx];
+  if (p) localStorage.setItem('ap_voorkeur_' + apIdx, p.tijd.toISOString());
+  sluitApDetail();
+}
+
+function gebruikBesteTijdDetail() {
+  if (!apDetailState) return;
+  const { apIdx, besteStartIdx, planUren } = apDetailState;
+  const p = planUren[besteStartIdx];
+  if (p) localStorage.setItem('ap_voorkeur_' + apIdx, p.tijd.toISOString());
+  sluitApDetail();
+}
+
+function renderApDetail() {
+  if (!apDetailState) return;
+  const { ap, planUren, besteStartIdx, currentStartIdx, maxIdx } = apDetailState;
+  const { uren, vermogen, naam, icon, type } = ap;
+  const blok = Math.ceil(uren);
   const totaalKwh = (uren * vermogen).toFixed(1);
-  const allowP = startIdx + Math.ceil(uren) > planUren.length;
-  const netKosten = berekenKostenVanaf(uren, vermogen, planUren, startIdx, allowP);
-  const effKosten = effectieveKosten(uren, vermogen, planUren, startIdx, allowP);
-  const blok = planUren.slice(startIdx, startIdx + Math.ceil(uren));
-  const terugPrijzen = blok.filter(p => p.terug !== undefined).map(p => p.terug);
-  const gemTerug = terugPrijzen.length ? terugPrijzen.reduce((a,b) => a+b,0) / terugPrijzen.length : null;
-  const isBeste = startIdx === besteStartIdx;
-  const heeftZon = effKosten !== null && netKosten !== null && effKosten < netKosten - 0.005;
-  const terugKleur = gemTerug === null ? 'var(--muted)' : gemTerug < 0 ? '#a32d2d' : gemTerug < 0.05 ? '#ba7517' : '#27500a';
-  const terugStr = gemTerug === null ? '—'
-    : gemTerug < 0 ? `⚠️ kost € ${Math.abs(gemTerug).toFixed(3)}`
-    : `↩ € ${gemTerug.toFixed(3)} ontvangen`;
+  const eindHStr = h => String((h + blok) % 24).padStart(2,'0') + ':00';
 
-  panel.innerHTML = `<div class="dp-body">
-    <div class="dp-rij">
-      <span class="dp-label">${Math.ceil(uren)} uur · ${totaalKwh} kWh totaal</span>
-      ${isBeste ? '<span style="font-size:9px;background:#c0dd97;color:#27500a;padding:2px 6px;border-radius:5px;font-weight:700">beste tijd</span>' : ''}
-    </div>
-    <div class="dp-section">Tijdframe aanpassen</div>
-    <div class="dp-tijd-adj">
-      <button class="dp-btn" onclick="event.stopPropagation();adjustDetail(${apId},-1)" ${startIdx <= 0 ? 'disabled' : ''}>−</button>
-      <span class="dp-tijd">${tijdStr}</span>
-      <button class="dp-btn" onclick="event.stopPropagation();adjustDetail(${apId},1)" ${startIdx >= maxIdx ? 'disabled' : ''}>+</button>
-    </div>
-    <div class="dp-section">Kosten dit blok</div>
-    <div class="dp-rij"><span class="dp-label">Netstroom</span><span class="dp-val">${netKosten !== null ? '€ ' + netKosten.toFixed(2) : '—'}</span></div>
-    ${heeftZon ? `<div class="dp-rij"><span class="dp-label">☀️ Met zonne-energie</span><span class="dp-val" style="color:#27500a">€ ${effKosten.toFixed(2)}</span></div>` : ''}
-    ${gemTerug !== null ? `<div class="dp-section">Teruglevering</div>
-    <div class="dp-rij"><span class="dp-label">Gem. vergoeding</span><span class="dp-val" style="color:${terugKleur}">${terugStr}</span></div>` : ''}
-    <button class="dp-gebruik-btn" onclick="event.stopPropagation();gebruikDezeTijd(${apId})">✓ Gebruik deze tijd</button>
-  </div>`;
+  const selStart    = planUren[currentStartIdx]?.tijd;
+  const selStartStr = selStart ? hStr(selStart) : '—';
+  const selEindStr  = selStart ? eindHStr(selStart.getHours()) : '—';
 
-  if (state.isOpen) panel.style.maxHeight = panel.scrollHeight + 'px';
-}
+  const besteStart    = planUren[besteStartIdx]?.tijd;
+  const besteStartStr = besteStart ? hStr(besteStart) : '—';
+  const besteEindStr  = besteStart ? eindHStr(besteStart.getHours()) : '—';
 
-function adjustDetail(apId, delta) {
-  const state = detailState[apId];
-  if (!state) return;
-  const planUren = getPlanUren();
-  const maxIdx = Math.max(0, planUren.length - Math.ceil(state.uren));
-  state.startIdx = Math.max(0, Math.min(maxIdx, state.startIdx + delta));
-  renderDetailPanel(apId);
-}
+  const allowP   = currentStartIdx + blok > planUren.length;
+  const selNet   = berekenKostenVanaf(uren, vermogen, planUren, currentStartIdx, allowP);
+  const besteNet = berekenKostenVanaf(uren, vermogen, planUren, besteStartIdx);
 
-function gebruikDezeTijd(apId) {
-  const state = detailState[apId];
-  if (!state) return;
-  const planUren = getPlanUren();
-  const p = planUren[state.startIdx];
-  if (!p) return;
-  localStorage.setItem('ap_voorkeur_' + apId, p.tijd.toISOString());
-  const panel = document.getElementById('dp-' + apId);
-  if (panel) {
-    const btn = panel.querySelector('.dp-gebruik-btn');
-    if (btn) { btn.textContent = '✓ Opgeslagen!'; btn.style.background = '#c0dd97'; btn.style.color = '#27500a'; }
-  }
-  setTimeout(() => {
-    if (state.isOpen) {
-      state.isOpen = false;
-      if (panel) panel.style.maxHeight = '0';
+  const piekRange = new Set([18, 19, 20]);
+  const dalRange  = new Set([23, 0, 1, 2, 3, 4, 5]);
+  let piekRes = null, dalRes = null;
+  for (let i = 0; i <= planUren.length - blok; i++) {
+    const h = planUren[i].tijd.getHours();
+    if (!piekRes && piekRange.has(h)) {
+      const k = berekenKostenVanaf(uren, vermogen, planUren, i);
+      if (k !== null) piekRes = { kosten: k, startStr: hStr(planUren[i].tijd), eindStr: eindHStr(h) };
     }
-  }, 900);
-}
+    if (!dalRes && dalRange.has(h)) {
+      const k = berekenKostenVanaf(uren, vermogen, planUren, i);
+      if (k !== null) dalRes = { kosten: k, startStr: hStr(planUren[i].tijd), eindStr: eindHStr(h) };
+    }
+    if (piekRes && dalRes) break;
+  }
 
-function toggleDetail(apId, besteStartIdx, uren, vermogen) {
-  event.stopPropagation();
-  if (!detailState[apId]) {
-    detailState[apId] = { isOpen: false, startIdx: besteStartIdx, besteStartIdx, uren, vermogen };
-  }
-  const state = detailState[apId];
-  state.besteStartIdx = besteStartIdx;
-  const panel = document.getElementById('dp-' + apId);
-  if (!panel) return;
-  if (!state.isOpen) {
-    state.isOpen = true;
-    state.startIdx = besteStartIdx;
-    renderDetailPanel(apId);
-    requestAnimationFrame(() => { panel.style.maxHeight = panel.scrollHeight + 'px'; });
-  } else {
-    state.isOpen = false;
-    panel.style.maxHeight = '0';
-  }
+  const dekSelPct   = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
+  const dekBestePct = Math.round(gemSolarDekking(besteStartIdx,   blok, vermogen, planUren) * 100);
+
+  const selBlok    = planUren.slice(currentStartIdx, currentStartIdx + blok);
+  const terugLijst = selBlok.filter(p => p.terug !== undefined).map(p => p.terug);
+  const gemTerug   = terugLijst.length ? terugLijst.reduce((a,b) => a+b,0) / terugLijst.length : null;
+  const terugKleur = gemTerug === null ? 'var(--muted)' : gemTerug < 0 ? '#a32d2d' : gemTerug < 0.05 ? '#ba7517' : '#27500a';
+  const terugStr   = gemTerug === null ? '—'
+    : gemTerug < 0 ? `⚠️ kost € ${Math.abs(gemTerug).toFixed(3)}/kWh`
+    : `↩ € ${gemTerug.toFixed(3)}/kWh`;
+
+  const isBeste   = currentStartIdx === besteStartIdx;
+  const laadWoord = type === 'laden' ? 'laadt' : type === 'starten' ? 'draait' : 'aan is';
+  const iconHtml  = (typeof icon === 'string' && icon.includes('<svg'))
+    ? `<div style="display:inline-block;transform:scale(2.5);transform-origin:center;margin:16px 0">${icon}</div>`
+    : `<div style="font-size:48px;line-height:1">${icon}</div>`;
+
+  document.getElementById('apDetailNaam').textContent = naam;
+  document.getElementById('apDetailBody').innerHTML = `
+    <div class="ap-detail-hero">
+      ${iconHtml}
+      <div class="ap-detail-naam-groot">${naam}</div>
+      <div class="ap-detail-sub">Totale duur: ${blok} uur · ${totaalKwh} kWh</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Starttijd aanpassen</div>
+      <div class="ap-tijd-row">
+        <button class="ap-tijd-btn" onclick="adjustApDetail(-1)" ${currentStartIdx <= 0 ? 'disabled' : ''}>−</button>
+        <div class="ap-tijd-display">
+          <div class="ap-tijd-main">${selStartStr}</div>
+          <div class="ap-tijd-eind-label">Klaar om: ${selEindStr}</div>
+        </div>
+        <button class="ap-tijd-btn" onclick="adjustApDetail(1)" ${currentStartIdx >= maxIdx ? 'disabled' : ''}>+</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Kosten overzicht</div>
+      <div class="tarief-card">
+        <div class="tarief-row">
+          <span class="tarief-key">Beste tijd (${besteStartStr}–${besteEindStr})</span>
+          <span style="color:#27500a;font-weight:600">€ ${besteNet !== null ? besteNet.toFixed(2) : '—'} ✓</span>
+        </div>
+        <div class="tarief-row">
+          <span class="tarief-key">Jouw keuze (${selStartStr}–${selEindStr})</span>
+          <span style="font-weight:600;color:${isBeste ? '#27500a' : 'var(--text)'}">€ ${selNet !== null ? selNet.toFixed(2) : '—'}${isBeste ? ' ✓' : ''}</span>
+        </div>
+        ${piekRes ? `<div class="tarief-row">
+          <span class="tarief-key">Piekuren (${piekRes.startStr}–${piekRes.eindStr})</span>
+          <span style="color:#a32d2d;font-weight:600">€ ${piekRes.kosten.toFixed(2)}</span>
+        </div>` : ''}
+        ${dalRes ? `<div class="tarief-row">
+          <span class="tarief-key">Daluren (${dalRes.startStr}–${dalRes.eindStr})</span>
+          <span style="color:#27500a;font-weight:600">€ ${dalRes.kosten.toFixed(2)}</span>
+        </div>` : ''}
+      </div>
+    </div>
+
+    ${dekSelPct > 0 || dekBestePct > 0 ? `
+    <div class="section">
+      <div class="section-title">Zonne-energie</div>
+      <div class="tarief-card">
+        <div class="tarief-row">
+          <span class="tarief-key">☀️ Jouw keuze (${selStartStr}–${selEindStr})</span>
+          <span style="font-weight:600;color:${dekSelPct > 30 ? '#27500a' : 'var(--text)'}">${dekSelPct}% gedekt</span>
+        </div>
+        <div class="tarief-row">
+          <span class="tarief-key">☀️ Beste tijd (${besteStartStr}–${besteEindStr})</span>
+          <span style="font-weight:600;color:${dekBestePct > 30 ? '#27500a' : 'var(--text)'}">${dekBestePct}% gedekt</span>
+        </div>
+      </div>
+    </div>` : ''}
+
+    ${gemTerug !== null ? `
+    <div class="section">
+      <div class="section-title">Teruglevering</div>
+      <div class="tarief-card">
+        <div class="tarief-row" style="display:block">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Als je niet ${laadWoord} lever je terug</div>
+          <div style="font-weight:600;color:${terugKleur}">${terugStr}</div>
+        </div>
+      </div>
+    </div>` : ''}
+
+    <div class="section" style="padding-bottom:40px">
+      <button class="ap-cta-btn ap-cta-groen" onclick="gebruikTijdDetail()">Gebruik ${selStartStr} als starttijd</button>
+      ${!isBeste ? `<button class="ap-cta-btn ap-cta-wit" onclick="gebruikBesteTijdDetail()">Gebruik beste tijd (${besteStartStr})</button>` : ''}
+    </div>`;
 }
 
 function renderLaadadvies() {
   const container = document.getElementById('laadadviesContainer');
-  Object.keys(detailState).forEach(k => delete detailState[k]);
   const isMorgenTab = activeDay === 1;
 
   const titleEl = document.getElementById('laadadviesTitle');
@@ -361,7 +431,7 @@ function renderLaadadvies() {
         </div>`;
     }
 
-    return `<div class="advies-card" onclick="toggleDetail(${apId},${besteStartIdx},${uren},${kw})">
+    return `<div class="advies-card" onclick="openApDetail(${apId})">
       <div class="advies-device-icon">${icon}</div>
       <div class="advies-device-naam">${naam}</div>
       ${opmerking ? `<div class="advies-device-sub">${opmerking}</div>` : ''}
@@ -375,7 +445,6 @@ function renderLaadadvies() {
         ${isBesteMorgenGemist ? '<div style="font-size:9px;color:var(--muted);margin-top:2px">* morgen prijzen nog niet beschikbaar</div>' : ''}
       </div>
       ${statusStr}
-      <div class="detail-panel" id="dp-${apId}"></div>
     </div>`;
   }
 
