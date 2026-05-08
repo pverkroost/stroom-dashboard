@@ -135,11 +135,18 @@ function renderSolarKaartjes() {
     totaalEl.style.display = 'none';
     return;
   }
-  const nowH    = new Date().getHours();
-  const entry   = solarVandaag.hourly?.find(e => e.hour === nowH);
-  const w       = solarVandaag.currentWatt ?? entry?.watt ?? 0;
-  const actKwh  = solarVandaag.todayKwh ?? 0;
-  const verwKwh = (openMeteoVandaag?.hourly || [])
+  const nowH       = new Date().getHours();
+  const entry      = solarVandaag.hourly?.find(e => e.hour === nowH);
+  const wSE        = solarVandaag.currentWatt ?? entry?.watt ?? 0;
+  const wGR        = growattVandaag?.currentWatt ?? 0;
+  const w          = wSE + wGR;
+  const seKwh      = solarVandaag.todayKwh ?? 0;
+  const grFractie  = GROWATT_PEAK_KW / TOTAL_PEAK_KW;
+  const grActKwh   = (openMeteoVandaag?.hourly || [])
+    .filter(e => e.hour <= nowH)
+    .reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
+  const actKwh     = seKwh + grActKwh;
+  const verwKwh    = (openMeteoVandaag?.hourly || [])
     .filter(e => e.hour > nowH)
     .reduce((s, e) => s + e.watt, 0) / 1000;
 
