@@ -337,9 +337,13 @@ function renderApDetail() {
       <button class="ap-cta-btn ap-cta-groen" onclick="homeyActie('start')" id="homeyStartBtn">⚡ Start laden</button>
       <button class="ap-cta-btn ap-cta-wit" onclick="homeyActie('stop')" id="homeyStopBtn">⏹ Stop laden</button>
       <div id="homeyPincodeSection" style="display:none;margin-top:10px">
-        <input type="tel" id="homeyPinInput" placeholder="Pincode → Enter" maxlength="6"
-               style="width:100%;padding:12px;border-radius:10px;border:1.5px solid var(--border);font-size:18px;font-family:inherit;background:var(--card);color:var(--text);text-align:center;letter-spacing:4px;box-sizing:border-box"
-               onkeydown="if(event.key==='Enter')bevestigHomey()">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="password" id="homeyPinInput" placeholder="Pincode" maxlength="4" inputmode="numeric"
+                 style="flex:1;padding:12px;border-radius:10px;border:1.5px solid var(--border);font-size:18px;font-family:inherit;background:var(--card);color:var(--text);text-align:center;box-sizing:border-box"
+                 onkeydown="if(event.key==='Enter')bevestigHomey()">
+          <button id="homeyOkBtn" onclick="bevestigHomey()"
+                  style="width:48px;height:48px;border-radius:10px;border:none;background:var(--green);color:white;font-size:22px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">✓</button>
+        </div>
       </div>
       <div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>
     </div>` : ''}`;
@@ -359,14 +363,16 @@ function homeyActie(action) {
 
 async function bevestigHomey() {
   const input    = document.getElementById('homeyPinInput');
+  const okBtn    = document.getElementById('homeyOkBtn');
   const pin      = input?.value?.trim();
   const statusEl = document.getElementById('homeyStatus');
   const section  = document.getElementById('homeyPincodeSection');
   const action   = _homeyPendingAction;
   if (!pin || !action) return;
 
-  if (input) input.disabled = true;
-  if (statusEl) { statusEl.textContent = ''; }
+  if (input)  input.disabled = true;
+  if (okBtn)  { okBtn.disabled = true; okBtn.textContent = '…'; }
+  if (statusEl) statusEl.textContent = '';
 
   try {
     const r = await fetch('/api/homey', {
@@ -387,7 +393,8 @@ async function bevestigHomey() {
       statusEl.textContent = `✗ ${e.message}`;
       statusEl.style.color = '#a32d2d';
     }
-    if (input) { input.disabled = false; input.focus(); input.select(); }
+    if (input) { input.disabled = false; input.value = ''; input.focus(); }
+    if (okBtn) { okBtn.disabled = false; okBtn.textContent = '✓'; }
   }
 }
 
