@@ -6,8 +6,11 @@ module.exports = async (req, res) => {
       'https://webhooks.athom.com/webhook/69fe593babdef1138012461f',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tag: 'auto-laden-starten' })
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': 'auto-laden-starten'
+        },
+        body: JSON.stringify({})
       }
     );
     const text = await r.text();
