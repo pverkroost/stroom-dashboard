@@ -24,11 +24,11 @@ body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif; ba
 .day-tab { flex:1; text-align:center; padding:8px 0 10px; color:rgba(255,255,255,0.55); font-size:14px; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s; }
 .day-tab.active { color:white; border-bottom-color:white; }
 
-.hero { background:var(--green); padding:8px 20px 28px; }
-.hero-label { color:rgba(255,255,255,0.65); font-size:13px; margin-bottom:4px; }
-.hero-price { color:white; font-size:52px; font-weight:300; letter-spacing:-2px; line-height:1; }
-.hero-unit { color:rgba(255,255,255,0.7); font-size:13px; margin-top:6px; }
-.hero-pill { display:inline-block; margin-top:10px; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:500; }
+.hero { background:var(--green); padding:6px 20px 18px; }
+.hero-label { color:rgba(255,255,255,0.55); font-size:11px; margin-bottom:2px; text-transform:uppercase; letter-spacing:0.4px; }
+.hero-price { color:white; font-size:32px; font-weight:400; letter-spacing:-1px; line-height:1; }
+.hero-unit { color:rgba(255,255,255,0.7); font-size:12px; margin-top:4px; }
+.hero-pill { display:inline-block; margin-top:6px; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:500; }
 .pill-green { background:#c0dd97; color:#27500a; }
 .pill-red   { background:#f09595; color:#791f1f; }
 .pill-amber { background:#fac775; color:#633806; }
