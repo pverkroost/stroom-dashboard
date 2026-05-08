@@ -112,6 +112,11 @@ function renderLaadadvies() {
     if (gevonden >= 0) { geselecteerdIdx = gevonden; heeftSelectie = true; }
   }
 
+  console.log('[Slim inplannen] solarVandaag:', !!solarVandaag,
+    '| openMeteoVandaag:', openMeteoVandaag?.hourly?.length ?? 0, 'uur',
+    '| solarMorgen:', solarMorgen?.hourly?.length ?? 0, 'uur',
+    '| geselecteerdIdx:', geselecteerdIdx, '| heeftSelectie:', heeftSelectie);
+
   const wasdroogRes = berekenComboBlok(2, 1.5, 2, 2.5, komende18);
   const hs = d => d ? String(d.getHours()).padStart(2,'0') + ':00' : '—';
 
@@ -129,17 +134,19 @@ function renderLaadadvies() {
     return `<div class="advies-status later">Later: over ${startIdx} uur</div>`;
   }
 
-  // Toont altijd netstroom én solar kosten; badge vergelijkt op basis van toggle
+  // "Met zon" alleen tonen als er daadwerkelijk zon verwacht wordt (gemSolarKw > 0)
   function vergelijk(nuLabel, kostenNu, kostenBeste, solarKosten, vermogenKw, gemSolarKw) {
-    const heeftSolar  = solarKosten !== null && solarKosten !== undefined && kostenNu !== null;
-    const besparing   = heeftSolar ? Math.max(0, kostenNu - solarKosten) : 0;
-    const effectief   = heeftSolar ? solarKosten : kostenNu;
+    const heeftPrijs     = kostenNu !== null;
+    const heeftZon       = solarKosten !== null && solarKosten !== undefined
+                           && heeftPrijs && gemSolarKw > 0.01;
+    const besparing      = heeftZon ? Math.max(0, kostenNu - solarKosten) : 0;
+    const effectief      = heeftZon ? solarKosten : kostenNu;
 
-    const dekPct      = (heeftSolar && vermogenKw > 0)
+    const dekPct         = (heeftZon && vermogenKw > 0)
       ? Math.min(100, Math.round((gemSolarKw / vermogenKw) * 100)) : 0;
-    const volledigGratis = heeftSolar && gemSolarKw >= vermogenKw;
+    const volledigGratis = heeftZon && gemSolarKw >= vermogenKw;
 
-    const solarBadge  = volledigGratis
+    const solarBadge     = volledigGratis
       ? '<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ volledig gratis op zonne-energie</div>'
       : dekPct >= 5
         ? `<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ zonne-energie dekt ${dekPct}%</div>`
@@ -147,8 +154,8 @@ function renderLaadadvies() {
 
     return `<div class="advies-vergelijk">
       <div class="av-rij" style="margin-bottom:2px"><span class="av-label" style="font-weight:600;color:var(--text)">${nuLabel}</span></div>
-      <div class="av-rij"><span class="av-label">Op netstroom</span><span class="av-prijs">${kostenNu !== null ? '€ ' + kostenNu.toFixed(2) : '—'}</span></div>
-      ${heeftSolar ? `<div class="av-rij"><span class="av-label">Met zon</span><span class="av-prijs" style="color:#3b6d11">€ ${solarKosten.toFixed(2)}</span></div>` : ''}
+      <div class="av-rij"><span class="av-label">Op netstroom</span><span class="av-prijs">${heeftPrijs ? '€ ' + kostenNu.toFixed(2) : '—'}</span></div>
+      ${heeftZon ? `<div class="av-rij"><span class="av-label">Met zon</span><span class="av-prijs" style="color:#3b6d11">€ ${solarKosten.toFixed(2)}</span></div>` : ''}
       ${besparing > 0.005 ? `<div class="av-rij"><span class="av-label" style="color:#27500a">Besparing</span><span class="av-prijs" style="color:#27500a;font-weight:700">€ ${besparing.toFixed(2)}</span></div>` : ''}
       <div class="av-rij" style="margin-top:3px"><span class="av-label">Beste tijd</span><span class="av-prijs beste">€ ${kostenBeste.toFixed(2)}</span></div>
       ${badge(effectief, kostenBeste)}
@@ -207,6 +214,7 @@ function renderLaadadvies() {
     const solarNu  = effectieveKosten(ap.uren, ap.kw, komende18, geselecteerdIdx);
     const solarKw  = gemSolarVoorBlok(res.startIndex, Math.ceil(ap.uren), komende18);
     const isMorgen = res.startTijd.getDate() !== now.getDate();
+    console.log(`[${ap.naam}] kostenNu: ${kostenNu?.toFixed(3) ?? '—'} | solarNu: ${solarNu?.toFixed(3) ?? '—'} | gemSolarKw beste blok: ${solarKw.toFixed(3)} kW | besparing: € ${(kostenNu != null && solarNu != null ? Math.max(0, kostenNu - solarNu) : 0).toFixed(3)}`);
     return `<div class="advies-card">
       <div class="advies-device-icon">${ap.icon}</div>
       <div class="advies-device-naam">${ap.naam}</div>
