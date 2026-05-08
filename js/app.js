@@ -12,18 +12,17 @@ function resetZonCanvassen() {
 }
 
 function switchTab(newTab) {
-  if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
-
-  document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
-  const tabEl = newTab === 'zon'
-    ? document.getElementById('tab-2')
-    : document.getElementById('tab-' + newTab);
-  if (tabEl) tabEl.classList.add('active');
-
   if (newTab === 'zon') {
     isZonTab = true;
-    if (chart) { chart.destroy(); chart = null; }
-    resetZonCanvassen();
+    if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
+    // Vernietig alle chart-instanties
+    if (chart)             { chart.destroy();             chart             = null; }
+    if (zonChart)          { zonChart.destroy();          zonChart          = null; }
+    if (voorspellingChart) { voorspellingChart.destroy(); voorspellingChart = null; }
+    // Vervang canvassen zodat Chart.js geen stale registry entries behoudt
+    document.getElementById('zonVandaagChartWrap').innerHTML = '<canvas id="zonChart"></canvas>';
+    document.getElementById('zonMorgenChartWrap').innerHTML  = '<canvas id="voorspellingChart"></canvas>';
+    // Reset dynamische inhoud
     const reset = id => { const el = document.getElementById(id); if (el) el.textContent = '—'; };
     ['zonHeroPrice','zonNuW','zonNuEen','zonTotaalKwh','zonTotaalEen',
      'zonGisterenKwh','zonMaandKwh','zonMorgenKwh','zonMorgenPiekUur',
@@ -31,14 +30,23 @@ function switchTab(newTab) {
     const loading = '<div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div>';
     document.getElementById('zonSEContent').innerHTML      = loading;
     document.getElementById('zonGrowattContent').innerHTML = loading;
+    // Tab UI
+    document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
+    const zonTabEl = document.getElementById('tab-2');
+    if (zonTabEl) zonTabEl.classList.add('active');
     document.getElementById('mainContent').style.display = 'none';
     document.getElementById('zonContent').style.display  = '';
     renderZonTab(activeDay);
+    console.log('Zon tab gerenderd, activeDay:', activeDay);
   } else {
     isZonTab = false;
+    if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
     activeDay = newTab;
     toonVerleden = false;
     geselecteerdStartTijd = null;
+    document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
+    const tabEl = document.getElementById('tab-' + newTab);
+    if (tabEl) tabEl.classList.add('active');
     document.getElementById('mainContent').style.display = '';
     document.getElementById('zonContent').style.display  = 'none';
     const prijzen = newTab === 0 ? cacheVandaag : cacheMorgen;
@@ -96,5 +104,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.10.13 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.10.14 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
