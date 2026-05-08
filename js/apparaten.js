@@ -206,13 +206,16 @@ function renderLaadadvies() {
         ? `<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ zonne-energie dekt ${dekPct}%</div>`
         : '';
 
+    const isAuto    = naam.toLowerCase().includes('auto') || naam.toLowerCase().includes('phev');
+    const nuTekst   = isAuto ? 'Nu laden!'  : 'Nu starten!';
+    const laterVerb = isAuto ? 'Laden'      : 'Starten';
     const statusStr = isMorgenTab
       ? `<div class="advies-status later">Morgen · ${besteStartStr}</div>`
       : besteStartIdx === 0
-        ? `<div class="advies-status nu">✓ Nu laden!</div>`
+        ? `<div class="advies-status nu">✓ ${nuTekst}</div>`
         : besteStartIdx <= 2
-          ? `<div class="advies-status snel">⏰ Over ${besteStartIdx} uur</div>`
-          : `<div class="advies-status later">Later: over ${besteStartIdx} uur</div>`;
+          ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
+          : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
 
     // heeftZonHier is expliciet meegegeven — afgeleid van gemSolarVoorBlok, niet van prijsvergelijking
     function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar, heeftZonHier, isGedeeltelijk = false) {
