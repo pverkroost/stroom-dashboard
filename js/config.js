@@ -1,12 +1,14 @@
 const OPSLAG = 0.03194, EB = 0.09161, BTW = 1.21;
 const LAT = 52.3647;
 const LON = 6.4598;
-const SOLAREDGE_PEAK_KW    = 3.2;
+const SOLAREDGE_PEAK_KW     = 3.2;
 const SOLAREDGE_PANEL_COUNT = 8;
 const SOLAREDGE_LOCATION    = 'garage/kantoor';
 const GROWATT_PEAK_KW       = 4.6;
 const GROWATT_PANEL_COUNT   = 10;
 const GROWATT_LOCATION      = 'huis';
+const GROWATT_DEVICE_SN     = 'CUE294500F'; // Vercel env var: GROWATT_DEVICE_SN
+const GROWATT_DATALOGGER_SN = 'NAC5924643';
 const TOTAL_PEAK_KW         = 7.8;
 const PANEL_EFFICIENCY      = 0.8;
 

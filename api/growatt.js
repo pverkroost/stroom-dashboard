@@ -1,8 +1,8 @@
-// Deploy: 2026-05-08-v2
 const fetch = require('node-fetch');
 
 module.exports = async (req, res) => {
   const apiToken = process.env.GROWATT_API_TOKEN;
+  const deviceSn = process.env.GROWATT_DEVICE_SN; // CUE294500F — beschikbaar voor toekomstige device-specifieke endpoints
 
   try {
     const r     = await fetch(

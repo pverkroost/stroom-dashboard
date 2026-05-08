@@ -9,6 +9,21 @@ Bij elke aanpassing aan stroom-dashboard.html:
 ## Deployment
 Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke commit message die beschrijft wat er gewijzigd is.
 
+## Vercel Environment Variables
+De volgende environment variables moeten ingesteld zijn in het Vercel dashboard (Settings → Environment Variables):
+
+| Variable               | Waarde / omschrijving                        |
+|------------------------|----------------------------------------------|
+| `GROWATT_API_TOKEN`    | Growatt OpenAPI token                        |
+| `GROWATT_DEVICE_SN`    | `CUE294500F` — inverter device serial number |
+| `SOLAREDGE_API_KEY`    | SolarEdge Monitoring API key                 |
+| `SOLAREDGE_SITE_ID`    | SolarEdge site ID                            |
+
+Client-side constanten (niet als env var — staan in `js/config.js`):
+- `LAT` / `LON` — locatiecoördinaten voor Open-Meteo
+- `GROWATT_PEAK_KW` / `SOLAREDGE_PEAK_KW` — piekvermogens panelen
+- `GROWATT_DEVICE_SN` / `GROWATT_DATALOGGER_SN` — referentie SNs
+
 ## Tarieven
 - OPSLAG: 0.03194 per kWh excl. btw
 - EB: 0.09161 per kWh excl. btw
