@@ -279,17 +279,6 @@ function renderApDetail() {
       </div>
     </div>` : ''}
 
-    ${gemTerug !== null ? `
-    <div class="section">
-      <div class="section-title">Teruglevering</div>
-      <div class="tarief-card">
-        <div class="tarief-row" style="display:block">
-          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Als je niet ${laadWoord} lever je terug</div>
-          <div style="font-weight:600;color:${terugKleur}">${terugStr}</div>
-        </div>
-      </div>
-    </div>` : ''}
-
     <div class="section" style="padding-bottom:40px">
       <button class="ap-cta-btn ap-cta-groen" onclick="gebruikTijdDetail()">Gebruik ${selStartStr} als starttijd</button>
       ${!isBeste ? `<button class="ap-cta-btn ap-cta-wit" onclick="gebruikBesteTijdDetail()">Gebruik beste tijd (${besteStartStr})</button>` : ''}
