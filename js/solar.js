@@ -154,16 +154,24 @@ function renderZonTab(day) {
   document.getElementById('zonSEMaand').textContent    = solarVandaag ? maand.toFixed(1)+' kWh' : '—';
 
   if (isVandaag) {
-    const w = solarVandaag?.currentWatt ?? 0;
+    const w    = solarVandaag?.currentWatt ?? 0;
+    const nowH = new Date().getHours();
     document.getElementById('zonHeroLabel').textContent  = 'Nu opgewekt';
     document.getElementById('zonHeroPrice').textContent  = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
     document.getElementById('zonHeroUnit').textContent   = 'zonnepanelen totaal';
-    document.getElementById('zonChartTitle').textContent = 'Opbrengst vandaag per uur';
 
     document.getElementById('zonNuW').textContent   = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
     document.getElementById('zonNuEen').textContent = w > 0 ? 'nu opgewekt' : 'geen productie';
 
-    document.getElementById('zonTotaalKwh').textContent   = solarVandaag ? kwh.toFixed(2)  : '—';
+    // Vandaag kaartje: geproduceerd + verwacht resterende uren
+    const verwachtKwh = (openMeteoVandaag?.hourly || [])
+      .filter(e => e.hour > nowH)
+      .reduce((s, e) => s + e.watt, 0) / 1000;
+    document.getElementById('zonTotaalKwh').textContent = solarVandaag ? kwh.toFixed(2) : '—';
+    document.getElementById('zonTotaalEen').textContent = (solarVandaag && verwachtKwh > 0.01)
+      ? `kWh + ~${verwachtKwh.toFixed(2)} verwacht`
+      : 'kWh vandaag';
+
     document.getElementById('zonGisterenKwh').textContent = gist !== null ? gist.toFixed(2) : '—';
     document.getElementById('zonMaandKwh').textContent    = solarVandaag ? maand.toFixed(1) : '—';
 
@@ -200,25 +208,57 @@ function renderZonChart() {
   if (zonChart) { zonChart.destroy(); zonChart = null; }
   const canvas = document.getElementById('zonChart');
   if (!canvas) return;
-  if (!solarVandaag?.hourly?.length) {
-    canvas.parentElement.innerHTML = '<div class="no-data">Geen productiedata beschikbaar.<br>Vul je SolarEdge API key in bij Netlify.</div>';
+
+  const nowH        = new Date().getHours();
+  const hasActueel  = solarVandaag?.hourly?.length > 0;
+  const hasVerwacht = openMeteoVandaag?.hourly?.length > 0;
+
+  if (!hasActueel && !hasVerwacht) {
+    canvas.parentElement.innerHTML = '<div class="no-data">Geen productiedata beschikbaar.<br>Vul je SolarEdge API key in bij Vercel.</div>';
     return;
   }
+
   const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
   const labels = Array.from({length:24}, (_, i) => String(i).padStart(2,'0')+':00');
-  const seData = Array.from({length:24}, (_, i) => {
-    const e = solarVandaag.hourly.find(h => h.hour === i);
+
+  // Uren t/m huidig uur: actuele SolarEdge productie
+  const actueelData = Array.from({length:24}, (_, i) => {
+    if (i > nowH) return null;
+    const e = solarVandaag?.hourly?.find(h => h.hour === i);
     return e ? Math.round(e.watt) : 0;
   });
+
+  // Toekomstige uren: Open-Meteo voorspelling
+  const verwachtData = Array.from({length:24}, (_, i) => {
+    if (i <= nowH) return null;
+    const e = openMeteoVandaag?.hourly?.find(h => h.hour === i);
+    return (e && e.watt > 0) ? Math.round(e.watt) : null;
+  });
+
+  const datasets = [];
+  if (hasActueel) datasets.push({
+    label: 'Actueel', data: actueelData,
+    backgroundColor: 'rgba(59,109,17,0.65)', borderColor: '#3b6d11',
+    borderWidth: 1, borderRadius: 3
+  });
+  if (hasVerwacht) datasets.push({
+    label: 'Verwacht', data: verwachtData,
+    backgroundColor: 'rgba(100,180,50,0.18)', borderColor: 'rgba(59,109,17,0.4)',
+    borderWidth: 1, borderRadius: 3
+  });
+
+  document.getElementById('zonChartTitle').textContent =
+    hasActueel && hasVerwacht ? 'Actueel + verwachting vandaag' : 'Opbrengst vandaag per uur';
+
   zonChart = new Chart(canvas, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [{ label: 'SolarEdge', data: seData, backgroundColor: 'rgba(59,109,17,0.65)', borderColor: '#3b6d11', borderWidth: 1, borderRadius: 3 }]
-    },
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ctx.parsed.y+' W' } } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.parsed.y + (ctx.datasetIndex === 1 ? ' W (verwacht)' : ' W') } }
+      },
       scales: {
         x: { ticks:{color:isDark?'#888':'#888780', font:{size:10}, maxTicksLimit:8, maxRotation:0}, grid:{display:false} },
         y: { beginAtZero:true, ticks:{color:isDark?'#888':'#888780', font:{size:10}, callback: v => v+' W'}, grid:{color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'} }
