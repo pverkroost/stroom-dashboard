@@ -221,22 +221,20 @@ function renderLaadadvies() {
     function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar, heeftZonHier, dekking, isGedeeltelijk = false) {
       const effPrijs = (heeftZonHier && solar !== null) ? solar : netstroom;
       const priceStr = effPrijs !== null ? `€ ${effPrijs.toFixed(2)}` : '—';
-      const bronStr  = heeftZonHier
-        ? `netstroom + zon · ☀️ ${dekking}% dekking`
-        : 'netstroom · geen zon';
-      const tijdDeel = tijdStr
-        ? ` · ${tijdStr}${isMorgen ? ' <span style="opacity:0.65">(morgen)</span>' : ''}`
-        : '';
+      const bronStr  = heeftZonHier ? `☀️ ${dekking}%` : 'geen zon';
+      const morgenStr = (tijdStr && isMorgen) ? '<span style="opacity:0.65"> (morgen)</span>' : '';
+      const subParts = [tijdStr, bronStr].filter(Boolean);
       const noteStr = isGedeeltelijk
-        ? '<div style="font-size:9px;color:var(--muted);margin-top:1px">* morgen prijzen nog niet beschikbaar, berekening is gedeeltelijk</div>'
+        ? '<div style="font-size:9px;color:var(--muted);margin-top:1px">* morgen nog niet beschikbaar</div>'
         : '';
       return `
-        <div style="margin-bottom:3px;font-size:12px;line-height:1.5">
-          <strong>${sectieLabel}:</strong>
-          <strong>${priceStr}</strong>
-          <span style="color:var(--muted)">(${bronStr})${tijdDeel}</span>
-        </div>
-        ${noteStr}`;
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:600;line-height:1.4">
+            <span>${sectieLabel}</span><span>${priceStr}</span>
+          </div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.3">${subParts.join(' · ')}${morgenStr}</div>
+          ${noteStr}
+        </div>`;
     }
 
     return `<div class="advies-card">
@@ -245,7 +243,7 @@ function renderLaadadvies() {
       <div class="advies-vergelijk">
         ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, besteSolar, heeftZon, dekPct)}
         ${selStartIdx < komende18.length ? `
-        <div style="height:0.5px;background:var(--border);margin:5px 0"></div>
+        <div style="height:0.5px;background:var(--border);margin:3px 0"></div>
         ${blokRijen(selLabel, selTijdStr, false, selNetstroom, selSolar, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
         ${vergelijkBadge}
       </div>
@@ -253,7 +251,7 @@ function renderLaadadvies() {
     </div>`;
   }
 
-  const selLabel = 'Geselecteerd';
+  const selLabel = heeftSelectie ? 'Keuze' : (isMorgenTab ? 'Vroegst' : 'Nu');
 
   const kaarten = APPARATEN.map(ap => {
     if (ap.comboPart === 1) {
@@ -277,7 +275,7 @@ function renderLaadadvies() {
     if (ap.comboPart === 2) {
       if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
       const droogIdx    = geselecteerdIdx + 2;
-      const droogSelLbl = 'Na wasmachine';
+      const droogSelLbl = 'Na was';
       return maakKaart({
         icon: ap.icon, naam: ap.naam, uren: 2, kw: 2.5,
         besteStartIdx:  wasdroogRes.startIndex + 2,
