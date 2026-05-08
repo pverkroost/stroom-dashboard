@@ -139,15 +139,11 @@ function renderSolarKaartjes() {
 
   document.getElementById('solarNu').textContent         = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
   document.getElementById('solarNuEen').textContent      = w > 0 ? 'nu opgewekt' : 'geen productie';
-  document.getElementById('solarVandaagKwh').textContent = actKwh.toFixed(2)+' kWh geproduceerd';
-  if (verwKwh > 0.01) {
-    document.getElementById('solarVandaagEen').textContent = `+ ~${verwKwh.toFixed(2)} kWh verwacht`;
-    totaalEl.textContent   = `≈ ${(actKwh + verwKwh).toFixed(2)} kWh totaal vandaag`;
-    totaalEl.style.display = '';
-  } else {
-    document.getElementById('solarVandaagEen').textContent = 'vandaag geproduceerd';
-    totaalEl.style.display = 'none';
-  }
+  document.getElementById('solarVandaagKwh').textContent = actKwh.toFixed(2)+' kWh';
+  document.getElementById('solarVandaagEen').textContent = verwKwh > 0.01
+    ? `+ ~${verwKwh.toFixed(2)} verwacht · ≈ ${(actKwh + verwKwh).toFixed(2)} totaal`
+    : 'geproduceerd vandaag';
+  totaalEl.style.display = 'none';
 }
 
 function renderZonTab(day) {
