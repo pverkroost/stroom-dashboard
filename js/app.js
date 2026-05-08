@@ -4,7 +4,6 @@ let solarVandaag = null, solarMorgen = null;
 let isZonTab = false, zonChart = null, voorspellingChart = null;
 let openMeteoVandaag = null, growattVandaag = null;
 let solarToggleAan = localStorage.getItem('solarToggle') !== 'uit';
-let previousTab = 'vandaag';
 
 function resetZonCanvassen() {
   if (zonChart)          { zonChart.destroy(); zonChart = null; }
@@ -14,13 +13,8 @@ function resetZonCanvassen() {
 }
 
 function switchTab(newTab) {
-  const from = isZonTab ? 'zon' : (activeDay === 0 ? 'vandaag' : 'morgen');
-  console.log('[Tab] gewisseld naar:', newTab, '| van:', from, '| activeDay:', activeDay, '| isZonTab:', isZonTab);
-  previousTab = from;
-
   if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
 
-  // Verwijder active van alle tabs, activeer de juiste
   document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
   const tabEl = newTab === 'zon'
     ? document.getElementById('tab-2')
@@ -29,10 +23,8 @@ function switchTab(newTab) {
 
   if (newTab === 'zon') {
     isZonTab = true;
-    // Vernietig ALLE bestaande charts
     if (chart) { chart.destroy(); chart = null; }
     resetZonCanvassen();
-    // Wis alle dynamische Zon content zodat nooit oud scherm zichtbaar is
     const reset = id => { const el = document.getElementById(id); if (el) el.textContent = '—'; };
     ['zonHeroPrice','zonNuW','zonNuEen','zonTotaalKwh','zonTotaalEen',
      'zonGisterenKwh','zonMaandKwh','zonMorgenKwh','zonMorgenPiekUur',
@@ -42,9 +34,7 @@ function switchTab(newTab) {
     document.getElementById('zonGrowattContent').innerHTML = loading;
     document.getElementById('mainContent').style.display = 'none';
     document.getElementById('zonContent').style.display  = '';
-    console.log('[Tab] renderZonTab aanroepen met activeDay:', activeDay);
     renderZonTab(activeDay);
-    console.log('[Tab] renderZonTab klaar | zonChart:', !!zonChart, '| voorspellingChart:', !!voorspellingChart);
   } else {
     isZonTab = false;
     activeDay = newTab;
@@ -113,5 +103,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.10.10 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.10.11 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
