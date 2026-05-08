@@ -229,13 +229,11 @@ function renderZonTab(day) {
     document.getElementById('zonHeroPrice').textContent  = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
     document.getElementById('zonHeroUnit').textContent   = 'zonnepanelen totaal';
 
-    document.getElementById('zonNuW').textContent   = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
-    document.getElementById('zonNuEen').textContent = w > 0 ? 'nu opgewekt' : 'geen productie';
+    document.getElementById('zonNuW').textContent   = (w / 1000).toFixed(2);
+    document.getElementById('zonNuEen').textContent = 'kW live';
 
     document.getElementById('zonTotaalKwh').textContent = solarVandaag ? kwh.toFixed(2) : '—';
-    document.getElementById('zonTotaalEen').textContent = (solarVandaag && verwachtRestKwh > 0.01)
-      ? `kWh + ~${verwachtRestKwh.toFixed(2)} kWh verwacht`
-      : 'kWh vandaag';
+    document.getElementById('zonTotaalEen').textContent = 'kWh vandaag';
 
     document.getElementById('zonGisterenKwh').textContent = gist !== null ? gist.toFixed(2) : '—';
     document.getElementById('zonMaandKwh').textContent    = solarVandaag ? maand.toFixed(1) : '—';
