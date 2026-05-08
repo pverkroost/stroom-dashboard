@@ -3,7 +3,11 @@ const fetch = require('node-fetch');
 module.exports = async (req, res) => {
   const apiToken = process.env.GROWATT_API_TOKEN;
   const plantId  = process.env.GROWATT_PLANT_ID;
-  const date     = req.query.date || new Date().toISOString().split('T')[0];
+
+  // Growatt energie endpoint gebruikt jaar-maand formaat (YYYY-MM)
+  const now       = new Date();
+  const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const date      = req.query.date || yearMonth;
 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
