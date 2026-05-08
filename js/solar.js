@@ -224,10 +224,9 @@ function renderZonTab(day) {
     const grDagKwh  = (openMeteoVandaag?.hourly || [])
       .reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
     grEl.innerHTML = `<div class="advies-vergelijk">
-      <div class="av-rij"><span class="av-label">Nu</span><span class="av-prijs">${grNuW >= 1000 ? (grNuW/1000).toFixed(2)+' kW' : Math.round(grNuW)+' W'}</span></div>
+      <div class="av-rij"><span class="av-label">Nu</span><span class="av-prijs">${(grNuW/1000).toFixed(2)} kW</span></div>
       ${grTotKwh !== null ? `<div class="av-rij"><span class="av-label">Totaal</span><span class="av-prijs">${Math.round(grTotKwh).toLocaleString('nl-NL')} kWh</span></div>` : ''}
-      ${grDagKwh > 0.01 ? `<div class="av-rij"><span class="av-label">Vandaag</span><span class="av-prijs">~${grDagKwh.toFixed(2)} kWh</span></div>
-      <div class="av-rij" style="margin-top:2px;font-size:10px;color:var(--muted)">Open-Meteo schatting</div>` : ''}
+      ${grDagKwh > 0.01 ? `<div class="av-rij"><span class="av-label">Vandaag</span><span class="av-prijs">~${grDagKwh.toFixed(2)} kWh</span></div>` : ''}
     </div>`;
   } else {
     const grFractie   = GROWATT_PEAK_KW / TOTAL_PEAK_KW;
@@ -235,17 +234,14 @@ function renderZonTab(day) {
       .reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
     grEl.innerHTML = `<div class="advies-vergelijk">
       <div class="av-rij"><span class="av-label">Verwacht</span><span class="av-prijs">~${grMorgenKwh.toFixed(2)} kWh</span></div>
-      <div class="av-rij" style="margin-top:2px;font-size:10px;color:var(--muted)">Open-Meteo schatting</div>
     </div>`;
   }
 
   if (isVandaag) {
+    document.getElementById('zonHero').style.display = 'none';
     const liveKw  = calcLiveKw();
     const actKwh  = calcVandaagKwh();
     const verwKwh = calcVerwachtKwh();
-    document.getElementById('zonHeroLabel').textContent  = 'Nu opgewekt';
-    document.getElementById('zonHeroPrice').textContent  = liveKw >= 1 ? liveKw.toFixed(2)+' kW' : Math.round(liveKw * 1000)+' W';
-    document.getElementById('zonHeroUnit').textContent   = 'zonnepanelen totaal';
 
     const smZ = 'font-size:13px;color:var(--muted);font-weight:400';
     document.getElementById('zonNuW').innerHTML     = `${liveKw.toFixed(2)} <small style="${smZ}">kW</small>`;
@@ -258,11 +254,12 @@ function renderZonTab(day) {
       ? `+ ~${verwKwh.toFixed(2)} kWh verwacht · ≈ ${(actKwh + verwKwh).toFixed(2)} totaal`
       : 'kWh vandaag';
 
-    document.getElementById('zonGisterenKwh').textContent = gist !== null ? gist.toFixed(2) : '—';
-    document.getElementById('zonMaandKwh').textContent    = solarVandaag ? maand.toFixed(1) : '—';
+    document.getElementById('zonGisterenKwh').innerHTML = gist !== null ? `${gist.toFixed(2)} <small style="${smZ}">kWh</small>` : '—';
+    document.getElementById('zonMaandKwh').innerHTML    = solarVandaag ? `${maand.toFixed(1)} <small style="${smZ}">kWh</small>` : '—';
 
     renderZonChart();
   } else {
+    document.getElementById('zonHero').style.display = '';
     const hourly = solarMorgen?.hourly || [];
     const totaalKwh = hourly.reduce((s, e) => s + e.watt, 0) / 1000;
 
@@ -360,15 +357,62 @@ function renderZonChart() {
   document.getElementById('zonChartTitle').textContent =
     hasActueel && hasVerwacht ? 'Actueel + verwachting vandaag' : 'Opbrengst vandaag per uur';
 
+  const verticalLinePlugin = {
+    id: 'verticalLine',
+    afterDraw(chart) {
+      const active = chart.tooltip?._active;
+      const activeEl = active?.find(el => el.datasetIndex === 0) ?? (active?.[0] ?? null);
+      const idx = activeEl ? activeEl.index : nowH;
+      if (idx < 0) return;
+      const ctx = chart.ctx;
+      const meta = chart.getDatasetMeta(0);
+      const bar = meta.data[idx];
+      if (!bar) return;
+      const x = bar.x;
+      const top = chart.chartArea.top;
+      const bottom = chart.chartArea.bottom;
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  const zonTooltip = document.getElementById('zonChartTooltip');
+
   zonChart = new Chart(canvas, {
     type: 'bar',
-    plugins: [dashedBarPlugin],
+    plugins: [dashedBarPlugin, verticalLinePlugin],
     data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ctx.parsed.y + (ctx.datasetIndex === 1 ? ' W (verwacht)' : ' W') } }
+        tooltip: {
+          enabled: false,
+          external(context) {
+            const { chart, tooltip: t } = context;
+            if (t.opacity === 0) { zonTooltip.classList.remove('visible'); return; }
+            const idx = t.dataPoints?.[0]?.dataIndex;
+            if (idx == null) return;
+            const watt = t.dataPoints.reduce((best, dp) => dp.parsed.y != null && dp.parsed.y > best ? dp.parsed.y : best, 0);
+            const suffix = idx > nowH ? ' W (verwacht)' : ' W';
+            zonTooltip.textContent = String(idx).padStart(2,'0') + ':00 · ' + Math.round(watt) + suffix;
+            const x = t.caretX;
+            const containerWidth = chart.canvas.parentElement.offsetWidth;
+            let left = x;
+            if (left < 60) left = 60;
+            if (left > containerWidth - 60) left = containerWidth - 60;
+            zonTooltip.style.left = left + 'px';
+            zonTooltip.classList.add('visible');
+          }
+        }
       },
       scales: {
         x: { ticks:{color:isDark?'#888':'#888780', font:{size:10}, maxTicksLimit:8, maxRotation:0}, grid:{display:false} },

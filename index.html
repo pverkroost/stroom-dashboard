@@ -31,9 +31,11 @@
 <div id="mainContent">
   <div class="hero">
     <div class="hero-label" id="heroLabel">Nu betaal je</div>
-    <div class="hero-price" id="huidigePrijs">—</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="hero-price" id="huidigePrijs">—</div>
+      <span class="hero-pill" id="prijsPill" style="display:none"></span>
+    </div>
     <div class="hero-unit" id="huidigUur">per kWh</div>
-    <div><span class="hero-pill" id="prijsPill" style="display:none"></span></div>
   </div>
 
   <div class="cards">
@@ -99,7 +101,7 @@
 </div><!-- /mainContent -->
 
 <div id="zonContent" style="display:none">
-  <div class="hero">
+  <div class="hero" id="zonHero">
     <div class="hero-label" id="zonHeroLabel">Nu opgewekt</div>
     <div class="hero-price" id="zonHeroPrice">— W</div>
     <div class="hero-unit" id="zonHeroUnit">zonnepanelen totaal</div>
@@ -151,8 +153,11 @@
   <!-- Grafiek: vandaag (SolarEdge) of morgen (Open-Meteo) -->
   <div class="section">
     <div class="section-title" id="zonChartTitle">Opbrengst vandaag per uur</div>
-    <div id="zonVandaagChartWrap" class="chart-wrap"><canvas id="zonChart"></canvas></div>
-    <div id="zonMorgenChartWrap" class="chart-wrap" style="display:none"><canvas id="voorspellingChart"></canvas></div>
+    <div style="position:relative">
+      <div class="chart-tooltip" id="zonChartTooltip"></div>
+      <div id="zonVandaagChartWrap" class="chart-wrap"><canvas id="zonChart"></canvas></div>
+      <div id="zonMorgenChartWrap" class="chart-wrap" style="display:none"><canvas id="voorspellingChart"></canvas></div>
+    </div>
   </div>
 
   <!-- Omvormers: alleen bij vandaag relevant -->
@@ -162,11 +167,13 @@
       <div class="advies-card">
         <div class="advies-device-icon">🔆</div>
         <div class="advies-device-naam">SolarEdge</div>
+        <div class="advies-device-sub">8 panelen · garage/kantoor</div>
         <div id="zonSEContent"><div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div></div>
       </div>
       <div class="advies-card">
         <div class="advies-device-icon">🔋</div>
         <div class="advies-device-naam">Growatt</div>
+        <div class="advies-device-sub">10 panelen · huis</div>
         <div id="zonGrowattContent"><div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div></div>
       </div>
     </div>
@@ -175,7 +182,7 @@
 
 <div class="footer">
   EPEX day-ahead · SolarEdge API · Growatt OpenAPI · Open-Meteo<br>
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.10.5</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.10.6</span>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
