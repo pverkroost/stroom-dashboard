@@ -92,12 +92,12 @@ function effectieveKosten(uren, vermogenKw, prijzenLijst, vanIdx, allowPartial =
   return (allowPartial && beschikbaar < blokGrootte) ? som * (blokGrootte / beschikbaar) : som;
 }
 
-function gemSolarVoorBlok(startIdx, aantalUren, komende18) {
+function gemSolarVoorBlok(startIdx, aantalUren, planUren) {
   const vandaagStart = new Date(); vandaagStart.setHours(0,0,0,0);
   const morgenStart  = new Date(vandaagStart); morgenStart.setDate(morgenStart.getDate() + 1);
   let totaalW = 0, n = 0;
-  for (let i = startIdx; i < startIdx + aantalUren && i < komende18.length; i++) {
-    const p = komende18[i];
+  for (let i = startIdx; i < startIdx + aantalUren && i < planUren.length; i++) {
+    const p = planUren[i];
     const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
     const isMorgenUur = dagStart.getTime() === morgenStart.getTime();
     totaalW += getSolarWatt(p.tijd.getHours(), isMorgenUur);
@@ -141,13 +141,14 @@ function renderLaadadvies() {
   const now = new Date();
   const nowUur = now.getHours();
 
-  const komende18 = isMorgenTab
-    ? (cacheMorgen || []).slice(0, 18)
-    : [...cacheVandaag.filter(p => p.tijd.getHours() >= nowUur), ...(cacheMorgen || [])].slice(0, 18);
+  const planUren = isMorgenTab
+    ? (cacheMorgen || [])
+    : [...cacheVandaag.filter(p => p.tijd.getHours() >= nowUur), ...(cacheMorgen || [])];
+  const isBesteMorgenGemist = !isMorgenTab && !cacheMorgen;
 
   let geselecteerdIdx = 0, heeftSelectie = false;
   if (geselecteerdStartTijd) {
-    const gevonden = komende18.findIndex(p => p.tijd.getTime() === geselecteerdStartTijd.getTime());
+    const gevonden = planUren.findIndex(p => p.tijd.getTime() === geselecteerdStartTijd.getTime());
     if (gevonden >= 0) { geselecteerdIdx = gevonden; heeftSelectie = true; }
   }
 
@@ -157,7 +158,7 @@ function renderLaadadvies() {
     '| solarMorgen:', solarMorgen?.hourly?.length ?? 0, 'uur',
     '| geselecteerdIdx:', geselecteerdIdx, '| heeftSelectie:', heeftSelectie);
 
-  const wasdroogRes = berekenComboBlok(2, 1.5, 2, 2.5, komende18);
+  const wasdroogRes = berekenComboBlok(2, 1.5, 2, 2.5, planUren);
   const hs = d => d ? String(d.getHours()).padStart(2,'0') + ':00' : '—';
   const leegKaart = (icon, naam) =>
     `<div class="advies-card"><div class="advies-device-icon">${icon}</div><div class="advies-device-naam">${naam}</div><div class="advies-row">Onvoldoende data</div></div>`;
@@ -168,10 +169,10 @@ function renderLaadadvies() {
                         selLabel, selNetstroom, selSolar, selStartIdx,
                         selGedeeltelijk = false }) {
     // Solar voor beste blok
-    const gemSolarKw    = gemSolarVoorBlok(besteStartIdx, Math.ceil(uren), komende18);
+    const gemSolarKw    = gemSolarVoorBlok(besteStartIdx, Math.ceil(uren), planUren);
     // Solar voor geselecteerd blok — zelfde logica, juiste uren via getSolarWatt()
     const gemSolarKwSel = selNetstroom !== null
-      ? gemSolarVoorBlok(selStartIdx, Math.ceil(uren), komende18)
+      ? gemSolarVoorBlok(selStartIdx, Math.ceil(uren), planUren)
       : 0;
 
     const heeftZon    = gemSolarKw    > 0.01;
@@ -187,7 +188,7 @@ function renderLaadadvies() {
       : null;
 
     // Log per apparaat: geselecteerdUur, solarVoorGeselecteerdBlok, labelGekozen
-    const selStartUur = komende18[selStartIdx]?.tijd ? hs(komende18[selStartIdx].tijd) : '—';
+    const selStartUur = planUren[selStartIdx]?.tijd ? hs(planUren[selStartIdx].tijd) : '—';
     const labelBeste  = heeftZon    ? 'Netstroom + zon' : 'Op netstroom';
     const labelSel    = heeftZonSel ? 'Netstroom + zon' : 'Op netstroom';
     console.log(`[${naam}] geselecteerdUur: ${selStartUur} | solarSel: ${gemSolarKwSel.toFixed(3)} kW | labelSel: ${labelSel} | solarBeste: ${gemSolarKw.toFixed(3)} kW | labelBeste: ${labelBeste}`);
@@ -201,7 +202,7 @@ function renderLaadadvies() {
     }
 
     const selTijdStr = (() => {
-      const t = selStartIdx < komende18.length ? komende18[selStartIdx]?.tijd : null;
+      const t = selStartIdx < planUren.length ? planUren[selStartIdx]?.tijd : null;
       if (!t) return '';
       const e = new Date(t); e.setHours(e.getHours() + Math.ceil(uren));
       return `${hs(t)}–${String(e.getHours()).padStart(2,'0')}:00`;
@@ -242,10 +243,11 @@ function renderLaadadvies() {
       <div class="advies-device-naam">${naam}</div>
       <div class="advies-vergelijk">
         ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, besteSolar, heeftZon, dekPct)}
-        ${selStartIdx < komende18.length ? `
+        ${selStartIdx < planUren.length ? `
         <div style="height:0.5px;background:var(--border);margin:3px 0"></div>
         ${blokRijen(selLabel, selTijdStr, false, selNetstroom, selSolar, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
         ${vergelijkBadge}
+        ${isBesteMorgenGemist ? '<div style="font-size:9px;color:var(--muted);margin-top:2px">* morgen prijzen nog niet beschikbaar</div>' : ''}
       </div>
       ${statusStr}
     </div>`;
@@ -263,12 +265,12 @@ function renderLaadadvies() {
         besteEindStr:   wasdroogRes.was.eindStr,
         besteIsMorgen:  isMorgenTab || wasdroogRes.was.startTijd.getDate() !== now.getDate(),
         besteNetstroom: wasdroogRes.was.kosten,
-        besteSolar:     effectieveKosten(2, 1.5, komende18, wasdroogRes.startIndex),
+        besteSolar:     effectieveKosten(2, 1.5, planUren, wasdroogRes.startIndex),
         selLabel,
-        selNetstroom:   berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx, true),
-        selSolar:       effectieveKosten(2, 1.5, komende18, geselecteerdIdx, true),
+        selNetstroom:   berekenKostenVanaf(2, 1.5, planUren, geselecteerdIdx, true),
+        selSolar:       effectieveKosten(2, 1.5, planUren, geselecteerdIdx, true),
         selStartIdx:    geselecteerdIdx,
-        selGedeeltelijk: !cacheMorgen && geselecteerdIdx + 2 > komende18.length && geselecteerdIdx < komende18.length,
+        selGedeeltelijk: !cacheMorgen && geselecteerdIdx + 2 > planUren.length && geselecteerdIdx < planUren.length,
       });
     }
 
@@ -283,16 +285,16 @@ function renderLaadadvies() {
         besteEindStr:   wasdroogRes.droog.eindStr,
         besteIsMorgen:  isMorgenTab || wasdroogRes.droog.startTijd.getDate() !== now.getDate(),
         besteNetstroom: wasdroogRes.droog.kosten,
-        besteSolar:     effectieveKosten(2, 2.5, komende18, wasdroogRes.startIndex + 2),
+        besteSolar:     effectieveKosten(2, 2.5, planUren, wasdroogRes.startIndex + 2),
         selLabel:       droogSelLbl,
-        selNetstroom:   droogIdx < komende18.length ? berekenKostenVanaf(2, 2.5, komende18, droogIdx, true) : null,
-        selSolar:       droogIdx < komende18.length ? effectieveKosten(2, 2.5, komende18, droogIdx, true) : null,
+        selNetstroom:   droogIdx < planUren.length ? berekenKostenVanaf(2, 2.5, planUren, droogIdx, true) : null,
+        selSolar:       droogIdx < planUren.length ? effectieveKosten(2, 2.5, planUren, droogIdx, true) : null,
         selStartIdx:    droogIdx,
-        selGedeeltelijk: !cacheMorgen && droogIdx + 2 > komende18.length && droogIdx < komende18.length,
+        selGedeeltelijk: !cacheMorgen && droogIdx + 2 > planUren.length && droogIdx < planUren.length,
       });
     }
 
-    const res = berekenGoedkoopsteBlok(ap.uren, ap.kw, komende18);
+    const res = berekenGoedkoopsteBlok(ap.uren, ap.kw, planUren);
     if (!res) return leegKaart(ap.icon, ap.naam);
     return maakKaart({
       icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.kw,
@@ -301,12 +303,12 @@ function renderLaadadvies() {
       besteEindStr:   res.eindStr,
       besteIsMorgen:  isMorgenTab || res.startTijd.getDate() !== now.getDate(),
       besteNetstroom: res.kosten,
-      besteSolar:     effectieveKosten(ap.uren, ap.kw, komende18, res.startIndex),
+      besteSolar:     effectieveKosten(ap.uren, ap.kw, planUren, res.startIndex),
       selLabel,
-      selNetstroom:   berekenKostenVanaf(ap.uren, ap.kw, komende18, geselecteerdIdx, true),
-      selSolar:       effectieveKosten(ap.uren, ap.kw, komende18, geselecteerdIdx, true),
+      selNetstroom:   berekenKostenVanaf(ap.uren, ap.kw, planUren, geselecteerdIdx, true),
+      selSolar:       effectieveKosten(ap.uren, ap.kw, planUren, geselecteerdIdx, true),
       selStartIdx:    geselecteerdIdx,
-      selGedeeltelijk: !cacheMorgen && geselecteerdIdx + Math.ceil(ap.uren) > komende18.length && geselecteerdIdx < komende18.length,
+      selGedeeltelijk: !cacheMorgen && geselecteerdIdx + Math.ceil(ap.uren) > planUren.length && geselecteerdIdx < planUren.length,
     });
   }).join('');
 
