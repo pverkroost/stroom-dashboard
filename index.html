@@ -26,6 +26,7 @@
   <div class="day-tab active" id="tab-0" onclick="switchTab(0)">Vandaag</div>
   <div class="day-tab" id="tab-1" onclick="switchTab(1)">Morgen</div>
   <div class="day-tab" id="tab-2" onclick="switchTab('zon')">☀️ Zon</div>
+  <div class="day-tab" id="tab-3" onclick="switchTab('inst')" style="flex:0;padding-left:14px;padding-right:14px">⚙️</div>
 </div>
 
 <div id="mainContent">
@@ -185,9 +186,59 @@
   </div>
 </div><!-- /zonContent -->
 
+<div id="instellingenContent" style="display:none">
+
+  <div class="section" style="padding-top:28px">
+    <div class="section-title">Tarieven</div>
+    <div class="tarief-card">
+      <div class="tarief-row"><span class="tarief-key">Inkoopvergoeding</span><span>€ 0,03194 / kWh</span></div>
+      <div class="tarief-row"><span class="tarief-key">Energiebelasting</span><span>€ 0,08930 / kWh</span></div>
+      <div class="tarief-row"><span class="tarief-key">BTW</span><span>21%</span></div>
+      <div class="tarief-row"><span class="tarief-key">Vaste kosten</span><span>€ 0,32819 / dag</span></div>
+      <div class="tarief-row"><span class="tarief-key">Terugleververgoeding</span><span>− € 0,03530 / kWh</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Zonnepanelen</div>
+    <div class="tarief-card">
+      <div class="tarief-row"><span class="tarief-key">SolarEdge</span><span>8 panelen · 3,2 kW · garage/kantoor</span></div>
+      <div class="tarief-row"><span class="tarief-key">Growatt</span><span>14 panelen · 4,6 kW · huis</span></div>
+      <div class="tarief-row"><span class="tarief-key">Totaal</span><span>22 panelen · 7,8 kW piek</span></div>
+      <div class="tarief-row"><span class="tarief-key">Rendement</span><span>80%</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Apparaten</div>
+    <div class="tarief-card">
+      <div class="tarief-row"><span class="tarief-key">🚗 Auto (PHEV)</span><span>6 uur · 2,3 kW</span></div>
+      <div class="tarief-row"><span class="tarief-key">🍽️ Vaatwasser</span><span>3 uur · 1,8 kW</span></div>
+      <div class="tarief-row"><span class="tarief-key">👕 Wasmachine</span><span>2 uur · 1,5 kW</span></div>
+      <div class="tarief-row"><span class="tarief-key">🌀 Droger</span><span>2 uur · 2,5 kW</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Databronnen</div>
+    <div class="tarief-card" id="databronnenCard">
+      <div class="tarief-row"><span class="tarief-key" style="color:var(--muted)">Laden…</span></div>
+    </div>
+  </div>
+
+  <div class="section" style="padding-bottom:24px">
+    <div class="section-title">App info</div>
+    <div class="tarief-card">
+      <div class="tarief-row"><span class="tarief-key">Versie</span><span id="instVersie">—</span></div>
+      <div class="tarief-row"><span class="tarief-key">Laatste update</span><span id="instLaatsteUpdate">—</span></div>
+    </div>
+  </div>
+
+</div><!-- /instellingenContent -->
+
 <div class="footer">
   EPEX day-ahead · SolarEdge API · Growatt OpenAPI · Open-Meteo<br>
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.11.0</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.12.0</span>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>

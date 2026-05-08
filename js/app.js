@@ -1,8 +1,9 @@
 let chart = null, activeDay = 0, cacheVandaag = null, cacheMorgen = null;
 let toonVerleden = false, geselecteerdStartTijd = null, rAFId = null;
 let solarVandaag = null, solarMorgen = null;
-let isZonTab = false, zonChart = null, voorspellingChart = null;
+let isZonTab = false, isInstTab = false, zonChart = null, voorspellingChart = null;
 let openMeteoVandaag = null, growattVandaag = null;
+let apiStatus = { epex: null, solar: null, growatt: null, openMeteo: null };
 
 function resetZonCanvassen() {
   if (zonChart)          { zonChart.destroy(); zonChart = null; }
@@ -12,17 +13,30 @@ function resetZonCanvassen() {
 }
 
 function switchTab(newTab) {
-  if (newTab === 'zon') {
-    isZonTab = true;
+  const hideAll = () => {
+    document.getElementById('mainContent').style.display         = 'none';
+    document.getElementById('zonContent').style.display          = 'none';
+    document.getElementById('instellingenContent').style.display = 'none';
+  };
+
+  if (newTab === 'inst') {
+    isInstTab = true; isZonTab = false;
     if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
-    // Vernietig alle chart-instanties
+    if (chart) { chart.destroy(); chart = null; }
+    hideAll();
+    document.getElementById('instellingenContent').style.display = '';
+    document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-3').classList.add('active');
+    renderInstellingen();
+
+  } else if (newTab === 'zon') {
+    isZonTab = true; isInstTab = false;
+    if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
     if (chart)             { chart.destroy();             chart             = null; }
     if (zonChart)          { zonChart.destroy();          zonChart          = null; }
     if (voorspellingChart) { voorspellingChart.destroy(); voorspellingChart = null; }
-    // Vervang canvassen zodat Chart.js geen stale registry entries behoudt
     document.getElementById('zonVandaagChartWrap').innerHTML = '<canvas id="zonChart"></canvas>';
     document.getElementById('zonMorgenChartWrap').innerHTML  = '<canvas id="voorspellingChart"></canvas>';
-    // Reset dynamische inhoud
     const reset = id => { const el = document.getElementById(id); if (el) el.textContent = '—'; };
     ['zonHeroPrice','zonNuW','zonNuEen','zonTotaalKwh','zonTotaalEen',
      'zonGisterenKwh','zonMaandKwh','zonMorgenKwh','zonMorgenPiekUur',
@@ -30,26 +44,25 @@ function switchTab(newTab) {
     const loading = '<div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div>';
     document.getElementById('zonSEContent').innerHTML      = loading;
     document.getElementById('zonGrowattContent').innerHTML = loading;
-    // Tab UI
+    hideAll();
+    document.getElementById('zonContent').style.display = '';
     document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
     const zonTabEl = document.getElementById('tab-2');
     if (zonTabEl) zonTabEl.classList.add('active');
-    document.getElementById('mainContent').style.display = 'none';
-    document.getElementById('zonContent').style.display  = '';
     renderZonTab(0);
-    console.log('Zon tab gerenderd, activeDay:', activeDay);
+
   } else {
-    isZonTab = false;
+    isZonTab = false; isInstTab = false;
     if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
     activeDay = newTab;
     toonVerleden = false;
     geselecteerdStartTijd = null;
+    hideAll();
+    document.getElementById('mainContent').style.display         = '';
+    document.getElementById('laadadviesSection').style.display   = '';
     document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
     const tabEl = document.getElementById('tab-' + newTab);
     if (tabEl) tabEl.classList.add('active');
-    document.getElementById('mainContent').style.display      = '';
-    document.getElementById('zonContent').style.display       = 'none';
-    document.getElementById('laadadviesSection').style.display = '';
     const prijzen = newTab === 0 ? cacheVandaag : cacheMorgen;
     if (prijzen) renderDashboard(prijzen, newTab);
     else renderGeenData();
@@ -68,6 +81,9 @@ async function laadPrijzen() {
       fetchOpenMeteo().catch(() => null),
       fetchGrowatt().catch(() => null)
     ]);
+    const nu = new Date();
+    const upd = (key, ok) => apiStatus[key] = { ok, tijd: ok ? nu : (apiStatus[key]?.tijd ?? null) };
+    upd('epex', !!vandaag); upd('solar', !!solar); upd('growatt', !!growatt); upd('openMeteo', !!openMeteo);
     cacheVandaag     = vandaag;
     cacheMorgen      = morgen;
     solarVandaag     = solar;
@@ -77,6 +93,8 @@ async function laadPrijzen() {
     if (isZonTab) {
       resetZonCanvassen();
       renderZonTab(0);
+    } else if (isInstTab) {
+      renderInstellingen();
     } else {
       if (chart) { chart.destroy(); chart = null; }
       const prijzen = activeDay === 0 ? cacheVandaag : cacheMorgen;
@@ -85,16 +103,55 @@ async function laadPrijzen() {
       renderLaadadvies();
     }
     renderSolarKaartjes();
-    document.getElementById('lastUpdate').textContent = 'Bijgewerkt ' + uurStr(new Date());
+    document.getElementById('lastUpdate').textContent = 'Bijgewerkt ' + uurStr(nu);
   } catch(e) {
     document.getElementById('lastUpdate').textContent = 'Fout bij laden';
     document.getElementById('urenLijst').innerHTML = '<div class="no-data">Kon API niet bereiken. Probeer opnieuw.</div>';
+    apiStatus.epex = { ok: false, tijd: apiStatus.epex?.tijd ?? null };
+    if (isInstTab) renderInstellingen();
   }
 }
 
 laadPrijzen();
 setInterval(laadPrijzen, 5 * 60 * 1000);
 
+
+function renderInstellingen() {
+  const bronnen = [
+    { naam: 'EPEX day-ahead',  sub: 'via EnergyZero', key: 'epex' },
+    { naam: 'SolarEdge API',   sub: null,              key: 'solar' },
+    { naam: 'Growatt OpenAPI', sub: null,              key: 'growatt' },
+    { naam: 'Open-Meteo',      sub: null,              key: 'openMeteo' },
+  ];
+  const card = document.getElementById('databronnenCard');
+  if (card) {
+    card.innerHTML = bronnen.map(b => {
+      const s = apiStatus[b.key];
+      const statusStr = !s        ? '⏳ Ophalen…'
+                      : s.ok      ? '✅ Actief'
+                      :             '❌ Niet bereikbaar';
+      const tijdStr   = s?.tijd   ? uurStr(s.tijd) : '';
+      const kleurStr  = !s ? 'color:var(--muted)' : s.ok ? '' : 'color:#a32d2d';
+      return `<div class="tarief-row" style="align-items:flex-start">
+        <div>
+          <div class="tarief-key">${b.naam}</div>
+          ${b.sub ? `<div style="font-size:10px;color:var(--muted)">${b.sub}</div>` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;${kleurStr}">
+          <div>${statusStr}</div>
+          ${tijdStr ? `<div style="font-size:10px;color:var(--muted)">${tijdStr}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+  const versieEl = document.getElementById('instVersie');
+  const updateEl = document.getElementById('instLaatsteUpdate');
+  if (versieEl) versieEl.textContent = document.getElementById('versionStamp')?.textContent || '—';
+  if (updateEl) {
+    const lu = document.getElementById('lastUpdate')?.textContent || '—';
+    updateEl.textContent = (lu === 'Ophalen...' || lu === 'Laden...') ? '—' : lu;
+  }
+}
 
 (function() {
   const now = new Date();
@@ -106,5 +163,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.11.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.12.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
