@@ -939,7 +939,6 @@ function renderLaadadvies() {
         ${vergelijk(nuLabel, kostenNu, wasdroogRes.was.kosten, solarNu)}
         <div class="advies-row">Beste: ${hs(wasdroogRes.was.startTijd)} – ${wasdroogRes.was.eindStr}${isMorgen ? ' (morgen)' : ''}</div>
         ${statusEl(wasdroogRes.startIndex)}
-        ${solarKwWas > 1.5 ? '<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ zonne-energie beschikbaar</div>' : ''}
       </div>`;
     }
 
@@ -964,7 +963,6 @@ function renderLaadadvies() {
         <div class="advies-row">Beste: ${hs(wasdroogRes.droog.startTijd)} – ${wasdroogRes.droog.eindStr}${isMorgen ? ' (morgen)' : ''} (na was)</div>
         ${statusEl(wasdroogRes.startIndex + 2)}
         ${totaalRegel}
-        ${solarKwDroog > 1.5 ? '<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ zonne-energie beschikbaar</div>' : ''}
       </div>`;
     }
 
@@ -981,7 +979,6 @@ function renderLaadadvies() {
       ${vergelijk(nuLabelBase, kostenNu, res.kosten, solarNu)}
       <div class="advies-row">Beste: ${hs(res.startTijd)} – ${res.eindStr}${isMorgen ? ' (morgen)' : ''}</div>
       ${statusEl(res.startIndex)}
-      ${solarKw > 1.5 ? '<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ zonne-energie beschikbaar</div>' : ''}
     </div>`;
   }).join('');
 
