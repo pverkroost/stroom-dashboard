@@ -504,5 +504,6 @@ function renderLaadadvies() {
     });
   }).join('');
 
-  container.innerHTML = `<div class="advies-grid">${kaarten}</div>`;
+  container.innerHTML = `<div class="advies-grid">${kaarten}</div>
+<p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 16px">* Berekeningen zijn per apparaat afzonderlijk. Bij gelijktijdig gebruik is de zonne-energie dekking lager.</p>`;
 }
