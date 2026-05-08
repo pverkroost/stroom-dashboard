@@ -3,30 +3,33 @@ const fetch = require('node-fetch');
 module.exports = async (req, res) => {
   const apiToken = process.env.GROWATT_API_TOKEN;
   const plantId  = process.env.GROWATT_PLANT_ID;
+  const type     = req.query.type || 'overview';
 
-  const now      = new Date();
-  const date     = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const deviceSn = 'CUE294500F';
-
-  const endpoints = [
-    `https://openapi.growatt.com/v1/device/energy?device_sn=${deviceSn}&date=${date}`,
-    `https://openapi.growatt.com/v1/device/energy?sn=${deviceSn}&date=${date}`,
-    `https://openapi.growatt.com/v1/inverter/detail?sn=${deviceSn}`,
-    `https://openapi.growatt.com/v1/device/detail?device_sn=${deviceSn}`,
-  ];
-
-  const results = [];
-  for (const url of endpoints) {
-    try {
-      const r    = await fetch(url, { headers: { token: apiToken } });
-      const data = await r.json();
-      results.push({ url, status: r.status, data });
-      if (!data.error_code || data.error_code === 0) break;
-    } catch (e) {
-      results.push({ url, error: e.message });
+  try {
+    let url;
+    if (type === 'overview') {
+      url = `https://openapi.growatt.com/v1/plant/list?page=1&perpage=10`;
+    } else if (type === 'power') {
+      url = `https://openapi.growatt.com/v1/device/list?plant_id=${plantId}`;
     }
-  }
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.json(results);
+    const r    = await fetch(url, { headers: { token: apiToken } });
+    const data = await r.json();
+
+    let result = {};
+    if (type === 'overview' && data.data?.plants?.[0]) {
+      const plant = data.data.plants[0];
+      result = {
+        currentPower: parseFloat(plant.current_power),
+        todayEnergy:  0,
+        totalEnergy:  parseFloat(plant.total_energy),
+        status:       plant.status
+      };
+    }
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.json({ raw: data, parsed: result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 };
