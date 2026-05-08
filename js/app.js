@@ -11,15 +11,6 @@ function switchDay(day) {
   geselecteerdStartTijd = null;
   if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
 
-  if (isZonTab) {
-    // Blijf op Zon tab, update alleen de dag-inhoud
-    document.getElementById('tab-0').classList.toggle('active', day === 0);
-    document.getElementById('tab-1').classList.toggle('active', day === 1);
-    document.getElementById('tab-2').classList.add('active');
-    renderZonTab(day);
-    return;
-  }
-
   isZonTab = false;
   document.getElementById('mainContent').style.display = '';
   document.getElementById('zonContent').style.display = 'none';
