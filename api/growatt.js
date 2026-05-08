@@ -4,11 +4,15 @@ module.exports = async (req, res) => {
   const apiToken = process.env.GROWATT_API_TOKEN;
   const plantId  = process.env.GROWATT_PLANT_ID;
 
-  // Probeer meerdere endpoints zonder datum
+  const now      = new Date();
+  const date     = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const deviceSn = 'CUE294500F';
+
   const endpoints = [
-    `https://openapi.growatt.com/v1/plant/energy?plant_id=${plantId}`,
-    `https://openapi.growatt.com/v1/plant/power?plant_id=${plantId}`,
-    `https://openapi.growatt.com/v1/device/list?plant_id=${plantId}`,
+    `https://openapi.growatt.com/v1/device/energy?device_sn=${deviceSn}&date=${date}`,
+    `https://openapi.growatt.com/v1/device/energy?sn=${deviceSn}&date=${date}`,
+    `https://openapi.growatt.com/v1/inverter/detail?sn=${deviceSn}`,
+    `https://openapi.growatt.com/v1/device/detail?device_sn=${deviceSn}`,
   ];
 
   const results = [];
