@@ -249,7 +249,7 @@ function renderDashboard(prijzen, day) {
             const p = prijzen[idx];
             const timeStr = uurStr(p.tijd) + '–' + String(p.tijd.getHours()+1).padStart(2,'0') + ':00';
             const terugStr = p.terug !== undefined
-              ? (p.terug < 0 ? ' · ↩ € ' + p.terug.toFixed(3) + ' ⚠️ kost geld' : ' · ↩ € ' + p.terug.toFixed(3) + ' ontvangen')
+              ? (p.terug < 0 ? ' · ↩ € ' + p.terug.toFixed(3) + ' ⚠️ kost geld' : ' · ↩ € ' + p.terug.toFixed(3) + ' / kWh bij teruglevering')
               : '';
             tooltip.textContent = timeStr + ' · € ' + p.totaal.toFixed(3) + terugStr;
             const x = t.caretX;
@@ -290,7 +290,7 @@ function renderDashboard(prijzen, day) {
       <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${isPast ? (isDark?'#555':'#bbb') : k.bar}"></div></div>
       <div class="hour-price-group">
         <span class="hour-price" style="color:${isPast ? 'var(--muted)' : k.text}">€ ${p.totaal.toFixed(3)}</span>
-        ${p.terug !== undefined ? `<span class="hour-terug ${p.terug < 0 ? 'negatief' : p.terug < 0.05 ? 'laag' : 'positief'}">↩ € ${p.terug.toFixed(3)} ${p.terug < 0 ? '⚠️ kost geld' : 'ontvangen'}</span>` : ''}
+        ${p.terug !== undefined ? `<span class="hour-terug ${p.terug < 0 ? 'negatief' : p.terug < 0.05 ? 'laag' : 'positief'}">↩ € ${p.terug.toFixed(3)} ${p.terug < 0 ? '⚠️ kost geld' : '/ kWh bij teruglevering'}</span>` : ''}
       </div>
       ${isNu ? '<span class="now-badge">Nu</span>' : ''}
       ${!isNu && !isPast && isCheapest ? '<span class="cheap-badge">Laagste</span>' : ''}
