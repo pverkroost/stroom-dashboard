@@ -139,11 +139,13 @@ function renderSolarKaartjes() {
   if (isMorgen) {
     const hourly   = solarMorgen?.hourly || [];
     const verwacht = (hourly.reduce((s, e) => s + e.watt, 0) / 1000).toFixed(2);
+    const sm = 'font-size:13px;color:var(--muted);font-weight:400';
     document.getElementById('solarVandaagLabel').textContent    = '☀️ Verwacht morgen';
-    document.getElementById('solarVandaagKwh').textContent      = solarMorgen ? verwacht : '—';
-    document.getElementById('solarVandaagEen').textContent      = 'kWh (schatting)';
-    document.getElementById('solarVandaagEen').style.display    = '';
-    document.getElementById('solarVandaagTotaal').style.display = 'none';
+    document.getElementById('solarVandaagKwh').innerHTML        = solarMorgen ? `${verwacht} <small style="${sm}">kWh</small>` : '—';
+    document.getElementById('solarVandaagEen').style.display    = 'none';
+    const totaalMorgenEl = document.getElementById('solarVandaagTotaal');
+    totaalMorgenEl.textContent   = 'schatting o.b.v. Open-Meteo';
+    totaalMorgenEl.style.display = '';
     return;
   }
 

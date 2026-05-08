@@ -30,12 +30,54 @@ function renderGeenData() {
       const e = solarMorgen.hourly.find(h => h.hour === i);
       return e ? e.watt : 0;
     });
+    const verticalLinePluginGeenData = {
+      id: 'verticalLine',
+      afterDraw(chart) {
+        const active = chart.tooltip?._active;
+        const activeEl = active?.[0] ?? null;
+        const idx = activeEl ? activeEl.index : -1;
+        if (idx < 0) return;
+        const ctx = chart.ctx;
+        const pt = chart.getDatasetMeta(0).data[idx];
+        if (!pt) return;
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.35)';
+        ctx.lineWidth = 1.5;
+        ctx.moveTo(pt.x, chart.chartArea.top);
+        ctx.lineTo(pt.x, chart.chartArea.bottom);
+        ctx.stroke();
+        ctx.restore();
+      }
+    };
+    const tooltipGeenData = document.getElementById('chartTooltip');
     chart = new Chart(document.getElementById('chart'), {
       type: 'line',
+      plugins: [verticalLinePluginGeenData],
       data: { labels, datasets: [{ data, borderColor: 'rgba(255,200,50,0.8)', backgroundColor: 'rgba(255,200,50,0.12)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5 }] },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ctx.parsed.y+' W' } } },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: false,
+            external(context) {
+              const { chart, tooltip: t } = context;
+              if (t.opacity === 0) { tooltipGeenData.classList.remove('visible'); return; }
+              const idx = t.dataPoints?.[0]?.dataIndex;
+              if (idx == null) return;
+              const watt = t.dataPoints[0].parsed.y;
+              tooltipGeenData.textContent = String(idx).padStart(2,'0') + ':00 · ' + Math.round(watt) + ' W';
+              const x = t.caretX;
+              const containerWidth = chart.canvas.parentElement.offsetWidth;
+              let left = x; if (left < 60) left = 60; if (left > containerWidth - 60) left = containerWidth - 60;
+              tooltipGeenData.style.left = left + 'px';
+              tooltipGeenData.classList.add('visible');
+            }
+          }
+        },
         scales: {
           x: { ticks:{color:isDark?'#888':'#888780', font:{size:10}, maxTicksLimit:8, maxRotation:0}, grid:{display:false} },
           y: { beginAtZero:true, ticks:{color:isDark?'#888':'#888780', font:{size:10}, callback: v => v+' W'}, grid:{color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'} }
