@@ -240,6 +240,95 @@ function renderZonTab() {
   document.getElementById('zonMaandKwh').innerHTML    = solarVandaag ? `${maand.toFixed(1)} <small style="${smZ}">kWh</small>` : '—';
 
   renderZonChart();
+  renderTerugleverAdvies();
+}
+
+function toUurRanges(uren) {
+  if (!uren.length) return '';
+  const ranges = [];
+  let start = uren[0], last = uren[0];
+  for (let i = 1; i < uren.length; i++) {
+    if (uren[i] === last + 1) { last = uren[i]; }
+    else { ranges.push([start, last]); start = last = uren[i]; }
+  }
+  ranges.push([start, last]);
+  return ranges.map(([s, e]) =>
+    `${String(s).padStart(2,'0')}:00–${String(e + 1).padStart(2,'0')}:00`
+  ).join(', ');
+}
+
+function renderTerugleverAdvies() {
+  const el = document.getElementById('zonTerugleverContent');
+  if (!el) return;
+
+  if (!cacheVandaag || !openMeteoVandaag?.hourly?.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Prijsdata of zonverwachting niet beschikbaar</div>';
+    return;
+  }
+
+  const zonnige = [];
+  for (const p of cacheVandaag) {
+    const h = p.tijd.getHours();
+    const watt = openMeteoVandaag.hourly.find(e => e.hour === h)?.watt ?? 0;
+    if (watt < 50) continue;
+    const terug = p.terug ?? 0;
+    zonnige.push({ h, watt, totaal: p.totaal, terug, beterZelf: p.totaal > terug });
+  }
+
+  if (!zonnige.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Geen noemenswaardige zonproductie vandaag</div>';
+    return;
+  }
+
+  const groepen = [];
+  let huidig = null;
+  for (const z of zonnige) {
+    if (!huidig || huidig.beterZelf !== z.beterZelf || z.h !== huidig.tot + 1) {
+      huidig = { beterZelf: z.beterZelf, van: z.h, tot: z.h, items: [z] };
+      groepen.push(huidig);
+    } else {
+      huidig.tot = z.h;
+      huidig.items.push(z);
+    }
+  }
+
+  const html = groepen.map(g => {
+    const tijdStr  = `${String(g.van).padStart(2,'0')}:00–${String(g.tot + 1).padStart(2,'0')}:00`;
+    const gemV     = g.items.reduce((s, z) => s + z.totaal, 0) / g.items.length;
+    const gemT     = g.items.reduce((s, z) => s + z.terug,  0) / g.items.length;
+    const verschil = Math.abs(gemV - gemT);
+    if (g.beterZelf) {
+      return `<div class="advies-card" style="grid-column:1/-1">
+        <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
+          <span style="font-size:16px;flex-shrink:0">🏠</span>
+          <div>
+            <div style="font-size:11px;font-weight:600">Zelf verbruiken · ${tijdStr}</div>
+            <div style="font-size:10px;color:var(--muted)">bespaar ~ € ${verschil.toFixed(3)}/kWh vs terugleveren</div>
+          </div>
+        </div>
+        <div class="advies-vergelijk">
+          <div class="av-rij"><span class="av-label">Verbruiksprijs</span><span class="av-prijs beste">€ ${gemV.toFixed(3)}/kWh</span></div>
+          <div class="av-rij"><span class="av-label">Terugleververgoeding</span><span class="av-prijs">€ ${gemT.toFixed(3)}/kWh</span></div>
+        </div>
+      </div>`;
+    } else {
+      return `<div class="advies-card" style="grid-column:1/-1">
+        <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
+          <span style="font-size:16px;flex-shrink:0">⚡</span>
+          <div>
+            <div style="font-size:11px;font-weight:600">Terugleveren · ${tijdStr}</div>
+            <div style="font-size:10px;color:var(--muted)">teruglevering ~ € ${verschil.toFixed(3)}/kWh meer dan verbruiksprijs</div>
+          </div>
+        </div>
+        <div class="advies-vergelijk">
+          <div class="av-rij"><span class="av-label">Terugleververgoeding</span><span class="av-prijs beste">€ ${gemT.toFixed(3)}/kWh</span></div>
+          <div class="av-rij"><span class="av-label">Verbruiksprijs</span><span class="av-prijs">€ ${gemV.toFixed(3)}/kWh</span></div>
+        </div>
+      </div>`;
+    }
+  }).join('');
+
+  el.innerHTML = html;
 }
 
 // Custom plugin: stippelrand voor bars met borderDash property

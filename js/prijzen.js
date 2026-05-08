@@ -7,7 +7,7 @@ async function fetchPrijzen(offset) {
   const res = await fetch(url);
   const data = await res.json();
   if (!data?.Prices?.length) return null;
-  return data.Prices.map(p => ({ tijd: new Date(p.readingDate), totaal: berekenPrijs(p.price) }));
+  return data.Prices.map(p => ({ tijd: new Date(p.readingDate), epex: p.price, totaal: berekenPrijs(p.price), terug: berekenTerugleverPrijs(p.price) }));
 }
 
 function renderGeenData() {
@@ -97,7 +97,11 @@ function renderDashboard(prijzen, day) {
   const laagste = prijzen.find(p => p.totaal === min);
   const hoogste = prijzen.find(p => p.totaal === max);
 
-  document.getElementById('chartTitle').textContent = day === 0 ? 'Vandaag' : 'Morgen';
+  document.getElementById('chartTitle').innerHTML =
+    (day === 0 ? 'Vandaag' : 'Morgen') +
+    ' <span style="font-size:9px;font-weight:400;color:var(--muted);margin-left:4px">' +
+    '<span style="color:#3b6d11">&#x2014;</span> verbruik &nbsp;' +
+    '<span style="color:rgba(200,50,50,0.75)">- -</span> teruglevering</span>';
   document.getElementById('laagstePrijs').textContent = '€ ' + min.toFixed(3);
   document.getElementById('laagsteUur').textContent = uurStr(laagste.tijd);
   document.getElementById('hoogstePrijs').textContent = '€ ' + max.toFixed(3);
@@ -128,6 +132,7 @@ function renderDashboard(prijzen, day) {
   const barKleuren = prijzen.map(p => {
     const isPast = day === 0 && p.tijd.getHours() < nowUur;
     if (isPast) return isDark ? '#444' : '#ccc';
+    if (p.terug !== undefined && p.terug < 0) return isDark ? 'rgba(180,60,60,0.6)' : 'rgba(200,60,60,0.45)';
     return kleur(p.totaal, min, max, gem).bar;
   });
 
@@ -168,6 +173,17 @@ function renderDashboard(prijzen, day) {
     if (solarUurData) solarDatasets.push({ type:'line', data:solarUurData, borderColor:'rgba(255,200,50,0.8)', backgroundColor:'rgba(255,200,50,0.12)', fill:true, tension:0.4, pointRadius:0, borderWidth:1.5, yAxisID:'ySolar' });
   }
 
+  const terugData = prijzen.map(p => {
+    if (day === 0 && p.tijd.getHours() < nowUur) return null;
+    return p.terug !== undefined ? parseFloat(p.terug.toFixed(3)) : null;
+  });
+  const terugLijn = {
+    type: 'line', data: terugData,
+    borderColor: 'rgba(200,50,50,0.65)', backgroundColor: 'transparent',
+    fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5,
+    borderDash: [5, 4], yAxisID: 'y'
+  };
+
   if (chart) chart.destroy();
 
   const nowUurIndex = day === 0 ? prijzen.findIndex(p => p.tijd.getHours() === nowUur) : -1;
@@ -207,6 +223,7 @@ function renderDashboard(prijzen, day) {
       labels: prijzen.map(p => uurStr(p.tijd)),
       datasets: [
         { data: prijzen.map(p => parseFloat(p.totaal.toFixed(3))), backgroundColor: barKleuren, borderColor: barBorders, borderWidth: barBorderWidths, borderRadius: 3, borderSkipped: false, yAxisID: 'y' },
+        terugLijn,
         ...solarDatasets
       ]
     },
@@ -231,7 +248,8 @@ function renderDashboard(prijzen, day) {
             if (idx == null) return;
             const p = prijzen[idx];
             const timeStr = uurStr(p.tijd) + '–' + String(p.tijd.getHours()+1).padStart(2,'0') + ':00';
-            tooltip.textContent = timeStr + ' · € ' + p.totaal.toFixed(3);
+            const terugStr = p.terug !== undefined ? ' · ↩ € ' + p.terug.toFixed(3) : '';
+            tooltip.textContent = timeStr + ' · € ' + p.totaal.toFixed(3) + terugStr;
             const x = t.caretX;
             const containerWidth = chart.canvas.parentElement.offsetWidth;
             let left = x;
@@ -268,7 +286,10 @@ function renderDashboard(prijzen, day) {
     return `<div class="hour-row ${pastClass} ${hiddenClass}" data-past="${isPast}">
       <span class="hour-time">${uurStr(p.tijd)}</span>
       <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${isPast ? (isDark?'#555':'#bbb') : k.bar}"></div></div>
-      <span class="hour-price" style="color:${isPast ? 'var(--muted)' : k.text}">€ ${p.totaal.toFixed(3)}</span>
+      <div class="hour-price-group">
+        <span class="hour-price" style="color:${isPast ? 'var(--muted)' : k.text}">€ ${p.totaal.toFixed(3)}</span>
+        ${p.terug !== undefined ? `<span class="hour-terug${p.terug < 0 ? ' negatief' : ''}">↩ ${p.terug.toFixed(3)}</span>` : ''}
+      </div>
       ${isNu ? '<span class="now-badge">Nu</span>' : ''}
       ${!isNu && !isPast && isCheapest ? '<span class="cheap-badge">Laagste</span>' : ''}
     </div>`;

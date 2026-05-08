@@ -85,9 +85,11 @@ function effectieveKosten(uren, vermogenKw, prijzenLijst, vanIdx, allowPartial =
     const p = prijzenLijst[i];
     const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
     const isMorgenUur = dagStart.getTime() === morgenStart.getTime();
-    const solarWatt = getSolarWatt(p.tijd.getHours(), isMorgenUur);
-    const nettoKw = Math.max(0, vermogenKw - solarWatt / 1000);
-    som += nettoKw * p.totaal;
+    const solarWatt  = getSolarWatt(p.tijd.getHours(), isMorgenUur);
+    const solarKw    = Math.min(vermogenKw, solarWatt / 1000);
+    const nettoKw    = vermogenKw - solarKw;
+    const terugPrijs = p.terug ?? 0;
+    som += nettoKw * p.totaal + solarKw * terugPrijs;
   }
   return (allowPartial && beschikbaar < blokGrootte) ? som * (blokGrootte / beschikbaar) : som;
 }
@@ -221,7 +223,9 @@ function renderLaadadvies() {
 
     function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar, heeftZonHier, dekking, isGedeeltelijk = false) {
       const effPrijs = (heeftZonHier && solar !== null) ? solar : netstroom;
-      const priceStr = effPrijs !== null ? `€ ${effPrijs.toFixed(2)}` : '—';
+      const priceStr = effPrijs === null ? '—'
+        : effPrijs < -0.005 ? `<span style="color:#27500a">bespaart € ${(-effPrijs).toFixed(2)}</span>`
+        : `€ ${effPrijs.toFixed(2)}`;
       const bronStr  = heeftZonHier ? `☀️ ${dekking}%` : 'geen zon';
       const morgenStr = (tijdStr && isMorgen) ? '<span style="opacity:0.65"> (morgen)</span>' : '';
       const subParts = [tijdStr, bronStr].filter(Boolean);

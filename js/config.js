@@ -41,6 +41,9 @@ const APPARATEN = [
   { naam: 'Droger',          icon: '🌀',      uren: 2, kw: 2.5, comboPart: 2 }
 ];
 
+const TERUGLEVERING_OPSLAG = 0.0353; // € per kWh excl. btw
+function berekenTerugleverPrijs(epex) { return (epex - TERUGLEVERING_OPSLAG) * BTW; }
+
 function uurStr(d) {
   return d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
