@@ -205,10 +205,21 @@ function renderApDetail() {
   const dekBestePct = Math.round(gemSolarDekking(besteStartIdx, blok, vermogen, planUren) * 100);
   const dekSelPct   = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
 
-  // Teruglevering waarschuwing (beste blok)
+  // Teruglevering waarschuwing (beste blok): alleen tonen als solar > 0 en verlies >= €0,02
   const besteBlok = planUren.slice(besteStartIdx, besteStartIdx + blok);
-  const terugWaarschuwing = besteBlok.some(p => (p.terug ?? 0) < 0)
-    ? '<div class="advies-badge rood" style="margin-top:4px">☀️ tijdens dit blok lever je anders terug tegen verlies</div>'
+  const _msVandaag = new Date(); _msVandaag.setHours(0,0,0,0);
+  const _msMorgen  = new Date(_msVandaag); _msMorgen.setDate(_msMorgen.getDate() + 1);
+  let terugVerliesEur = 0;
+  for (const p of besteBlok) {
+    if ((p.terug ?? 0) >= 0) continue;
+    const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
+    const isMorgenUur = dagStart.getTime() === _msMorgen.getTime();
+    const solarWatt = getSolarWatt(p.tijd.getHours(), isMorgenUur);
+    if (solarWatt <= 0) continue;
+    terugVerliesEur += Math.abs(p.terug) * Math.min(vermogen, solarWatt / 1000);
+  }
+  const terugWaarschuwing = terugVerliesEur >= 0.02
+    ? '<div class="advies-badge" style="background:#fef3c7;color:#92400e;margin-top:4px">☀️ slim moment: voorkomt terugleververlies</div>'
     : '';
 
   // Vergelijk badge
@@ -417,9 +428,20 @@ function renderLaadadvies() {
     }
 
     const besteBlok = planUren.slice(besteStartIdx, besteStartIdx + Math.ceil(uren));
-    const heeftNegatieveTeruglevering = besteBlok.some(p => (p.terug ?? 0) < 0);
+    const _tVandaag = new Date(); _tVandaag.setHours(0,0,0,0);
+    const _tMorgen  = new Date(_tVandaag); _tMorgen.setDate(_tMorgen.getDate() + 1);
+    let terugVerliesKaart = 0;
+    for (const p of besteBlok) {
+      if ((p.terug ?? 0) >= 0) continue;
+      const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
+      const isMorgenUur = dagStart.getTime() === _tMorgen.getTime();
+      const solarWatt = getSolarWatt(p.tijd.getHours(), isMorgenUur);
+      if (solarWatt <= 0) continue;
+      terugVerliesKaart += Math.abs(p.terug) * Math.min(kw, solarWatt / 1000);
+    }
+    const heeftNegatieveTeruglevering = terugVerliesKaart >= 0.02;
     const terugWaarschuwing = heeftNegatieveTeruglevering
-      ? '<div class="advies-badge rood" style="margin-top:4px">☀️ tijdens dit blok lever je anders terug tegen verlies</div>'
+      ? '<div class="advies-badge" style="background:#fef3c7;color:#92400e;margin-top:4px">☀️ slim moment: voorkomt terugleververlies</div>'
       : '';
 
     const selTijdStr = (() => {
