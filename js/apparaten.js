@@ -3,26 +3,6 @@ function updateApparaatKaarten() {
   rAFId = requestAnimationFrame(() => { rAFId = null; renderLaadadvies(); });
 }
 
-function berekenGoedkoopsteBlok(uren, vermogenKw, prijzenLijst) {
-  const blokGrootte = Math.ceil(uren);
-  if (!prijzenLijst || prijzenLijst.length < blokGrootte) return null;
-  let besteI = 0, besteGem = Infinity;
-  for (let i = 0; i <= prijzenLijst.length - blokGrootte; i++) {
-    const gem = prijzenLijst.slice(i, i + blokGrootte).reduce((s, p) => s + p.totaal, 0) / blokGrootte;
-    if (gem < besteGem) { besteGem = gem; besteI = i; }
-  }
-  const blok = prijzenLijst.slice(besteI, besteI + blokGrootte);
-  const eindDatum = new Date(blok.at(-1).tijd);
-  eindDatum.setHours(eindDatum.getHours() + 1);
-  return {
-    startIndex: besteI,
-    startTijd:  blok[0].tijd,
-    eindStr:    String(eindDatum.getHours()).padStart(2,'0') + ':00',
-    gemPrijs:   besteGem,
-    kosten:     uren * vermogenKw * besteGem
-  };
-}
-
 function berekenKostenVanaf(uren, vermogenKw, prijzenLijst, vanIdx) {
   const blokGrootte = Math.ceil(uren);
   if (vanIdx + blokGrootte > prijzenLijst.length) return null;
@@ -31,16 +11,38 @@ function berekenKostenVanaf(uren, vermogenKw, prijzenLijst, vanIdx) {
   return uren * vermogenKw * gem;
 }
 
+// Zoek blok met laagste effectieve prijs (netstroom minus zonne-opbrengst)
+function berekenGoedkoopsteBlok(uren, vermogenKw, prijzenLijst) {
+  const blokGrootte = Math.ceil(uren);
+  if (!prijzenLijst || prijzenLijst.length < blokGrootte) return null;
+  let besteI = 0, besteEff = Infinity;
+  for (let i = 0; i <= prijzenLijst.length - blokGrootte; i++) {
+    const net = berekenKostenVanaf(uren, vermogenKw, prijzenLijst, i);
+    const eff = effectieveKosten(uren, vermogenKw, prijzenLijst, i) ?? net;
+    if (eff < besteEff) { besteEff = eff; besteI = i; }
+  }
+  const blok = prijzenLijst.slice(besteI, besteI + blokGrootte);
+  const eindDatum = new Date(blok.at(-1).tijd);
+  eindDatum.setHours(eindDatum.getHours() + 1);
+  return {
+    startIndex: besteI,
+    startTijd:  blok[0].tijd,
+    eindStr:    String(eindDatum.getHours()).padStart(2,'0') + ':00',
+    kosten:     berekenKostenVanaf(uren, vermogenKw, prijzenLijst, besteI)
+  };
+}
+
+// Zoek aaneengesloten was+droog blok met laagste gecombineerde effectieve prijs
 function berekenComboBlok(uren1, kw1, uren2, kw2, prijzenLijst) {
   const totaal = uren1 + uren2;
   if (!prijzenLijst || prijzenLijst.length < totaal) return null;
   let besteI = 0, besteKosten = Infinity;
   for (let i = 0; i <= prijzenLijst.length - totaal; i++) {
-    const b1 = prijzenLijst.slice(i, i + uren1);
-    const b2 = prijzenLijst.slice(i + uren1, i + totaal);
-    const g1 = b1.reduce((s, p) => s + p.totaal, 0) / uren1;
-    const g2 = b2.reduce((s, p) => s + p.totaal, 0) / uren2;
-    const k = uren1 * kw1 * g1 + uren2 * kw2 * g2;
+    const net1 = berekenKostenVanaf(uren1, kw1, prijzenLijst, i);
+    const net2 = berekenKostenVanaf(uren2, kw2, prijzenLijst, i + uren1);
+    const eff1 = effectieveKosten(uren1, kw1, prijzenLijst, i) ?? net1;
+    const eff2 = effectieveKosten(uren2, kw2, prijzenLijst, i + uren1) ?? net2;
+    const k = eff1 + eff2;
     if (k < besteKosten) { besteKosten = k; besteI = i; }
   }
   const b1 = prijzenLijst.slice(besteI, besteI + uren1);
@@ -121,7 +123,6 @@ function renderLaadadvies() {
   const leegKaart = (icon, naam) =>
     `<div class="advies-card"><div class="advies-device-icon">${icon}</div><div class="advies-device-naam">${naam}</div><div class="advies-row">Onvoldoende data</div></div>`;
 
-  // Uniforme kaartopbouw voor elk apparaat
   function maakKaart({ icon, naam, uren, kw,
                         besteStartIdx, besteStartStr, besteEindStr, besteIsMorgen,
                         besteNetstroom, besteSolar,
@@ -131,18 +132,14 @@ function renderLaadadvies() {
     const dekPct         = (heeftZon && kw > 0) ? Math.min(100, Math.round((gemSolarKw / kw) * 100)) : 0;
     const volledigGratis = heeftZon && gemSolarKw >= kw;
 
-    // Effectieve kosten (met zon indien beschikbaar, anders netstroom)
-    const besteEff = (heeftZon && besteSolar !== null) ? besteSolar : besteNetstroom;
+    // Effectieve prijs: netstroom min zonne-opbrengst (indien van toepassing)
+    const besteEff = (besteSolar !== null && besteSolar < besteNetstroom - 0.001) ? besteSolar : besteNetstroom;
     const selEff   = selNetstroom !== null
-      ? ((heeftZon && selSolar !== null) ? selSolar : selNetstroom)
+      ? ((selSolar !== null && selSolar < selNetstroom - 0.001) ? selSolar : selNetstroom)
       : null;
-
-    const besteBesparing = (heeftZon && besteSolar !== null) ? Math.max(0, besteNetstroom - besteSolar) : 0;
-    const selBesparing   = (heeftZon && selSolar !== null && selNetstroom !== null) ? Math.max(0, selNetstroom - selSolar) : 0;
 
     console.log(`[${naam}] gemSolarKw: ${gemSolarKw.toFixed(3)} kW | beste: € ${besteNetstroom.toFixed(3)} stroom → € ${besteEff.toFixed(3)} eff | sel: € ${selNetstroom?.toFixed(3) ?? '—'} stroom → € ${selEff?.toFixed(3) ?? '—'} eff`);
 
-    // Vergelijkingsbadge (geselecteerd vs beste)
     let vergelijkBadge = '';
     if (selEff !== null) {
       const diff = selEff - besteEff;
@@ -163,37 +160,31 @@ function renderLaadadvies() {
         ? `<div class="advies-status snel">⏰ Over ${besteStartIdx} uur</div>`
         : `<div class="advies-status later">Later: over ${besteStartIdx} uur</div>`;
 
-    // Helper: twee rijen (netstroom + evt. zon) voor één tijdblok
-    function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar, besparing) {
+    // Eén rij per tijdblok: "Netstroom + zon" als zon de prijs verlaagt, anders "Op netstroom"
+    function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar) {
       if (netstroom === null) return '';
+      const heeftZonHier = solar !== null && solar < netstroom - 0.001;
+      const effPrijs  = heeftZonHier ? solar : netstroom;
+      const prijsLabel = heeftZonHier ? 'Netstroom + zon' : 'Op netstroom';
       const tijdLbl = tijdStr ? ` · ${tijdStr}${isMorgen ? ' <span style="font-weight:400">(morgen)</span>' : ''}` : '';
       return `
         <div class="av-rij" style="margin-bottom:2px">
           <span class="av-label" style="font-weight:600;color:var(--text)">${sectieLabel}${tijdLbl}</span>
         </div>
         <div class="av-rij">
-          <span class="av-label">Op netstroom</span>
-          <span class="av-prijs">€ ${netstroom.toFixed(2)}</span>
-        </div>
-        ${(heeftZon && solar !== null && besparing > 0.005) ? `
-        <div class="av-rij">
-          <span class="av-label">Met zon</span>
-          <span class="av-prijs" style="color:#3b6d11">€ ${solar.toFixed(2)}</span>
-        </div>
-        <div class="av-rij">
-          <span class="av-label" style="color:#27500a">Besparing</span>
-          <span class="av-prijs" style="color:#27500a;font-weight:700">€ ${besparing.toFixed(2)}</span>
-        </div>` : ''}`;
+          <span class="av-label">${prijsLabel}</span>
+          <span class="av-prijs">€ ${effPrijs.toFixed(2)}</span>
+        </div>`;
     }
 
     return `<div class="advies-card">
       <div class="advies-device-icon">${icon}</div>
       <div class="advies-device-naam">${naam}</div>
       <div class="advies-vergelijk">
-        ${blokRijen('Beste tijdvak', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, besteSolar, besteBesparing)}
+        ${blokRijen('Beste tijdvak', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, besteSolar)}
         ${selNetstroom !== null ? `
         <div style="height:0.5px;background:var(--border);margin:5px 0"></div>
-        ${blokRijen(selLabel, '', false, selNetstroom, selSolar, selBesparing)}` : ''}
+        ${blokRijen(selLabel, '', false, selNetstroom, selSolar)}` : ''}
         ${vergelijkBadge}
       </div>
       ${zonBadge}
