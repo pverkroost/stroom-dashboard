@@ -30,7 +30,7 @@ const VOLVO_SVG = `<svg viewBox="0 0 52 24" width="48" height="22" xmlns="http:/
 </svg>`;
 
 const APPARATEN = [
-  { naam: 'Volvo XC90 PHEV', icon: VOLVO_SVG, uren: 6, kw: 2.3 },
+  { naam: 'Auto (PHEV)', icon: VOLVO_SVG, uren: 6, kw: 2.3 },
   { naam: 'Vaatwasser',      icon: '🍽️',     uren: 3, kw: 1.8 },
   { naam: 'Wasmachine',      icon: '👕',      uren: 2, kw: 1.5, comboPart: 1 },
   { naam: 'Droger',          icon: '🌀',      uren: 2, kw: 2.5, comboPart: 2 }
