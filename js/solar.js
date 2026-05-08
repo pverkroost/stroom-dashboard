@@ -145,17 +145,51 @@ function renderZonTab(day) {
   document.getElementById('zonVandaagChartWrap').style.display = isVandaag ? '' : 'none';
   document.getElementById('zonMorgenChartWrap').style.display  = isVandaag ? 'none' : '';
 
-  // Omvormers altijd zichtbaar; SE-waarden altijd bijwerken
+  // Omvormers: inhoud dynamisch op basis van actieve dag
+  const nowH  = new Date().getHours();
   const kwh   = solarVandaag?.todayKwh ?? 0;
   const gist  = solarVandaag?.gisterenKwh ?? null;
   const maand = solarVandaag?.maandKwh ?? 0;
-  document.getElementById('zonSEVandaag').textContent  = solarVandaag ? kwh.toFixed(2)+' kWh'  : 'Laden...';
-  document.getElementById('zonSEGisteren').textContent = gist !== null ? gist.toFixed(2)+' kWh' : '—';
-  document.getElementById('zonSEMaand').textContent    = solarVandaag ? maand.toFixed(1)+' kWh' : '—';
+  const verwachtRestKwh = (openMeteoVandaag?.hourly || [])
+    .filter(e => e.hour > nowH).reduce((s, e) => s + e.watt, 0) / 1000;
+  const verwachtMorgenKwh = (solarMorgen?.hourly || [])
+    .reduce((s, e) => s + e.watt, 0) / 1000;
+
+  const seEl = document.getElementById('zonSEContent');
+  if (!solarVandaag && !openMeteoVandaag) {
+    seEl.innerHTML = '<div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div>';
+  } else if (isVandaag) {
+    seEl.innerHTML = `<div class="advies-vergelijk">
+      <div class="av-rij"><span class="av-label">Actueel</span><span class="av-prijs">${solarVandaag ? kwh.toFixed(2)+' kWh' : '—'}</span></div>
+      ${verwachtRestKwh > 0.01 ? `<div class="av-rij"><span class="av-label">+ verwacht</span><span class="av-prijs">~${verwachtRestKwh.toFixed(2)} kWh</span></div>` : ''}
+      <div class="av-rij"><span class="av-label">Gisteren</span><span class="av-prijs">${gist !== null ? gist.toFixed(2)+' kWh' : '—'}</span></div>
+      <div class="av-rij"><span class="av-label">Deze maand</span><span class="av-prijs">${maand.toFixed(1)+' kWh'}</span></div>
+    </div>`;
+  } else {
+    seEl.innerHTML = `<div class="advies-vergelijk">
+      <div class="av-rij"><span class="av-label">Verwacht</span><span class="av-prijs">~${verwachtMorgenKwh.toFixed(2)} kWh</span></div>
+      <div class="av-rij"><span class="av-label">Gisteren</span><span class="av-prijs">${gist !== null ? gist.toFixed(2)+' kWh' : '—'}</span></div>
+      <div class="av-rij"><span class="av-label">Deze maand</span><span class="av-prijs">${maand.toFixed(1)+' kWh'}</span></div>
+    </div>`;
+  }
+
+  const grEl = document.getElementById('zonGrowattContent');
+  if (!openMeteoVandaag) {
+    grEl.innerHTML = '<div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div>';
+  } else if (isVandaag) {
+    grEl.innerHTML = `<div class="advies-vergelijk">
+      <div class="av-rij"><span class="av-label">+ verwacht</span><span class="av-prijs">~${verwachtRestKwh.toFixed(2)} kWh</span></div>
+      <div class="av-rij" style="margin-top:2px;font-size:10px;color:var(--muted)">Open-Meteo schatting</div>
+    </div>`;
+  } else {
+    grEl.innerHTML = `<div class="advies-vergelijk">
+      <div class="av-rij"><span class="av-label">Verwacht</span><span class="av-prijs">~${verwachtMorgenKwh.toFixed(2)} kWh</span></div>
+      <div class="av-rij" style="margin-top:2px;font-size:10px;color:var(--muted)">Open-Meteo schatting</div>
+    </div>`;
+  }
 
   if (isVandaag) {
-    const w    = solarVandaag?.currentWatt ?? 0;
-    const nowH = new Date().getHours();
+    const w = solarVandaag?.currentWatt ?? 0;
     document.getElementById('zonHeroLabel').textContent  = 'Nu opgewekt';
     document.getElementById('zonHeroPrice').textContent  = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
     document.getElementById('zonHeroUnit').textContent   = 'zonnepanelen totaal';
@@ -163,13 +197,9 @@ function renderZonTab(day) {
     document.getElementById('zonNuW').textContent   = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
     document.getElementById('zonNuEen').textContent = w > 0 ? 'nu opgewekt' : 'geen productie';
 
-    // Vandaag kaartje: geproduceerd + verwacht resterende uren
-    const verwachtKwh = (openMeteoVandaag?.hourly || [])
-      .filter(e => e.hour > nowH)
-      .reduce((s, e) => s + e.watt, 0) / 1000;
     document.getElementById('zonTotaalKwh').textContent = solarVandaag ? kwh.toFixed(2) : '—';
-    document.getElementById('zonTotaalEen').textContent = (solarVandaag && verwachtKwh > 0.01)
-      ? `kWh + ~${verwachtKwh.toFixed(2)} kWh verwacht`
+    document.getElementById('zonTotaalEen').textContent = (solarVandaag && verwachtRestKwh > 0.01)
+      ? `kWh + ~${verwachtRestKwh.toFixed(2)} kWh verwacht`
       : 'kWh vandaag';
 
     document.getElementById('zonGisterenKwh').textContent = gist !== null ? gist.toFixed(2) : '—';
