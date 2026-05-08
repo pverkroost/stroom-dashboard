@@ -13,7 +13,7 @@ function berekenKostenVanaf(uren, vermogenKw, prijzenLijst, vanIdx, allowPartial
   return uren * vermogenKw * gem;
 }
 
-// Zoek blok met laagste effectieve prijs (netstroom minus zonne-opbrengst)
+// Zoek blok met laagste effectieve prijs: max(0, vermogenKw − solarKw) × stroomprijs per uur
 function berekenGoedkoopsteBlok(uren, vermogenKw, prijzenLijst) {
   const blokGrootte = Math.ceil(uren);
   if (!prijzenLijst || prijzenLijst.length < blokGrootte) return null;
@@ -93,18 +93,20 @@ function effectieveKosten(uren, vermogenKw, prijzenLijst, vanIdx, allowPartial =
   return (allowPartial && beschikbaar < blokGrootte) ? som * (blokGrootte / beschikbaar) : som;
 }
 
-function gemSolarVoorBlok(startIdx, aantalUren, planUren) {
+// Geeft werkelijke solar dekking als fractie (0.0–1.0): solar gecapt op vermogenKw per uur
+function gemSolarDekking(startIdx, aantalUren, vermogenKw, planUren) {
   const vandaagStart = new Date(); vandaagStart.setHours(0,0,0,0);
   const morgenStart  = new Date(vandaagStart); morgenStart.setDate(morgenStart.getDate() + 1);
-  let totaalW = 0, n = 0;
+  let gedektKwh = 0, n = 0;
   for (let i = startIdx; i < startIdx + aantalUren && i < planUren.length; i++) {
     const p = planUren[i];
     const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
     const isMorgenUur = dagStart.getTime() === morgenStart.getTime();
-    totaalW += getSolarWatt(p.tijd.getHours(), isMorgenUur);
+    const solarWatt = getSolarWatt(p.tijd.getHours(), isMorgenUur);
+    gedektKwh += Math.min(vermogenKw, solarWatt / 1000);
     n++;
   }
-  return n > 0 ? (totaalW / n) / 1000 : 0;
+  return n > 0 && vermogenKw > 0 ? gedektKwh / (n * vermogenKw) : 0;
 }
 
 function renderLaadadvies() {
@@ -169,30 +171,21 @@ function renderLaadadvies() {
                         besteNetstroom, besteSolar,
                         selLabel, selNetstroom, selSolar, selStartIdx,
                         selGedeeltelijk = false }) {
-    // Solar voor beste blok
-    const gemSolarKw    = gemSolarVoorBlok(besteStartIdx, Math.ceil(uren), planUren);
-    // Solar voor geselecteerd blok — zelfde logica, juiste uren via getSolarWatt()
-    const gemSolarKwSel = selNetstroom !== null
-      ? gemSolarVoorBlok(selStartIdx, Math.ceil(uren), planUren)
-      : 0;
+    // Werkelijke solar dekking per blok (gecapt op vermogenKw per uur → zelfde logica als effectieveKosten)
+    const dek    = gemSolarDekking(besteStartIdx, Math.ceil(uren), kw, planUren);
+    const dekSel = selNetstroom !== null ? gemSolarDekking(selStartIdx, Math.ceil(uren), kw, planUren) : 0;
 
-    const heeftZon    = gemSolarKw    > 0.01;
-    const heeftZonSel = gemSolarKwSel > 0.01;
+    const heeftZon    = dek    > 0.01;
+    const heeftZonSel = dekSel > 0.01;
 
-    const dekPct    = kw > 0 ? Math.min(100, Math.round((gemSolarKw    / kw) * 100)) : 0;
-    const dekPctSel = kw > 0 ? Math.min(100, Math.round((gemSolarKwSel / kw) * 100)) : 0;
+    const dekPct    = Math.round(dek    * 100);
+    const dekPctSel = Math.round(dekSel * 100);
 
-    // Effectieve prijs gebruikt dezelfde heeftZon/heeftZonSel vlag als het label
-    const besteEff = heeftZon && besteSolar !== null ? besteSolar : besteNetstroom;
-    const selEff   = selNetstroom !== null
-      ? (heeftZonSel && selSolar !== null ? selSolar : selNetstroom)
-      : null;
+    const besteEff = besteSolar ?? besteNetstroom;
+    const selEff   = selNetstroom !== null ? (selSolar ?? selNetstroom) : null;
 
-    // Log per apparaat: geselecteerdUur, solarVoorGeselecteerdBlok, labelGekozen
     const selStartUur = planUren[selStartIdx]?.tijd ? hs(planUren[selStartIdx].tijd) : '—';
-    const labelBeste  = heeftZon    ? 'Netstroom + zon' : 'Op netstroom';
-    const labelSel    = heeftZonSel ? 'Netstroom + zon' : 'Op netstroom';
-    console.log(`[${naam}] geselecteerdUur: ${selStartUur} | solarSel: ${gemSolarKwSel.toFixed(3)} kW | labelSel: ${labelSel} | solarBeste: ${gemSolarKw.toFixed(3)} kW | labelBeste: ${labelBeste}`);
+    console.log(`[${naam}] geselecteerdUur: ${selStartUur} | dekBeste: ${dekPct}% | dekSel: ${dekPctSel}% | besteEff: ${besteEff?.toFixed(2)} | selEff: ${selEff?.toFixed(2)}`);
 
     let vergelijkBadge = '';
     if (selEff !== null) {
