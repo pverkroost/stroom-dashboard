@@ -330,7 +330,51 @@ function renderApDetail() {
     <div class="section" style="padding-bottom:40px">
       <button class="ap-cta-btn ap-cta-groen" onclick="gebruikTijdDetail()">Gebruik ${selStartStr} als starttijd</button>
       ${!isBeste ? `<button class="ap-cta-btn ap-cta-wit" onclick="gebruikBesteTijdDetail()">Gebruik beste tijd (${besteStartStr})</button>` : ''}
-    </div>`;
+    </div>
+
+    ${naam === 'Auto (PHEV)' ? `
+    <div class="section" style="padding-bottom:40px">
+      <div class="section-title">Slimme stekker</div>
+      <button class="ap-cta-btn ap-cta-groen" onclick="homeyActie('on')" id="homeyLaadBtn">⚡ Laad nu</button>
+      <button class="ap-cta-btn ap-cta-wit" onclick="homeyActie('off')" id="homeyStopBtn">⏹ Stop laden</button>
+      <div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>
+    </div>` : ''}`;
+}
+
+async function homeyActie(action) {
+  const deviceId = typeof HOMEY_DEVICE_ID !== 'undefined' ? HOMEY_DEVICE_ID : '';
+  const statusEl = document.getElementById('homeyStatus');
+  if (!deviceId) {
+    if (statusEl) { statusEl.textContent = 'HOMEY_DEVICE_ID niet ingesteld in config.js'; statusEl.style.color = '#a32d2d'; }
+    return;
+  }
+  const pin = prompt('Pincode:');
+  if (!pin) return;
+
+  const knopId = action === 'on' ? 'homeyLaadBtn' : 'homeyStopBtn';
+  const knop = document.getElementById(knopId);
+  if (knop) { knop.disabled = true; knop.textContent = '…'; }
+  if (statusEl) statusEl.textContent = '';
+
+  try {
+    const r = await fetch(`/api/homey?action=${action}&deviceId=${encodeURIComponent(deviceId)}&pin=${encodeURIComponent(pin)}`);
+    const data = await r.json();
+    if (!r.ok || data.error) throw new Error(data.error || `HTTP ${r.status}`);
+    if (statusEl) {
+      statusEl.textContent = action === 'on' ? '✓ Stekker aangezet!' : '✓ Laden gestopt.';
+      statusEl.style.color = 'var(--green)';
+    }
+  } catch (e) {
+    if (statusEl) {
+      statusEl.textContent = `Fout: ${e.message}`;
+      statusEl.style.color = '#a32d2d';
+    }
+  } finally {
+    if (knop) {
+      knop.disabled = false;
+      knop.textContent = action === 'on' ? '⚡ Laad nu' : '⏹ Stop laden';
+    }
+  }
 }
 
 function renderLaadadvies() {

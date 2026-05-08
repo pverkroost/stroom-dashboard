@@ -12,6 +12,7 @@ const GROWATT_PANEL_COUNT   = 14;
 const GROWATT_LOCATION      = 'huis';
 const GROWATT_DEVICE_SN     = 'CUE294500F'; // Vercel env var: GROWATT_DEVICE_SN
 const GROWATT_DATALOGGER_SN = 'NAC5924643';
+const HOMEY_DEVICE_ID       = ''; // Homey device ID van de slimme stekker (Auto PHEV)
 const TOTAL_PEAK_KW         = 7.8;
 const PANEL_EFFICIENCY      = 0.8;
 
