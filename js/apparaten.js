@@ -109,8 +109,125 @@ function gemSolarDekking(startIdx, aantalUren, vermogenKw, planUren) {
   return n > 0 && vermogenKw > 0 ? gedektKwh / (n * vermogenKw) : 0;
 }
 
+// ── Detail panel state ───────────────────────────────────────────────────────
+const detailState = {};
+
+function hStr(d) {
+  return d ? String(d.getHours()).padStart(2,'0') + ':00' : '—';
+}
+
+function getPlanUren() {
+  const isMorgenTab = activeDay === 1;
+  if (isMorgenTab) return cacheMorgen || [];
+  if (!cacheVandaag) return [];
+  const nowUur = new Date().getHours();
+  return [...cacheVandaag.filter(p => p.tijd.getHours() >= nowUur), ...(cacheMorgen || [])];
+}
+
+function renderDetailPanel(apId) {
+  const state = detailState[apId];
+  if (!state) return;
+  const panel = document.getElementById('dp-' + apId);
+  if (!panel) return;
+  const { startIdx, besteStartIdx, uren, vermogen } = state;
+  const planUren = getPlanUren();
+  const maxIdx = Math.max(0, planUren.length - Math.ceil(uren));
+  const startUur = planUren[startIdx]?.tijd;
+  if (!startUur) {
+    panel.innerHTML = '<div class="dp-body"><div class="dp-rij"><span class="dp-label">Geen data beschikbaar</span></div></div>';
+    return;
+  }
+  const eindUur = new Date(startUur);
+  eindUur.setHours(eindUur.getHours() + Math.ceil(uren));
+  const tijdStr = `${hStr(startUur)}–${String(eindUur.getHours()).padStart(2,'0')}:00`;
+  const totaalKwh = (uren * vermogen).toFixed(1);
+  const allowP = startIdx + Math.ceil(uren) > planUren.length;
+  const netKosten = berekenKostenVanaf(uren, vermogen, planUren, startIdx, allowP);
+  const effKosten = effectieveKosten(uren, vermogen, planUren, startIdx, allowP);
+  const blok = planUren.slice(startIdx, startIdx + Math.ceil(uren));
+  const terugPrijzen = blok.filter(p => p.terug !== undefined).map(p => p.terug);
+  const gemTerug = terugPrijzen.length ? terugPrijzen.reduce((a,b) => a+b,0) / terugPrijzen.length : null;
+  const isBeste = startIdx === besteStartIdx;
+  const heeftZon = effKosten !== null && netKosten !== null && effKosten < netKosten - 0.005;
+  const terugKleur = gemTerug === null ? 'var(--muted)' : gemTerug < 0 ? '#a32d2d' : gemTerug < 0.05 ? '#ba7517' : '#27500a';
+  const terugStr = gemTerug === null ? '—'
+    : gemTerug < 0 ? `⚠️ kost € ${Math.abs(gemTerug).toFixed(3)}`
+    : `↩ € ${gemTerug.toFixed(3)} ontvangen`;
+
+  panel.innerHTML = `<div class="dp-body">
+    <div class="dp-rij">
+      <span class="dp-label">${Math.ceil(uren)} uur · ${totaalKwh} kWh totaal</span>
+      ${isBeste ? '<span style="font-size:9px;background:#c0dd97;color:#27500a;padding:2px 6px;border-radius:5px;font-weight:700">beste tijd</span>' : ''}
+    </div>
+    <div class="dp-section">Tijdframe aanpassen</div>
+    <div class="dp-tijd-adj">
+      <button class="dp-btn" onclick="event.stopPropagation();adjustDetail(${apId},-1)" ${startIdx <= 0 ? 'disabled' : ''}>−</button>
+      <span class="dp-tijd">${tijdStr}</span>
+      <button class="dp-btn" onclick="event.stopPropagation();adjustDetail(${apId},1)" ${startIdx >= maxIdx ? 'disabled' : ''}>+</button>
+    </div>
+    <div class="dp-section">Kosten dit blok</div>
+    <div class="dp-rij"><span class="dp-label">Netstroom</span><span class="dp-val">${netKosten !== null ? '€ ' + netKosten.toFixed(2) : '—'}</span></div>
+    ${heeftZon ? `<div class="dp-rij"><span class="dp-label">☀️ Met zonne-energie</span><span class="dp-val" style="color:#27500a">€ ${effKosten.toFixed(2)}</span></div>` : ''}
+    ${gemTerug !== null ? `<div class="dp-section">Teruglevering</div>
+    <div class="dp-rij"><span class="dp-label">Gem. vergoeding</span><span class="dp-val" style="color:${terugKleur}">${terugStr}</span></div>` : ''}
+    <button class="dp-gebruik-btn" onclick="event.stopPropagation();gebruikDezeTijd(${apId})">✓ Gebruik deze tijd</button>
+  </div>`;
+
+  if (state.isOpen) panel.style.maxHeight = panel.scrollHeight + 'px';
+}
+
+function adjustDetail(apId, delta) {
+  const state = detailState[apId];
+  if (!state) return;
+  const planUren = getPlanUren();
+  const maxIdx = Math.max(0, planUren.length - Math.ceil(state.uren));
+  state.startIdx = Math.max(0, Math.min(maxIdx, state.startIdx + delta));
+  renderDetailPanel(apId);
+}
+
+function gebruikDezeTijd(apId) {
+  const state = detailState[apId];
+  if (!state) return;
+  const planUren = getPlanUren();
+  const p = planUren[state.startIdx];
+  if (!p) return;
+  localStorage.setItem('ap_voorkeur_' + apId, p.tijd.toISOString());
+  const panel = document.getElementById('dp-' + apId);
+  if (panel) {
+    const btn = panel.querySelector('.dp-gebruik-btn');
+    if (btn) { btn.textContent = '✓ Opgeslagen!'; btn.style.background = '#c0dd97'; btn.style.color = '#27500a'; }
+  }
+  setTimeout(() => {
+    if (state.isOpen) {
+      state.isOpen = false;
+      if (panel) panel.style.maxHeight = '0';
+    }
+  }, 900);
+}
+
+function toggleDetail(apId, besteStartIdx, uren, vermogen) {
+  event.stopPropagation();
+  if (!detailState[apId]) {
+    detailState[apId] = { isOpen: false, startIdx: besteStartIdx, besteStartIdx, uren, vermogen };
+  }
+  const state = detailState[apId];
+  state.besteStartIdx = besteStartIdx;
+  const panel = document.getElementById('dp-' + apId);
+  if (!panel) return;
+  if (!state.isOpen) {
+    state.isOpen = true;
+    state.startIdx = besteStartIdx;
+    renderDetailPanel(apId);
+    requestAnimationFrame(() => { panel.style.maxHeight = panel.scrollHeight + 'px'; });
+  } else {
+    state.isOpen = false;
+    panel.style.maxHeight = '0';
+  }
+}
+
 function renderLaadadvies() {
   const container = document.getElementById('laadadviesContainer');
+  Object.keys(detailState).forEach(k => delete detailState[k]);
   const isMorgenTab = activeDay === 1;
 
   const titleEl = document.getElementById('laadadviesTitle');
@@ -166,11 +283,11 @@ function renderLaadadvies() {
   const wasdroogRes   = wasApparaat && droogApparaat
     ? berekenComboBlok(wasApparaat.uren, wasApparaat.vermogen, droogApparaat.uren, droogApparaat.vermogen, planUren)
     : null;
-  const hs = d => d ? String(d.getHours()).padStart(2,'0') + ':00' : '—';
+  const hs = hStr;
   const leegKaart = (icon, naam) =>
     `<div class="advies-card"><div class="advies-device-icon">${icon}</div><div class="advies-device-naam">${naam}</div><div class="advies-row">Onvoldoende data</div></div>`;
 
-  function maakKaart({ icon, naam, uren, kw,
+  function maakKaart({ apId, icon, naam, uren, kw,
                         type = 'starten', opmerking = null,
                         besteStartIdx, besteStartStr, besteEindStr, besteIsMorgen,
                         besteNetstroom, besteSolar,
@@ -244,7 +361,7 @@ function renderLaadadvies() {
         </div>`;
     }
 
-    return `<div class="advies-card">
+    return `<div class="advies-card" onclick="toggleDetail(${apId},${besteStartIdx},${uren},${kw})">
       <div class="advies-device-icon">${icon}</div>
       <div class="advies-device-naam">${naam}</div>
       ${opmerking ? `<div class="advies-device-sub">${opmerking}</div>` : ''}
@@ -258,16 +375,18 @@ function renderLaadadvies() {
         ${isBesteMorgenGemist ? '<div style="font-size:9px;color:var(--muted);margin-top:2px">* morgen prijzen nog niet beschikbaar</div>' : ''}
       </div>
       ${statusStr}
+      <div class="detail-panel" id="dp-${apId}"></div>
     </div>`;
   }
 
   const selLabel = heeftSelectie ? 'Keuze' : (isMorgenTab ? 'Vroegst' : 'Nu');
 
-  const kaarten = APPARATEN.map(ap => {
+  const kaarten = APPARATEN.map((ap, apIdx) => {
     if (ap.comboMet) {
       // Eerste deel combo (Wasmachine)
       if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
       return maakKaart({
+        apId: apIdx,
         icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
         type: ap.type, opmerking: ap.opmerking,
         besteStartIdx:  wasdroogRes.startIndex,
@@ -289,6 +408,7 @@ function renderLaadadvies() {
       if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
       const droogIdx = geselecteerdIdx + wasApparaat.uren;
       return maakKaart({
+        apId: apIdx,
         icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
         type: ap.type, opmerking: ap.opmerking,
         besteStartIdx:  wasdroogRes.startIndex + wasApparaat.uren,
@@ -308,6 +428,7 @@ function renderLaadadvies() {
     const res = berekenGoedkoopsteBlok(ap.uren, ap.vermogen, planUren);
     if (!res) return leegKaart(ap.icon, ap.naam);
     return maakKaart({
+      apId: apIdx,
       icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
       type: ap.type, opmerking: ap.opmerking,
       besteStartIdx:  res.startIndex,

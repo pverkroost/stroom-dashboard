@@ -75,7 +75,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif; ba
 .tarief-key { color:var(--muted); }
 
 .advies-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-.advies-card { background:var(--card); border-radius:var(--radius); padding:12px 14px; box-shadow:0 2px 12px rgba(0,0,0,0.06); }
+.advies-card { background:var(--card); border-radius:var(--radius); padding:12px 14px; box-shadow:0 2px 12px rgba(0,0,0,0.06); cursor:pointer; }
 .advies-device-icon { font-size:18px; line-height:1; margin-bottom:4px; }
 .advies-device-naam { font-size:11px; font-weight:600; color:var(--text); margin-bottom:2px; line-height:1.3; }
 .advies-device-sub  { font-size:10px; color:var(--muted); margin-bottom:6px; line-height:1.3; }
@@ -92,6 +92,19 @@ body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif; ba
 .advies-status.nu { color:#27500a; }
 .advies-status.snel { color:#633806; }
 .advies-status.later { color:var(--muted); }
+
+.detail-panel { max-height:0; overflow:hidden; transition:max-height 0.35s ease; }
+.dp-body { padding:8px 0 2px; border-top:0.5px solid var(--border); margin-top:8px; display:flex; flex-direction:column; gap:5px; }
+.dp-section { font-size:9px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px; margin-top:4px; }
+.dp-rij { display:flex; justify-content:space-between; align-items:center; font-size:11px; }
+.dp-label { color:var(--muted); }
+.dp-val { font-weight:600; }
+.dp-tijd-adj { display:flex; align-items:center; gap:8px; }
+.dp-btn { background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; width:30px; height:30px; font-size:18px; line-height:1; font-family:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.dp-btn:disabled { opacity:0.25; cursor:default; }
+.dp-tijd { font-size:12px; font-weight:500; flex:1; text-align:center; }
+.dp-gebruik-btn { width:100%; background:var(--green); color:white; border:none; border-radius:8px; padding:9px; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; margin-top:4px; }
+.dp-gebruik-btn:active { opacity:0.85; }
 
 .no-data { padding:32px 20px; text-align:center; color:var(--muted); font-size:14px; line-height:1.7; }
 .footer { padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px)); text-align:center; font-size:11px; color:var(--muted); line-height:1.6; }
