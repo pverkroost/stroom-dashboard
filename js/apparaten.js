@@ -110,9 +110,27 @@ function renderLaadadvies() {
   if (titleEl) titleEl.textContent = isMorgenTab ? 'Slim inplannen · morgen' : 'Slim inplannen · vandaag';
 
   if (isMorgenTab ? !cacheMorgen : !cacheVandaag) {
-    container.innerHTML = isMorgenTab
-      ? '<div class="no-data" style="padding:12px 0 4px">Morgen prijzen nog niet beschikbaar.<br>EPEX publiceert ze rond 14:00 uur.</div>'
-      : '';
+    if (isMorgenTab) {
+      const verwachtKwh = solarMorgen?.hourly?.length
+        ? (solarMorgen.hourly.reduce((s, e) => s + e.watt, 0) / 1000).toFixed(1)
+        : null;
+      const solarRij = verwachtKwh !== null
+        ? `<div class="av-rij" style="margin-top:2px"><span class="av-label">☀️ Verwachte opbrengst morgen</span><span class="av-prijs">${verwachtKwh} kWh</span></div>`
+        : '';
+      container.innerHTML = `<div class="advies-grid">
+        <div class="advies-card" style="grid-column:1/-1">
+          <div class="advies-device-icon">⏰</div>
+          <div class="advies-device-naam">Prijzen beschikbaar vanaf ~14:00</div>
+          <div class="advies-vergelijk">
+            <div class="av-rij"><span class="av-label">EPEX day-ahead</span><span class="av-prijs" style="color:var(--muted)">nog niet gepubliceerd</span></div>
+            ${solarRij}
+          </div>
+          <div class="advies-status later">Kom terug na 14:00 voor slim inplannen</div>
+        </div>
+      </div>`;
+    } else {
+      container.innerHTML = '';
+    }
     return;
   }
 
