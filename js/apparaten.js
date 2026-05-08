@@ -353,12 +353,14 @@ let _homeyPendingAction = null;
 
 function homeyActie(action) {
   _homeyPendingAction = action;
-  const section = document.getElementById('homeyPincodeSection');
-  const input   = document.getElementById('homeyPinInput');
+  const section  = document.getElementById('homeyPincodeSection');
+  const input    = document.getElementById('homeyPinInput');
+  const okBtn    = document.getElementById('homeyOkBtn');
   const statusEl = document.getElementById('homeyStatus');
-  if (section)  { section.style.display = 'block'; }
-  if (input)    { input.value = ''; input.focus(); }
-  if (statusEl) { statusEl.textContent = ''; }
+  if (section)  section.style.display = 'block';
+  if (input)    { input.disabled = false; input.value = ''; input.focus(); }
+  if (okBtn)    { okBtn.disabled = false; okBtn.textContent = '✓'; }
+  if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--muted)'; }
 }
 
 async function bevestigHomey() {
