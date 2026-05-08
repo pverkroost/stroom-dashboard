@@ -28,6 +28,9 @@ function switchZon() {
   if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
   if (zonChart) { zonChart.destroy(); zonChart = null; }
   if (voorspellingChart) { voorspellingChart.destroy(); voorspellingChart = null; }
+  // Reset chart canvassen volledig — voorkomt stale Chart.js registry bij elke tab-wissel
+  document.getElementById('zonVandaagChartWrap').innerHTML = '<canvas id="zonChart"></canvas>';
+  document.getElementById('zonMorgenChartWrap').innerHTML  = '<canvas id="voorspellingChart"></canvas>';
   document.getElementById('mainContent').style.display = 'none';
   document.getElementById('zonContent').style.display = '';
   document.getElementById('tab-0').classList.remove('active');
@@ -86,5 +89,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.10.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.10.1 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
