@@ -188,9 +188,6 @@ function renderApDetail() {
   const allowP   = currentStartIdx + blok > planUren.length;
   const selNet   = berekenKostenVanaf(uren, vermogen, planUren, currentStartIdx, allowP);
   const selEff   = effectieveKosten(uren, vermogen, planUren, currentStartIdx, allowP);
-  const besteNet = berekenKostenVanaf(uren, vermogen, planUren, besteStartIdx);
-  const besteEff = effectieveKosten(uren, vermogen, planUren, besteStartIdx);
-
   const piekRange = new Set([18, 19, 20]);
   const dalRange  = new Set([23, 0, 1, 2, 3, 4, 5]);
   let piekRes = null, dalRes = null;
@@ -207,13 +204,9 @@ function renderApDetail() {
     if (piekRes && dalRes) break;
   }
 
-  const dekSelPct   = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
-  const dekBestePct = Math.round(gemSolarDekking(besteStartIdx,   blok, vermogen, planUren) * 100);
-
-  const besteKosten   = dekBestePct > 0 ? besteEff  : besteNet;
-  const selKosten     = dekSelPct   > 0 ? selEff    : selNet;
-  const besteVolledig = besteKosten !== null && besteKosten < 0.005 && dekBestePct > 0;
-  const selVolledig   = selKosten   !== null && selKosten   < 0.005 && dekSelPct   > 0;
+  const dekSelPct    = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
+  const selKosten    = dekSelPct > 0 ? selEff   : selNet;
+  const selBesparing = dekSelPct > 0 && selNet !== null && selEff !== null ? selNet - selEff : null;
 
   const selBlok    = planUren.slice(currentStartIdx, currentStartIdx + blok);
   const terugLijst = selBlok.filter(p => p.terug !== undefined).map(p => p.terug);
@@ -252,19 +245,9 @@ function renderApDetail() {
     <div class="section">
       <div class="section-title">Kosten overzicht</div>
       <div class="tarief-card">
-        <div class="tarief-row" style="display:block">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span class="tarief-key">Beste tijd${dekBestePct > 0 ? ' · ☀️' : ''} (${besteStartStr}–${besteEindStr})</span>
-            <span style="color:#27500a;font-weight:600">€ ${besteKosten !== null ? besteKosten.toFixed(2) : '—'} ✓</span>
-          </div>
-          ${besteVolledig ? '<div style="font-size:10px;color:#27500a;margin-top:2px">☀️ volledig gedekt door zonne-energie</div>' : ''}
-        </div>
-        <div class="tarief-row" style="display:block">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span class="tarief-key">${dekSelPct > 0 ? `Jouw keuze · ☀️ (${selStartStr}–${selEindStr})` : `Jouw keuze (${selStartStr}–${selEindStr})`}</span>
-            <span style="font-weight:600;color:${dekSelPct > 0 ? '#27500a' : isBeste ? '#27500a' : 'var(--text)'}">€ ${selKosten !== null ? selKosten.toFixed(2) : '—'}${isBeste ? ' ✓' : ''}</span>
-          </div>
-          ${selVolledig ? '<div style="font-size:10px;color:#27500a;margin-top:2px">☀️ volledig gedekt door zonne-energie</div>' : ''}
+        <div class="tarief-row">
+          <span class="tarief-key">Jouw keuze (${selStartStr}–${selEindStr})</span>
+          <span style="font-weight:600;color:${dekSelPct > 0 ? '#27500a' : 'var(--text)'}">€ ${selKosten !== null ? selKosten.toFixed(2) : '—'}</span>
         </div>
         ${piekRes ? `<div class="tarief-row">
           <span class="tarief-key">Piekuren (${piekRes.startStr}–${piekRes.eindStr})</span>
@@ -277,18 +260,15 @@ function renderApDetail() {
       </div>
     </div>
 
-    ${dekSelPct > 0 || dekBestePct > 0 ? `
+    ${dekSelPct > 0 ? `
     <div class="section">
       <div class="section-title">Zonne-energie</div>
       <div class="tarief-card">
         <div class="tarief-row">
-          <span class="tarief-key">☀️ Jouw keuze (${selStartStr}–${selEindStr})</span>
-          <span style="font-weight:600;color:${dekSelPct > 30 ? '#27500a' : 'var(--text)'}">${dekSelPct}% gedekt</span>
+          <span class="tarief-key">☀️ ${dekSelPct}% gedekt</span>
+          <span style="color:#27500a;font-weight:600">${selBesparing !== null && selBesparing > 0.005 ? `bespaart € ${selBesparing.toFixed(2)}` : 'volledig gedekt'}</span>
         </div>
-        <div class="tarief-row">
-          <span class="tarief-key">☀️ Beste tijd (${besteStartStr}–${besteEindStr})</span>
-          <span style="font-weight:600;color:${dekBestePct > 30 ? '#27500a' : 'var(--text)'}">${dekBestePct}% gedekt</span>
-        </div>
+        ${selBesparing !== null && selBesparing > 0.005 ? `<div class="tarief-row" style="padding-top:0;border-top:none"><span style="font-size:11px;color:var(--muted)">t.o.v. netstroom zonder zon (€ ${selNet !== null ? selNet.toFixed(2) : '—'})</span></div>` : ''}
       </div>
     </div>` : ''}
 
