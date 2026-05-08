@@ -197,10 +197,13 @@ function renderLaadadvies() {
 
     let vergelijkBadge = '';
     if (selEff !== null) {
-      const diff = selEff - besteEff;
-      if (diff > 0.005)       vergelijkBadge = `<div class="advies-badge rood">kost € ${diff.toFixed(2)} meer</div>`;
-      else if (diff < -0.005) vergelijkBadge = `<div class="advies-badge groen">bespaar € ${(-diff).toFixed(2)}</div>`;
-      else                    vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
+      if (selStartIdx === besteStartIdx) {
+        vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
+      } else {
+        const diff = selEff - besteEff;
+        if (diff > 0.005) vergelijkBadge = `<div class="advies-badge rood">kost € ${diff.toFixed(2)} meer</div>`;
+        else              vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
+      }
     }
 
     const besteBlok = planUren.slice(besteStartIdx, besteStartIdx + Math.ceil(uren));
