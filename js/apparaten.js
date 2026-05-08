@@ -94,7 +94,6 @@ function gemSolarVoorBlok(startIdx, aantalUren, komende18) {
   return n > 0 ? (totaalW / n) / 1000 : 0;
 }
 
-
 function renderLaadadvies() {
   const container = document.getElementById('laadadviesContainer');
   if (!cacheVandaag) { container.innerHTML = ''; return; }
@@ -119,109 +118,142 @@ function renderLaadadvies() {
 
   const wasdroogRes = berekenComboBlok(2, 1.5, 2, 2.5, komende18);
   const hs = d => d ? String(d.getHours()).padStart(2,'0') + ':00' : '—';
+  const leegKaart = (icon, naam) =>
+    `<div class="advies-card"><div class="advies-device-icon">${icon}</div><div class="advies-device-naam">${naam}</div><div class="advies-row">Onvoldoende data</div></div>`;
 
-  function badge(kostenNu, kostenBeste) {
-    if (kostenNu === null) return '';
-    const diff = kostenNu - kostenBeste;
-    if (diff > 0.005)  return `<div class="advies-badge rood">kost € ${diff.toFixed(2)} meer</div>`;
-    if (diff < -0.005) return `<div class="advies-badge groen">bespaar € ${(-diff).toFixed(2)}</div>`;
-    return `<div class="advies-badge groen">beste tijd ✓</div>`;
-  }
+  // Uniforme kaartopbouw voor elk apparaat
+  function maakKaart({ icon, naam, uren, kw,
+                        besteStartIdx, besteStartStr, besteEindStr, besteIsMorgen,
+                        besteNetstroom, besteSolar,
+                        selLabel, selNetstroom, selSolar }) {
+    const gemSolarKw     = gemSolarVoorBlok(besteStartIdx, Math.ceil(uren), komende18);
+    const heeftZon       = gemSolarKw > 0.01;
+    const dekPct         = (heeftZon && kw > 0) ? Math.min(100, Math.round((gemSolarKw / kw) * 100)) : 0;
+    const volledigGratis = heeftZon && gemSolarKw >= kw;
 
-  function statusEl(startIdx) {
-    if (startIdx === 0) return `<div class="advies-status nu">✓ Nu laden!</div>`;
-    if (startIdx <= 2)  return `<div class="advies-status snel">⏰ Over ${startIdx} uur</div>`;
-    return `<div class="advies-status later">Later: over ${startIdx} uur</div>`;
-  }
+    // Effectieve kosten (met zon indien beschikbaar, anders netstroom)
+    const besteEff = (heeftZon && besteSolar !== null) ? besteSolar : besteNetstroom;
+    const selEff   = selNetstroom !== null
+      ? ((heeftZon && selSolar !== null) ? selSolar : selNetstroom)
+      : null;
 
-  // "Met zon" alleen tonen als er daadwerkelijk zon verwacht wordt (gemSolarKw > 0)
-  function vergelijk(nuLabel, kostenNu, kostenBeste, solarKosten, vermogenKw, gemSolarKw) {
-    const heeftPrijs     = kostenNu !== null;
-    const heeftZon       = solarKosten !== null && solarKosten !== undefined
-                           && heeftPrijs && gemSolarKw > 0.01;
-    const besparing      = heeftZon ? Math.max(0, kostenNu - solarKosten) : 0;
-    const effectief      = heeftZon ? solarKosten : kostenNu;
+    const besteBesparing = (heeftZon && besteSolar !== null) ? Math.max(0, besteNetstroom - besteSolar) : 0;
+    const selBesparing   = (heeftZon && selSolar !== null && selNetstroom !== null) ? Math.max(0, selNetstroom - selSolar) : 0;
 
-    const dekPct         = (heeftZon && vermogenKw > 0)
-      ? Math.min(100, Math.round((gemSolarKw / vermogenKw) * 100)) : 0;
-    const volledigGratis = heeftZon && gemSolarKw >= vermogenKw;
+    console.log(`[${naam}] gemSolarKw: ${gemSolarKw.toFixed(3)} kW | beste: € ${besteNetstroom.toFixed(3)} stroom → € ${besteEff.toFixed(3)} eff | sel: € ${selNetstroom?.toFixed(3) ?? '—'} stroom → € ${selEff?.toFixed(3) ?? '—'} eff`);
 
-    const solarBadge     = volledigGratis
+    // Vergelijkingsbadge (geselecteerd vs beste)
+    let vergelijkBadge = '';
+    if (selEff !== null) {
+      const diff = selEff - besteEff;
+      if (diff > 0.005)       vergelijkBadge = `<div class="advies-badge rood">kost € ${diff.toFixed(2)} meer</div>`;
+      else if (diff < -0.005) vergelijkBadge = `<div class="advies-badge groen">bespaar € ${(-diff).toFixed(2)}</div>`;
+      else                    vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
+    }
+
+    const zonBadge = volledigGratis
       ? '<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ volledig gratis op zonne-energie</div>'
       : dekPct >= 5
         ? `<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ zonne-energie dekt ${dekPct}%</div>`
         : '';
 
-    return `<div class="advies-vergelijk">
-      <div class="av-rij" style="margin-bottom:2px"><span class="av-label" style="font-weight:600;color:var(--text)">${nuLabel}</span></div>
-      <div class="av-rij"><span class="av-label">Op netstroom</span><span class="av-prijs">${heeftPrijs ? '€ ' + kostenNu.toFixed(2) : '—'}</span></div>
-      ${heeftZon ? `<div class="av-rij"><span class="av-label">Met zon</span><span class="av-prijs" style="color:#3b6d11">€ ${solarKosten.toFixed(2)}</span></div>` : ''}
-      ${besparing > 0.005 ? `<div class="av-rij"><span class="av-label" style="color:#27500a">Besparing</span><span class="av-prijs" style="color:#27500a;font-weight:700">€ ${besparing.toFixed(2)}</span></div>` : ''}
-      <div class="av-rij" style="margin-top:3px"><span class="av-label">Beste tijd</span><span class="av-prijs beste">€ ${kostenBeste.toFixed(2)}</span></div>
-      ${badge(effectief, kostenBeste)}
-    </div>${solarBadge}`;
+    const statusStr = besteStartIdx === 0
+      ? `<div class="advies-status nu">✓ Nu laden!</div>`
+      : besteStartIdx <= 2
+        ? `<div class="advies-status snel">⏰ Over ${besteStartIdx} uur</div>`
+        : `<div class="advies-status later">Later: over ${besteStartIdx} uur</div>`;
+
+    // Helper: twee rijen (netstroom + evt. zon) voor één tijdblok
+    function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar, besparing) {
+      if (netstroom === null) return '';
+      const tijdLbl = tijdStr ? ` · ${tijdStr}${isMorgen ? ' <span style="font-weight:400">(morgen)</span>' : ''}` : '';
+      return `
+        <div class="av-rij" style="margin-bottom:2px">
+          <span class="av-label" style="font-weight:600;color:var(--text)">${sectieLabel}${tijdLbl}</span>
+        </div>
+        <div class="av-rij">
+          <span class="av-label">Op netstroom</span>
+          <span class="av-prijs">€ ${netstroom.toFixed(2)}</span>
+        </div>
+        ${(heeftZon && solar !== null && besparing > 0.005) ? `
+        <div class="av-rij">
+          <span class="av-label">Met zon</span>
+          <span class="av-prijs" style="color:#3b6d11">€ ${solar.toFixed(2)}</span>
+        </div>
+        <div class="av-rij">
+          <span class="av-label" style="color:#27500a">Besparing</span>
+          <span class="av-prijs" style="color:#27500a;font-weight:700">€ ${besparing.toFixed(2)}</span>
+        </div>` : ''}`;
+    }
+
+    return `<div class="advies-card">
+      <div class="advies-device-icon">${icon}</div>
+      <div class="advies-device-naam">${naam}</div>
+      <div class="advies-vergelijk">
+        ${blokRijen('Beste tijdvak', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, besteSolar, besteBesparing)}
+        ${selNetstroom !== null ? `
+        <div style="height:0.5px;background:var(--border);margin:5px 0"></div>
+        ${blokRijen(selLabel, '', false, selNetstroom, selSolar, selBesparing)}` : ''}
+        ${vergelijkBadge}
+      </div>
+      ${zonBadge}
+      ${statusStr}
+    </div>`;
   }
 
-  const nuLabelBase = heeftSelectie
-    ? `Starten om ${hs(komende18[geselecteerdIdx].tijd)}`
-    : 'Nu starten';
+  const selLabel = heeftSelectie ? `Om ${hs(komende18[geselecteerdIdx].tijd)}` : 'Nu starten';
 
   const kaarten = APPARATEN.map(ap => {
-    const leeg = `<div class="advies-card"><div class="advies-device-icon">${ap.icon}</div><div class="advies-device-naam">${ap.naam}</div><div class="advies-row">Onvoldoende data</div></div>`;
-
     if (ap.comboPart === 1) {
-      if (!wasdroogRes) return leeg;
-      const nuLabel    = heeftSelectie ? `Starten om ${hs(komende18[geselecteerdIdx].tijd)}` : 'Nu starten';
-      const kostenNu   = berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx);
-      const solarNu    = effectieveKosten(2, 1.5, komende18, geselecteerdIdx);
-      const solarKwWas = gemSolarVoorBlok(wasdroogRes.startIndex, 2, komende18);
-      const isMorgen   = wasdroogRes.was.startTijd.getDate() !== now.getDate();
-      return `<div class="advies-card">
-        <div class="advies-device-icon">${ap.icon}</div>
-        <div class="advies-device-naam">${ap.naam}</div>
-        ${vergelijk(nuLabel, kostenNu, wasdroogRes.was.kosten, solarNu, 1.5, solarKwWas)}
-        <div class="advies-row">Beste: ${hs(wasdroogRes.was.startTijd)} – ${wasdroogRes.was.eindStr}${isMorgen ? ' (morgen)' : ''}</div>
-        ${statusEl(wasdroogRes.startIndex)}
-      </div>`;
+      if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
+      return maakKaart({
+        icon: ap.icon, naam: ap.naam, uren: 2, kw: 1.5,
+        besteStartIdx:  wasdroogRes.startIndex,
+        besteStartStr:  hs(wasdroogRes.was.startTijd),
+        besteEindStr:   wasdroogRes.was.eindStr,
+        besteIsMorgen:  wasdroogRes.was.startTijd.getDate() !== now.getDate(),
+        besteNetstroom: wasdroogRes.was.kosten,
+        besteSolar:     effectieveKosten(2, 1.5, komende18, wasdroogRes.startIndex),
+        selLabel,
+        selNetstroom:   berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx),
+        selSolar:       effectieveKosten(2, 1.5, komende18, geselecteerdIdx),
+      });
     }
 
     if (ap.comboPart === 2) {
-      if (!wasdroogRes) return leeg;
-      const droogNuIdx    = geselecteerdIdx + 2;
-      const droogLabel    = (heeftSelectie && droogNuIdx < komende18.length)
-        ? `Starten om ${hs(komende18[droogNuIdx].tijd)} (na was)`
+      if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
+      const droogIdx    = geselecteerdIdx + 2;
+      const droogSelLbl = heeftSelectie && droogIdx < komende18.length
+        ? `Na was · ${hs(komende18[droogIdx].tijd)}`
         : 'Na wasmachine';
-      const droogNuKosten = berekenKostenVanaf(2, 2.5, komende18, droogNuIdx);
-      const wasNuKosten   = berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx);
-      const totaalNu      = (wasNuKosten !== null && droogNuKosten !== null) ? wasNuKosten + droogNuKosten : null;
-      const droogSolarNu  = effectieveKosten(2, 2.5, komende18, droogNuIdx);
-      const solarKwDroog  = gemSolarVoorBlok(wasdroogRes.startIndex + 2, 2, komende18);
-      const isMorgen      = wasdroogRes.droog.startTijd.getDate() !== now.getDate();
-      const totaalRegel   = `<div class="advies-row" style="margin-top:5px;padding-top:5px;border-top:0.5px solid var(--border)">Totaal was+droog: <b>€ ${wasdroogRes.totaalKosten.toFixed(2)}</b>${totaalNu !== null && totaalNu > wasdroogRes.totaalKosten + 0.005 ? ` · nu: € ${totaalNu.toFixed(2)}` : ''}</div>`;
-      return `<div class="advies-card">
-        <div class="advies-device-icon">${ap.icon}</div>
-        <div class="advies-device-naam">${ap.naam}</div>
-        ${vergelijk(droogLabel, droogNuKosten, wasdroogRes.droog.kosten, droogSolarNu, 2.5, solarKwDroog)}
-        <div class="advies-row">Beste: ${hs(wasdroogRes.droog.startTijd)} – ${wasdroogRes.droog.eindStr}${isMorgen ? ' (morgen)' : ''} (na was)</div>
-        ${statusEl(wasdroogRes.startIndex + 2)}
-        ${totaalRegel}
-      </div>`;
+      return maakKaart({
+        icon: ap.icon, naam: ap.naam, uren: 2, kw: 2.5,
+        besteStartIdx:  wasdroogRes.startIndex + 2,
+        besteStartStr:  hs(wasdroogRes.droog.startTijd),
+        besteEindStr:   wasdroogRes.droog.eindStr,
+        besteIsMorgen:  wasdroogRes.droog.startTijd.getDate() !== now.getDate(),
+        besteNetstroom: wasdroogRes.droog.kosten,
+        besteSolar:     effectieveKosten(2, 2.5, komende18, wasdroogRes.startIndex + 2),
+        selLabel:       droogSelLbl,
+        selNetstroom:   droogIdx < komende18.length ? berekenKostenVanaf(2, 2.5, komende18, droogIdx) : null,
+        selSolar:       droogIdx < komende18.length ? effectieveKosten(2, 2.5, komende18, droogIdx) : null,
+      });
     }
 
-    const res      = berekenGoedkoopsteBlok(ap.uren, ap.kw, komende18);
-    if (!res) return leeg;
-    const kostenNu = berekenKostenVanaf(ap.uren, ap.kw, komende18, geselecteerdIdx);
-    const solarNu  = effectieveKosten(ap.uren, ap.kw, komende18, geselecteerdIdx);
-    const solarKw  = gemSolarVoorBlok(res.startIndex, Math.ceil(ap.uren), komende18);
-    const isMorgen = res.startTijd.getDate() !== now.getDate();
-    console.log(`[${ap.naam}] kostenNu: ${kostenNu?.toFixed(3) ?? '—'} | solarNu: ${solarNu?.toFixed(3) ?? '—'} | gemSolarKw beste blok: ${solarKw.toFixed(3)} kW | besparing: € ${(kostenNu != null && solarNu != null ? Math.max(0, kostenNu - solarNu) : 0).toFixed(3)}`);
-    return `<div class="advies-card">
-      <div class="advies-device-icon">${ap.icon}</div>
-      <div class="advies-device-naam">${ap.naam}</div>
-      ${vergelijk(nuLabelBase, kostenNu, res.kosten, solarNu, ap.kw, solarKw)}
-      <div class="advies-row">Beste: ${hs(res.startTijd)} – ${res.eindStr}${isMorgen ? ' (morgen)' : ''}</div>
-      ${statusEl(res.startIndex)}
-    </div>`;
+    const res = berekenGoedkoopsteBlok(ap.uren, ap.kw, komende18);
+    if (!res) return leegKaart(ap.icon, ap.naam);
+    return maakKaart({
+      icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.kw,
+      besteStartIdx:  res.startIndex,
+      besteStartStr:  hs(res.startTijd),
+      besteEindStr:   res.eindStr,
+      besteIsMorgen:  res.startTijd.getDate() !== now.getDate(),
+      besteNetstroom: res.kosten,
+      besteSolar:     effectieveKosten(ap.uren, ap.kw, komende18, res.startIndex),
+      selLabel,
+      selNetstroom:   berekenKostenVanaf(ap.uren, ap.kw, komende18, geselecteerdIdx),
+      selSolar:       effectieveKosten(ap.uren, ap.kw, komende18, geselecteerdIdx),
+    });
   }).join('');
 
   container.innerHTML = `<div class="advies-grid">${kaarten}</div>`;
