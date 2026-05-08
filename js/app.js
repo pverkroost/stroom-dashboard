@@ -36,7 +36,7 @@ function switchTab(newTab) {
     if (zonTabEl) zonTabEl.classList.add('active');
     document.getElementById('mainContent').style.display = 'none';
     document.getElementById('zonContent').style.display  = '';
-    renderZonTab(activeDay);
+    renderZonTab(0);
     console.log('Zon tab gerenderd, activeDay:', activeDay);
   } else {
     isZonTab = false;
@@ -74,7 +74,7 @@ async function laadPrijzen() {
     growattVandaag   = growatt;
     if (isZonTab) {
       resetZonCanvassen();
-      renderZonTab(activeDay);
+      renderZonTab(0);
     } else {
       if (chart) { chart.destroy(); chart = null; }
       const prijzen = activeDay === 0 ? cacheVandaag : cacheMorgen;
@@ -104,5 +104,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.10.14 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.10.15 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
