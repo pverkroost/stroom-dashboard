@@ -169,7 +169,7 @@ function renderZonTab(day) {
       .reduce((s, e) => s + e.watt, 0) / 1000;
     document.getElementById('zonTotaalKwh').textContent = solarVandaag ? kwh.toFixed(2) : '—';
     document.getElementById('zonTotaalEen').textContent = (solarVandaag && verwachtKwh > 0.01)
-      ? `kWh + ~${verwachtKwh.toFixed(2)} verwacht`
+      ? `kWh + ~${verwachtKwh.toFixed(2)} kWh verwacht`
       : 'kWh vandaag';
 
     document.getElementById('zonGisterenKwh').textContent = gist !== null ? gist.toFixed(2) : '—';
@@ -204,6 +204,29 @@ function renderZonTab(day) {
   }
 }
 
+// Custom plugin: stippelrand voor bars met borderDash property
+const dashedBarPlugin = {
+  id: 'dashedBar',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    chart.data.datasets.forEach((ds, i) => {
+      if (!ds.borderDash?.length) return;
+      const meta = chart.getDatasetMeta(i);
+      if (meta.hidden) return;
+      ctx.save();
+      ctx.setLineDash(ds.borderDash);
+      ctx.strokeStyle = ds.borderColor || 'rgba(0,0,0,0.4)';
+      ctx.lineWidth   = ds.dashedBorderWidth ?? 1;
+      meta.data.forEach((bar, j) => {
+        if (chart.data.datasets[i].data[j] === null) return;
+        const { x, y, base, width } = bar.getProps(['x','y','base','width'], true);
+        ctx.strokeRect(x - width / 2, y, width, base - y);
+      });
+      ctx.restore();
+    });
+  }
+};
+
 function renderZonChart() {
   if (zonChart) { zonChart.destroy(); zonChart = null; }
   const canvas = document.getElementById('zonChart');
@@ -221,14 +244,14 @@ function renderZonChart() {
   const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
   const labels = Array.from({length:24}, (_, i) => String(i).padStart(2,'0')+':00');
 
-  // Uren t/m huidig uur: actuele SolarEdge productie
+  // Uren t/m huidig uur: actuele SolarEdge productie (groen, gevuld)
   const actueelData = Array.from({length:24}, (_, i) => {
     if (i > nowH) return null;
     const e = solarVandaag?.hourly?.find(h => h.hour === i);
     return e ? Math.round(e.watt) : 0;
   });
 
-  // Toekomstige uren: Open-Meteo voorspelling
+  // Toekomstige uren: Open-Meteo voorspelling (lichtgroen, stippelrand)
   const verwachtData = Array.from({length:24}, (_, i) => {
     if (i <= nowH) return null;
     const e = openMeteoVandaag?.hourly?.find(h => h.hour === i);
@@ -243,8 +266,9 @@ function renderZonChart() {
   });
   if (hasVerwacht) datasets.push({
     label: 'Verwacht', data: verwachtData,
-    backgroundColor: 'rgba(100,180,50,0.18)', borderColor: 'rgba(59,109,17,0.4)',
-    borderWidth: 1, borderRadius: 3
+    backgroundColor: 'rgba(100,180,50,0.15)',
+    borderColor: 'rgba(59,109,17,0.55)', borderDash: [4,3], dashedBorderWidth: 1.5,
+    borderWidth: 0, borderRadius: 3  // borderWidth:0 zodat Chart.js geen eigen rand tekent
   });
 
   document.getElementById('zonChartTitle').textContent =
@@ -252,6 +276,7 @@ function renderZonChart() {
 
   zonChart = new Chart(canvas, {
     type: 'bar',
+    plugins: [dashedBarPlugin],
     data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
