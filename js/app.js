@@ -4,8 +4,13 @@ let solarVandaag = null, solarMorgen = null;
 let isZonTab = false, zonChart = null, voorspellingChart = null;
 let openMeteoVandaag = null, growattVandaag = null;
 let solarToggleAan = localStorage.getItem('solarToggle') !== 'uit';
+let previousTab = 'vandaag';
 
 function switchDay(day) {
+  const from = isZonTab ? 'zon' : (activeDay === 0 ? 'vandaag' : 'morgen');
+  const to   = day === 0 ? 'vandaag' : 'morgen';
+  console.log('[Tab] gewisseld naar:', to, '| van:', from, '| activeDay was:', activeDay, '| isZonTab:', isZonTab);
+  previousTab = from;
   activeDay = day;
   toonVerleden = false;
   geselecteerdStartTijd = null;
@@ -24,19 +29,31 @@ function switchDay(day) {
 }
 
 function switchZon() {
+  const from = isZonTab ? 'zon' : (activeDay === 0 ? 'vandaag' : 'morgen');
+  console.log('[Tab] gewisseld naar: zon | van:', from, '| activeDay:', activeDay, '| zonChart:', !!zonChart, '| voorspellingChart:', !!voorspellingChart);
+  previousTab = from;
   isZonTab = true;
   if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
   if (zonChart) { zonChart.destroy(); zonChart = null; }
   if (voorspellingChart) { voorspellingChart.destroy(); voorspellingChart = null; }
-  // Reset chart canvassen volledig — voorkomt stale Chart.js registry bij elke tab-wissel
+  // Reset chart canvassen volledig
   document.getElementById('zonVandaagChartWrap').innerHTML = '<canvas id="zonChart"></canvas>';
   document.getElementById('zonMorgenChartWrap').innerHTML  = '<canvas id="voorspellingChart"></canvas>';
+  // Wis alle dynamische content zodat nooit oud scherm zichtbaar is
+  const reset = id => { const el = document.getElementById(id); if (el) el.textContent = '—'; };
+  ['zonHeroPrice','zonNuW','zonNuEen','zonTotaalKwh','zonTotaalEen',
+   'zonGisterenKwh','zonMaandKwh','zonMorgenKwh','zonMorgenPiekUur','zonMorgenPiekW','zonMorgenZonneUren'].forEach(reset);
+  const loading = '<div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div>';
+  document.getElementById('zonSEContent').innerHTML      = loading;
+  document.getElementById('zonGrowattContent').innerHTML = loading;
   document.getElementById('mainContent').style.display = 'none';
   document.getElementById('zonContent').style.display = '';
   document.getElementById('tab-0').classList.remove('active');
   document.getElementById('tab-1').classList.remove('active');
   document.getElementById('tab-2').classList.add('active');
+  console.log('[Tab] renderZonTab aanroepen met activeDay:', activeDay);
   renderZonTab(activeDay);
+  console.log('[Tab] renderZonTab klaar | zonChart:', !!zonChart, '| voorspellingChart:', !!voorspellingChart);
 }
 
 async function laadPrijzen() {
@@ -89,5 +106,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.10.3 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.10.4 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
