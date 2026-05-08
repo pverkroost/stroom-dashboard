@@ -169,6 +169,8 @@ function renderSolarKaartjes() {
 function renderZonTab(day) {
   day = day ?? 0;
   const isVandaag = day === 0;
+  if (zonChart) { zonChart.destroy(); zonChart = null; }
+  if (voorspellingChart) { voorspellingChart.destroy(); voorspellingChart = null; }
 
   document.getElementById('zonVandaagCards').style.display     = isVandaag ? '' : 'none';
   document.getElementById('zonMorgenCards').style.display      = isVandaag ? 'none' : '';

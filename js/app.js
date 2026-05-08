@@ -26,6 +26,8 @@ function switchDay(day) {
 function switchZon() {
   isZonTab = true;
   if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
+  if (zonChart) { zonChart.destroy(); zonChart = null; }
+  if (voorspellingChart) { voorspellingChart.destroy(); voorspellingChart = null; }
   document.getElementById('mainContent').style.display = 'none';
   document.getElementById('zonContent').style.display = '';
   document.getElementById('tab-0').classList.remove('active');
@@ -84,5 +86,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.9.8 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.9.9 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
