@@ -109,7 +109,12 @@ function renderLaadadvies() {
   const titleEl = document.getElementById('laadadviesTitle');
   if (titleEl) titleEl.textContent = isMorgenTab ? 'Slim inplannen · morgen' : 'Slim inplannen · vandaag';
 
-  if (isMorgenTab ? !cacheMorgen : !cacheVandaag) { container.innerHTML = ''; return; }
+  if (isMorgenTab ? !cacheMorgen : !cacheVandaag) {
+    container.innerHTML = isMorgenTab
+      ? '<div class="no-data" style="padding:12px 0 4px">Morgen prijzen nog niet beschikbaar.<br>EPEX publiceert ze rond 14:00 uur.</div>'
+      : '';
+    return;
+  }
 
   const now = new Date();
   const nowUur = now.getHours();

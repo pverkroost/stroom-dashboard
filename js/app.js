@@ -47,8 +47,9 @@ function switchTab(newTab) {
     document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
     const tabEl = document.getElementById('tab-' + newTab);
     if (tabEl) tabEl.classList.add('active');
-    document.getElementById('mainContent').style.display = '';
-    document.getElementById('zonContent').style.display  = 'none';
+    document.getElementById('mainContent').style.display      = '';
+    document.getElementById('zonContent').style.display       = 'none';
+    document.getElementById('laadadviesSection').style.display = '';
     const prijzen = newTab === 0 ? cacheVandaag : cacheMorgen;
     if (prijzen) renderDashboard(prijzen, newTab);
     else renderGeenData();
@@ -105,5 +106,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.10.21 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.10.22 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
