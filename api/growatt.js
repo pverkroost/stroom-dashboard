@@ -1,3 +1,4 @@
+// Deploy: 2026-05-08-v2
 const fetch = require('node-fetch');
 
 module.exports = async (req, res) => {
