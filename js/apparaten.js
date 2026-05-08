@@ -493,21 +493,6 @@ function renderLaadadvies() {
     }
 
     const besteBlok = planUren.slice(besteStartIdx, besteStartIdx + Math.ceil(uren));
-    const _tVandaag = new Date(); _tVandaag.setHours(0,0,0,0);
-    const _tMorgen  = new Date(_tVandaag); _tMorgen.setDate(_tMorgen.getDate() + 1);
-    let terugVerliesKaart = 0;
-    for (const p of besteBlok) {
-      if ((p.terug ?? 0) >= 0) continue;
-      const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
-      const isMorgenUur = dagStart.getTime() === _tMorgen.getTime();
-      const solarWatt = getSolarWatt(p.tijd.getHours(), isMorgenUur);
-      if (solarWatt <= 0) continue;
-      terugVerliesKaart += Math.abs(p.terug) * Math.min(kw, solarWatt / 1000);
-    }
-    const heeftNegatieveTeruglevering = terugVerliesKaart >= 0.02;
-    const terugWaarschuwing = heeftNegatieveTeruglevering
-      ? '<div class="advies-badge" style="background:#fef3c7;color:#92400e;margin-top:4px">☀️ slim moment: voorkomt terugleververlies</div>'
-      : '';
 
     const selTijdStr = (() => {
       const t = selStartIdx < planUren.length ? planUren[selStartIdx]?.tijd : null;
@@ -550,7 +535,6 @@ function renderLaadadvies() {
       ${opmerking ? `<div class="advies-device-sub">${opmerking}</div>` : ''}
       <div class="advies-vergelijk">
         ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, heeftZon, dekPct)}
-        ${terugWaarschuwing}
         ${selStartIdx < planUren.length ? `
         <div style="height:0.5px;background:var(--border);margin:3px 0"></div>
         ${blokRijen(selLabel, selTijdStr, false, selNetstroom, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
