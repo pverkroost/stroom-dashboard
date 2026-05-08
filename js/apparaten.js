@@ -327,9 +327,7 @@ function renderApDetail() {
       </div>
     </div>` : ''}
 
-    ${!isBeste ? `<div class="section" style="padding-bottom:40px">
-      <button class="ap-cta-btn ap-cta-wit" onclick="gebruikBesteTijdDetail()">Gebruik beste tijd (${besteStartStr})</button>
-    </div>` : '<div style="padding-bottom:40px"></div>'}
+    <div style="padding-bottom:40px"></div>
 
     ${naam === 'Auto (PHEV)' ? `
     <div class="section" style="padding-bottom:40px">
