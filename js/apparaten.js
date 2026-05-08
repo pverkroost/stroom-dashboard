@@ -193,9 +193,9 @@ function renderLaadadvies() {
 
     // heeftZonHier is expliciet meegegeven — afgeleid van gemSolarVoorBlok, niet van prijsvergelijking
     function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar, heeftZonHier) {
-      if (netstroom === null) return '';
       const effPrijs   = (heeftZonHier && solar !== null) ? solar : netstroom;
       const prijsLabel = heeftZonHier ? 'Netstroom + zon' : 'Op netstroom';
+      const priceStr   = effPrijs !== null ? `€ ${effPrijs.toFixed(2)}` : '—';
       const tijdLbl = tijdStr ? ` · ${tijdStr}${isMorgen ? ' <span style="font-weight:400">(morgen)</span>' : ''}` : '';
       return `
         <div class="av-rij" style="margin-bottom:2px">
@@ -203,7 +203,7 @@ function renderLaadadvies() {
         </div>
         <div class="av-rij">
           <span class="av-label">${prijsLabel}</span>
-          <span class="av-prijs">€ ${effPrijs.toFixed(2)}</span>
+          <span class="av-prijs">${priceStr}</span>
         </div>`;
     }
 
@@ -212,7 +212,7 @@ function renderLaadadvies() {
       <div class="advies-device-naam">${naam}</div>
       <div class="advies-vergelijk">
         ${blokRijen('Beste tijdvak', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, besteSolar, heeftZon)}
-        ${selNetstroom !== null ? `
+        ${selStartIdx < komende18.length ? `
         <div style="height:0.5px;background:var(--border);margin:5px 0"></div>
         ${blokRijen(selLabel, '', false, selNetstroom, selSolar, heeftZonSel)}` : ''}
         ${vergelijkBadge}
