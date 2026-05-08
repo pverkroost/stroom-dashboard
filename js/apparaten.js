@@ -187,6 +187,7 @@ function renderApDetail() {
 
   const allowP   = currentStartIdx + blok > planUren.length;
   const selNet   = berekenKostenVanaf(uren, vermogen, planUren, currentStartIdx, allowP);
+  const selEff   = effectieveKosten(uren, vermogen, planUren, currentStartIdx, allowP);
   const besteNet = berekenKostenVanaf(uren, vermogen, planUren, besteStartIdx);
 
   const piekRange = new Set([18, 19, 20]);
@@ -250,8 +251,8 @@ function renderApDetail() {
           <span style="color:#27500a;font-weight:600">€ ${besteNet !== null ? besteNet.toFixed(2) : '—'} ✓</span>
         </div>
         <div class="tarief-row">
-          <span class="tarief-key">Jouw keuze (${selStartStr}–${selEindStr})</span>
-          <span style="font-weight:600;color:${isBeste ? '#27500a' : 'var(--text)'}">€ ${selNet !== null ? selNet.toFixed(2) : '—'}${isBeste ? ' ✓' : ''}</span>
+          <span class="tarief-key">${dekSelPct > 0 ? `Jouw keuze · ☀️ netstroom + zon (${selStartStr}–${selEindStr})` : `Jouw keuze (${selStartStr}–${selEindStr})`}</span>
+          <span style="font-weight:600;color:${dekSelPct > 0 ? '#27500a' : isBeste ? '#27500a' : 'var(--text)'}">€ ${(dekSelPct > 0 ? selEff : selNet) !== null ? (dekSelPct > 0 ? selEff : selNet).toFixed(2) : '—'}${isBeste ? ' ✓' : ''}</span>
         </div>
         ${piekRes ? `<div class="tarief-row">
           <span class="tarief-key">Piekuren (${piekRes.startStr}–${piekRes.eindStr})</span>
