@@ -172,22 +172,84 @@ function gebruikBesteTijdDetail() {
 function renderApDetail() {
   if (!apDetailState) return;
   const { ap, planUren, besteStartIdx, currentStartIdx, maxIdx } = apDetailState;
-  const { uren, vermogen, naam, icon, type } = ap;
+  const { uren, vermogen, naam, icon, type, opmerking } = ap;
   const blok = Math.ceil(uren);
   const totaalKwh = (uren * vermogen).toFixed(1);
-  const eindHStr = h => String((h + blok) % 24).padStart(2,'0') + ':00';
+  const hs = hStr;
+  const eindH = h => String((h + blok) % 24).padStart(2,'0') + ':00';
+  const isMorgenTab = activeDay === 1;
 
-  const selStart    = planUren[currentStartIdx]?.tijd;
-  const selStartStr = selStart ? hStr(selStart) : '—';
-  const selEindStr  = selStart ? eindHStr(selStart.getHours()) : '—';
-
+  // Beste blok
   const besteStart    = planUren[besteStartIdx]?.tijd;
-  const besteStartStr = besteStart ? hStr(besteStart) : '—';
-  const besteEindStr  = besteStart ? eindHStr(besteStart.getHours()) : '—';
+  const besteStartStr = besteStart ? hs(besteStart) : '—';
+  const besteEindStr  = besteStart ? eindH(besteStart.getHours()) : '—';
+  const morgenStart   = new Date(); morgenStart.setHours(0,0,0,0); morgenStart.setDate(morgenStart.getDate() + 1);
+  const besteIsMorgen = besteStart
+    ? new Date(besteStart).setHours(0,0,0,0) === morgenStart.getTime()
+    : false;
 
+  // Keuze blok (aanpasbaar via +/-)
+  const selStart    = planUren[currentStartIdx]?.tijd;
+  const selStartStr = selStart ? hs(selStart) : '—';
+  const selEindStr  = selStart ? eindH(selStart.getHours()) : '—';
+  const selTijdStr  = selStart ? `${selStartStr}–${selEindStr}` : '';
+
+  // Kosten (netstroom voor weergave, effectief voor vergelijking)
   const allowP   = currentStartIdx + blok > planUren.length;
+  const besteNet = berekenKostenVanaf(uren, vermogen, planUren, besteStartIdx);
   const selNet   = berekenKostenVanaf(uren, vermogen, planUren, currentStartIdx, allowP);
-  const selEff   = effectieveKosten(uren, vermogen, planUren, currentStartIdx, allowP);
+  const besteEff = effectieveKosten(uren, vermogen, planUren, besteStartIdx) ?? besteNet;
+  const selEff   = effectieveKosten(uren, vermogen, planUren, currentStartIdx, allowP) ?? selNet;
+
+  // Solar dekking
+  const dekBestePct = Math.round(gemSolarDekking(besteStartIdx, blok, vermogen, planUren) * 100);
+  const dekSelPct   = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
+
+  // Teruglevering waarschuwing (beste blok)
+  const besteBlok = planUren.slice(besteStartIdx, besteStartIdx + blok);
+  const terugWaarschuwing = besteBlok.some(p => (p.terug ?? 0) < 0)
+    ? '<div class="advies-badge rood" style="margin-top:4px">☀️ tijdens dit blok lever je anders terug tegen verlies</div>'
+    : '';
+
+  // Vergelijk badge
+  const isBeste = currentStartIdx === besteStartIdx;
+  let vergelijkBadge = '';
+  if (selNet !== null) {
+    if (isBeste) {
+      vergelijkBadge = '<div class="advies-badge groen">beste tijd ✓</div>';
+    } else {
+      const diff = (selEff ?? selNet) - (besteEff ?? besteNet);
+      vergelijkBadge = diff > 0.005
+        ? `<div class="advies-badge rood">kost € ${diff.toFixed(2)} meer</div>`
+        : '<div class="advies-badge groen">beste tijd ✓</div>';
+    }
+  }
+
+  // CTA status
+  const ctaMap = { laden: ['Nu laden!', 'Laden'], starten: ['Nu starten!', 'Starten'], inschakelen: ['Nu inschakelen!', 'Inschakelen'] };
+  const [nuTekst, laterVerb] = ctaMap[type] ?? ['Nu starten!', 'Starten'];
+  const statusStr = isMorgenTab
+    ? `<div class="advies-status later">Morgen · ${besteStartStr}</div>`
+    : besteStartIdx === 0
+      ? `<div class="advies-status nu">✓ ${nuTekst}</div>`
+      : besteStartIdx <= 2
+        ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
+        : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
+
+  // blokRijen helper — zelfde opmaak als kaartoverzicht
+  function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, heeftZonHier, dekking) {
+    const priceStr  = netstroom === null ? '—' : `€ ${netstroom.toFixed(2)}`;
+    const bronStr   = heeftZonHier ? `☀️ ${dekking}%` : 'geen zon';
+    const morgenStr = (tijdStr && isMorgen) ? '<span style="opacity:0.65"> (morgen)</span>' : '';
+    return `<div>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:600;line-height:1.4">
+        <span>${sectieLabel}</span><span>${priceStr}</span>
+      </div>
+      <div style="font-size:10px;color:var(--muted);line-height:1.3">${[tijdStr, bronStr].filter(Boolean).join(' · ')}${morgenStr}</div>
+    </div>`;
+  }
+
+  // Piek/dal vergelijking (netstroom, ter referentie)
   const piekRange = new Set([18, 19, 20]);
   const dalRange  = new Set([23, 0, 1, 2, 3, 4, 5]);
   let piekRes = null, dalRes = null;
@@ -195,30 +257,16 @@ function renderApDetail() {
     const h = planUren[i].tijd.getHours();
     if (!piekRes && piekRange.has(h)) {
       const k = berekenKostenVanaf(uren, vermogen, planUren, i);
-      if (k !== null) piekRes = { kosten: k, startStr: hStr(planUren[i].tijd), eindStr: eindHStr(h) };
+      if (k !== null) piekRes = { kosten: k, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
     }
     if (!dalRes && dalRange.has(h)) {
       const k = berekenKostenVanaf(uren, vermogen, planUren, i);
-      if (k !== null) dalRes = { kosten: k, startStr: hStr(planUren[i].tijd), eindStr: eindHStr(h) };
+      if (k !== null) dalRes = { kosten: k, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
     }
     if (piekRes && dalRes) break;
   }
 
-  const dekSelPct    = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
-  const selKosten    = dekSelPct > 0 ? selEff   : selNet;
-  const selBesparing = dekSelPct > 0 && selNet !== null && selEff !== null ? selNet - selEff : null;
-
-  const selBlok    = planUren.slice(currentStartIdx, currentStartIdx + blok);
-  const terugLijst = selBlok.filter(p => p.terug !== undefined).map(p => p.terug);
-  const gemTerug   = terugLijst.length ? terugLijst.reduce((a,b) => a+b,0) / terugLijst.length : null;
-  const terugKleur = gemTerug === null ? 'var(--muted)' : gemTerug < 0 ? '#a32d2d' : gemTerug < 0.05 ? '#ba7517' : '#27500a';
-  const terugStr   = gemTerug === null ? '—'
-    : gemTerug < 0 ? `⚠️ kost € ${Math.abs(gemTerug).toFixed(3)}/kWh`
-    : `↩ € ${gemTerug.toFixed(3)}/kWh`;
-
-  const isBeste   = currentStartIdx === besteStartIdx;
-  const laadWoord = type === 'laden' ? 'laadt' : type === 'starten' ? 'draait' : 'aan is';
-  const iconHtml  = (typeof icon === 'string' && icon.includes('<svg'))
+  const iconHtml = (typeof icon === 'string' && icon.includes('<svg'))
     ? `<div style="display:inline-block;transform:scale(2.5);transform-origin:center;margin:16px 0">${icon}</div>`
     : `<div style="font-size:48px;line-height:1">${icon}</div>`;
 
@@ -228,6 +276,17 @@ function renderApDetail() {
       ${iconHtml}
       <div class="ap-detail-naam-groot">${naam}</div>
       <div class="ap-detail-sub">Totale duur: ${blok} uur · ${totaalKwh} kWh</div>
+    </div>
+
+    <div class="section">
+      <div class="advies-vergelijk" style="border-radius:var(--radius)">
+        ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNet, dekBestePct > 0, dekBestePct)}
+        ${terugWaarschuwing}
+        <div style="height:0.5px;background:var(--border);margin:4px 0"></div>
+        ${blokRijen('Keuze', selTijdStr, false, selNet, dekSelPct > 0, dekSelPct)}
+        ${vergelijkBadge}
+      </div>
+      ${statusStr}
     </div>
 
     <div class="section">
@@ -242,13 +301,10 @@ function renderApDetail() {
       </div>
     </div>
 
+    ${piekRes || dalRes ? `
     <div class="section">
-      <div class="section-title">Kosten overzicht</div>
+      <div class="section-title">Vergelijking</div>
       <div class="tarief-card">
-        <div class="tarief-row">
-          <span class="tarief-key">Jouw keuze (${selStartStr}–${selEindStr})</span>
-          <span style="font-weight:600;color:${dekSelPct > 0 ? '#27500a' : 'var(--text)'}">€ ${selKosten !== null ? selKosten.toFixed(2) : '—'}</span>
-        </div>
         ${piekRes ? `<div class="tarief-row">
           <span class="tarief-key">Piekuren (${piekRes.startStr}–${piekRes.eindStr})</span>
           <span style="color:#a32d2d;font-weight:600">€ ${piekRes.kosten.toFixed(2)}</span>
@@ -257,18 +313,6 @@ function renderApDetail() {
           <span class="tarief-key">Daluren (${dalRes.startStr}–${dalRes.eindStr})</span>
           <span style="color:#27500a;font-weight:600">€ ${dalRes.kosten.toFixed(2)}</span>
         </div>` : ''}
-      </div>
-    </div>
-
-    ${dekSelPct > 0 ? `
-    <div class="section">
-      <div class="section-title">Zonne-energie</div>
-      <div class="tarief-card">
-        <div class="tarief-row">
-          <span class="tarief-key">☀️ ${dekSelPct}% gedekt</span>
-          <span style="color:#27500a;font-weight:600">${selBesparing !== null && selBesparing > 0.005 ? `bespaart € ${selBesparing.toFixed(2)}` : 'volledig gedekt'}</span>
-        </div>
-        ${selBesparing !== null && selBesparing > 0.005 ? `<div class="tarief-row" style="padding-top:0;border-top:none"><span style="font-size:11px;color:var(--muted)">t.o.v. netstroom zonder zon (€ ${selNet !== null ? selNet.toFixed(2) : '—'})</span></div>` : ''}
       </div>
     </div>` : ''}
 
