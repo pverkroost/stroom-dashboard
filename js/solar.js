@@ -154,7 +154,12 @@ function renderSolarKaartjes() {
   document.getElementById('solarNuEen').textContent      = 'kW live';
   document.getElementById('solarVandaagKwh').textContent = actKwh.toFixed(2);
   document.getElementById('solarVandaagEen').textContent = 'kWh vandaag';
-  totaalEl.style.display = 'none';
+  if (verwKwh > 0.01) {
+    totaalEl.textContent    = `+ ~${verwKwh.toFixed(2)} kWh verwacht · ≈ ${(actKwh + verwKwh).toFixed(2)} totaal`;
+    totaalEl.style.display  = '';
+  } else {
+    totaalEl.style.display  = 'none';
+  }
 }
 
 function renderZonTab(day) {
