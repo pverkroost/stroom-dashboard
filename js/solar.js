@@ -133,7 +133,7 @@ function calcVerwachtKwh() {
 function renderSolarKaartjes() {
   const isMorgen = activeDay === 1;
   document.getElementById('solarNuCard').style.display         = isMorgen ? 'none' : '';
-  document.getElementById('solarSchatting').style.display      = isMorgen ? '' : 'none';
+  document.getElementById('solarSchatting').style.display      = 'none';
   document.getElementById('solarVandaagCard').style.gridColumn = isMorgen ? '1/-1' : '';
 
   if (isMorgen) {
@@ -143,9 +143,7 @@ function renderSolarKaartjes() {
     document.getElementById('solarVandaagLabel').textContent    = '☀️ Verwacht morgen';
     document.getElementById('solarVandaagKwh').innerHTML        = solarMorgen ? `${verwacht} <small style="${sm}">kWh</small>` : '—';
     document.getElementById('solarVandaagEen').style.display    = 'none';
-    const totaalMorgenEl = document.getElementById('solarVandaagTotaal');
-    totaalMorgenEl.textContent   = 'schatting o.b.v. Open-Meteo';
-    totaalMorgenEl.style.display = '';
+    document.getElementById('solarVandaagTotaal').style.display = 'none';
     return;
   }
 
