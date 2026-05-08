@@ -119,19 +119,22 @@ function renderSolarKaartjes() {
   if (isMorgen) {
     const hourly   = solarMorgen?.hourly || [];
     const verwacht = (hourly.reduce((s, e) => s + e.watt, 0) / 1000).toFixed(2);
-    document.getElementById('solarVandaagLabel').textContent = '☀️ Verwacht morgen';
-    document.getElementById('solarVandaagKwh').textContent   = solarMorgen ? verwacht : '—';
-    document.getElementById('solarVandaagEen').textContent   = 'kWh (schatting)';
+    document.getElementById('solarVandaagLabel').textContent    = '☀️ Verwacht morgen';
+    document.getElementById('solarVandaagKwh').textContent      = solarMorgen ? verwacht : '—';
+    document.getElementById('solarVandaagEen').textContent      = 'kWh (schatting)';
+    document.getElementById('solarVandaagEen').style.display    = '';
+    document.getElementById('solarVandaagTotaal').style.display = 'none';
     return;
   }
 
   document.getElementById('solarVandaagLabel').textContent = '☀️ Vandaag';
   const totaalEl = document.getElementById('solarVandaagTotaal');
   if (!solarVandaag) {
-    document.getElementById('solarNu').textContent         = '—';
-    document.getElementById('solarNuEen').textContent      = 'W';
-    document.getElementById('solarVandaagKwh').textContent = '—';
-    document.getElementById('solarVandaagEen').textContent = 'kWh';
+    document.getElementById('solarNu').textContent              = '—';
+    document.getElementById('solarNuEen').textContent           = 'W';
+    document.getElementById('solarVandaagKwh').textContent      = '—';
+    document.getElementById('solarVandaagEen').textContent      = 'kWh';
+    document.getElementById('solarVandaagEen').style.display    = '';
     totaalEl.style.display = 'none';
     return;
   }
@@ -150,15 +153,16 @@ function renderSolarKaartjes() {
     .filter(e => e.hour > nowH)
     .reduce((s, e) => s + e.watt, 0) / 1000;
 
-  document.getElementById('solarNu').textContent         = (w / 1000).toFixed(2);
-  document.getElementById('solarNuEen').textContent      = 'kW live';
-  document.getElementById('solarVandaagKwh').textContent = actKwh.toFixed(2);
-  document.getElementById('solarVandaagEen').textContent = 'kWh vandaag';
+  const sm = 'font-size:13px;color:var(--muted);font-weight:400';
+  document.getElementById('solarNu').innerHTML           = `${(w / 1000).toFixed(2)} <small style="${sm}">kW</small>`;
+  document.getElementById('solarNuEen').textContent      = 'live vermogen';
+  document.getElementById('solarVandaagKwh').innerHTML   = `${actKwh.toFixed(2)} <small style="${sm}">kWh</small>`;
+  document.getElementById('solarVandaagEen').style.display = 'none';
   if (verwKwh > 0.01) {
-    totaalEl.textContent    = `+ ~${verwKwh.toFixed(2)} kWh verwacht · ≈ ${(actKwh + verwKwh).toFixed(2)} totaal`;
-    totaalEl.style.display  = '';
+    totaalEl.textContent   = `+ ~${verwKwh.toFixed(2)} kWh verwacht · ≈ ${(actKwh + verwKwh).toFixed(2)} totaal`;
+    totaalEl.style.display = '';
   } else {
-    totaalEl.style.display  = 'none';
+    totaalEl.style.display = 'none';
   }
 }
 
@@ -232,11 +236,16 @@ function renderZonTab(day) {
     document.getElementById('zonHeroPrice').textContent  = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
     document.getElementById('zonHeroUnit').textContent   = 'zonnepanelen totaal';
 
-    document.getElementById('zonNuW').textContent   = (w / 1000).toFixed(2);
-    document.getElementById('zonNuEen').textContent = 'kW live';
+    const smZ = 'font-size:13px;color:var(--muted);font-weight:400';
+    document.getElementById('zonNuW').innerHTML    = `${(w / 1000).toFixed(2)} <small style="${smZ}">kW</small>`;
+    document.getElementById('zonNuEen').textContent = 'live vermogen';
 
-    document.getElementById('zonTotaalKwh').textContent = solarVandaag ? kwh.toFixed(2) : '—';
-    document.getElementById('zonTotaalEen').textContent = 'kWh vandaag';
+    document.getElementById('zonTotaalKwh').innerHTML = solarVandaag
+      ? `${kwh.toFixed(2)} <small style="${smZ}">kWh</small>`
+      : '—';
+    document.getElementById('zonTotaalEen').textContent = (solarVandaag && verwachtRestKwh > 0.01)
+      ? `+ ~${verwachtRestKwh.toFixed(2)} kWh verwacht · ≈ ${(kwh + verwachtRestKwh).toFixed(2)} totaal`
+      : 'kWh vandaag';
 
     document.getElementById('zonGisterenKwh').textContent = gist !== null ? gist.toFixed(2) : '—';
     document.getElementById('zonMaandKwh').textContent    = solarVandaag ? maand.toFixed(1) : '—';
