@@ -35,10 +35,15 @@ const VOLVO_SVG = `<svg viewBox="0 0 52 24" width="48" height="22" xmlns="http:/
 </svg>`;
 
 const APPARATEN = [
-  { naam: 'Auto (PHEV)', icon: VOLVO_SVG, uren: 6, kw: 2.3 },
-  { naam: 'Vaatwasser',      icon: '🍽️',     uren: 3, kw: 1.8 },
-  { naam: 'Wasmachine',      icon: '👕',      uren: 2, kw: 1.5, comboPart: 1 },
-  { naam: 'Droger',          icon: '🌀',      uren: 2, kw: 2.5, comboPart: 2 }
+  { naam: 'Auto (PHEV)',             icon: VOLVO_SVG, uren: 6, vermogen: 2.3, type: 'laden' },
+  { naam: 'Vaatwasser',              icon: '🍽️',      uren: 3, vermogen: 1.8, type: 'starten' },
+  { naam: 'Wasmachine',              icon: '👕',       uren: 2, vermogen: 1.5, type: 'starten', comboMet: 'Droger' },
+  { naam: 'Droger',                  icon: '🌀',       uren: 2, vermogen: 2.5, type: 'starten', naApparaat: 'Wasmachine' },
+  { naam: 'E-bike 1',                icon: '🚲',       uren: 4, vermogen: 0.1, type: 'laden' },
+  { naam: 'E-bike 2',                icon: '🚲',       uren: 4, vermogen: 0.1, type: 'laden' },
+  { naam: 'Warmtepomp (warm water)', icon: '♨️',       uren: 2, vermogen: 2.0, type: 'inschakelen', opmerking: 'buffert warm water, niet voor verwarming' },
+  { naam: 'Boiler kantoor',          icon: '🚿',       uren: 1, vermogen: 2.5, type: 'inschakelen' },
+  { naam: 'Airco',                   icon: '❄️',       uren: 3, vermogen: 2.0, type: 'inschakelen' },
 ];
 
 const TERUGLEVERING_OPSLAG = 0.0353; // € per kWh excl. btw

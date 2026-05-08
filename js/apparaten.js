@@ -161,12 +161,17 @@ function renderLaadadvies() {
     '| solarMorgen:', solarMorgen?.hourly?.length ?? 0, 'uur',
     '| geselecteerdIdx:', geselecteerdIdx, '| heeftSelectie:', heeftSelectie);
 
-  const wasdroogRes = berekenComboBlok(2, 1.5, 2, 2.5, planUren);
+  const wasApparaat   = APPARATEN.find(ap => ap.comboMet);
+  const droogApparaat = wasApparaat ? APPARATEN.find(ap => ap.naam === wasApparaat.comboMet) : null;
+  const wasdroogRes   = wasApparaat && droogApparaat
+    ? berekenComboBlok(wasApparaat.uren, wasApparaat.vermogen, droogApparaat.uren, droogApparaat.vermogen, planUren)
+    : null;
   const hs = d => d ? String(d.getHours()).padStart(2,'0') + ':00' : '—';
   const leegKaart = (icon, naam) =>
     `<div class="advies-card"><div class="advies-device-icon">${icon}</div><div class="advies-device-naam">${naam}</div><div class="advies-row">Onvoldoende data</div></div>`;
 
   function maakKaart({ icon, naam, uren, kw,
+                        type = 'starten', opmerking = null,
                         besteStartIdx, besteStartStr, besteEindStr, besteIsMorgen,
                         besteNetstroom, besteSolar,
                         selLabel, selNetstroom, selSolar, selStartIdx,
@@ -211,9 +216,8 @@ function renderLaadadvies() {
       return `${hs(t)}–${String(e.getHours()).padStart(2,'0')}:00`;
     })();
 
-    const isAuto    = naam.toLowerCase().includes('auto') || naam.toLowerCase().includes('phev');
-    const nuTekst   = isAuto ? 'Nu laden!'  : 'Nu starten!';
-    const laterVerb = isAuto ? 'Laden'      : 'Starten';
+    const ctaMap = { laden: ['Nu laden!', 'Laden'], starten: ['Nu starten!', 'Starten'], inschakelen: ['Nu inschakelen!', 'Inschakelen'] };
+    const [nuTekst, laterVerb] = ctaMap[type] ?? ['Nu starten!', 'Starten'];
     const statusStr = isMorgenTab
       ? `<div class="advies-status later">Morgen · ${besteStartStr}</div>`
       : besteStartIdx === 0
@@ -243,6 +247,7 @@ function renderLaadadvies() {
     return `<div class="advies-card">
       <div class="advies-device-icon">${icon}</div>
       <div class="advies-device-naam">${naam}</div>
+      ${opmerking ? `<div class="advies-device-sub">${opmerking}</div>` : ''}
       <div class="advies-vergelijk">
         ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, heeftZon, dekPct)}
         ${terugWaarschuwing}
@@ -259,57 +264,61 @@ function renderLaadadvies() {
   const selLabel = heeftSelectie ? 'Keuze' : (isMorgenTab ? 'Vroegst' : 'Nu');
 
   const kaarten = APPARATEN.map(ap => {
-    if (ap.comboPart === 1) {
+    if (ap.comboMet) {
+      // Eerste deel combo (Wasmachine)
       if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
       return maakKaart({
-        icon: ap.icon, naam: ap.naam, uren: 2, kw: 1.5,
+        icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
+        type: ap.type, opmerking: ap.opmerking,
         besteStartIdx:  wasdroogRes.startIndex,
         besteStartStr:  hs(wasdroogRes.was.startTijd),
         besteEindStr:   wasdroogRes.was.eindStr,
         besteIsMorgen:  isMorgenTab || wasdroogRes.was.startTijd.getDate() !== now.getDate(),
         besteNetstroom: wasdroogRes.was.kosten,
-        besteSolar:     effectieveKosten(2, 1.5, planUren, wasdroogRes.startIndex),
+        besteSolar:     effectieveKosten(ap.uren, ap.vermogen, planUren, wasdroogRes.startIndex),
         selLabel,
-        selNetstroom:   berekenKostenVanaf(2, 1.5, planUren, geselecteerdIdx, true),
-        selSolar:       effectieveKosten(2, 1.5, planUren, geselecteerdIdx, true),
+        selNetstroom:   berekenKostenVanaf(ap.uren, ap.vermogen, planUren, geselecteerdIdx, true),
+        selSolar:       effectieveKosten(ap.uren, ap.vermogen, planUren, geselecteerdIdx, true),
         selStartIdx:    geselecteerdIdx,
-        selGedeeltelijk: !cacheMorgen && geselecteerdIdx + 2 > planUren.length && geselecteerdIdx < planUren.length,
+        selGedeeltelijk: !cacheMorgen && geselecteerdIdx + ap.uren > planUren.length && geselecteerdIdx < planUren.length,
       });
     }
 
-    if (ap.comboPart === 2) {
+    if (ap.naApparaat) {
+      // Tweede deel combo (Droger)
       if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
-      const droogIdx    = geselecteerdIdx + 2;
-      const droogSelLbl = 'Na was';
+      const droogIdx = geselecteerdIdx + wasApparaat.uren;
       return maakKaart({
-        icon: ap.icon, naam: ap.naam, uren: 2, kw: 2.5,
-        besteStartIdx:  wasdroogRes.startIndex + 2,
+        icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
+        type: ap.type, opmerking: ap.opmerking,
+        besteStartIdx:  wasdroogRes.startIndex + wasApparaat.uren,
         besteStartStr:  hs(wasdroogRes.droog.startTijd),
         besteEindStr:   wasdroogRes.droog.eindStr,
         besteIsMorgen:  isMorgenTab || wasdroogRes.droog.startTijd.getDate() !== now.getDate(),
         besteNetstroom: wasdroogRes.droog.kosten,
-        besteSolar:     effectieveKosten(2, 2.5, planUren, wasdroogRes.startIndex + 2),
-        selLabel:       droogSelLbl,
-        selNetstroom:   droogIdx < planUren.length ? berekenKostenVanaf(2, 2.5, planUren, droogIdx, true) : null,
-        selSolar:       droogIdx < planUren.length ? effectieveKosten(2, 2.5, planUren, droogIdx, true) : null,
+        besteSolar:     effectieveKosten(ap.uren, ap.vermogen, planUren, wasdroogRes.startIndex + wasApparaat.uren),
+        selLabel:       'Na was',
+        selNetstroom:   droogIdx < planUren.length ? berekenKostenVanaf(ap.uren, ap.vermogen, planUren, droogIdx, true) : null,
+        selSolar:       droogIdx < planUren.length ? effectieveKosten(ap.uren, ap.vermogen, planUren, droogIdx, true) : null,
         selStartIdx:    droogIdx,
-        selGedeeltelijk: !cacheMorgen && droogIdx + 2 > planUren.length && droogIdx < planUren.length,
+        selGedeeltelijk: !cacheMorgen && droogIdx + ap.uren > planUren.length && droogIdx < planUren.length,
       });
     }
 
-    const res = berekenGoedkoopsteBlok(ap.uren, ap.kw, planUren);
+    const res = berekenGoedkoopsteBlok(ap.uren, ap.vermogen, planUren);
     if (!res) return leegKaart(ap.icon, ap.naam);
     return maakKaart({
-      icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.kw,
+      icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
+      type: ap.type, opmerking: ap.opmerking,
       besteStartIdx:  res.startIndex,
       besteStartStr:  hs(res.startTijd),
       besteEindStr:   res.eindStr,
       besteIsMorgen:  isMorgenTab || res.startTijd.getDate() !== now.getDate(),
       besteNetstroom: res.kosten,
-      besteSolar:     effectieveKosten(ap.uren, ap.kw, planUren, res.startIndex),
+      besteSolar:     effectieveKosten(ap.uren, ap.vermogen, planUren, res.startIndex),
       selLabel,
-      selNetstroom:   berekenKostenVanaf(ap.uren, ap.kw, planUren, geselecteerdIdx, true),
-      selSolar:       effectieveKosten(ap.uren, ap.kw, planUren, geselecteerdIdx, true),
+      selNetstroom:   berekenKostenVanaf(ap.uren, ap.vermogen, planUren, geselecteerdIdx, true),
+      selSolar:       effectieveKosten(ap.uren, ap.vermogen, planUren, geselecteerdIdx, true),
       selStartIdx:    geselecteerdIdx,
       selGedeeltelijk: !cacheMorgen && geselecteerdIdx + Math.ceil(ap.uren) > planUren.length && geselecteerdIdx < planUren.length,
     });
