@@ -98,10 +98,33 @@ function renderDashboard(prijzen, day) {
     return day === 0 && p.tijd.getHours() === nowUur ? 2 : 0;
   });
 
-  const solarSrc = day === 0 ? solarVandaag : solarMorgen;
-  const solarUurData = solarSrc?.hourly
-    ? prijzen.map(p => { const h = solarSrc.hourly.find(e => e.hour === p.tijd.getHours()); return h ? Math.round(h.watt) : 0; })
-    : null;
+  // Solar datasets: vandaag = actueel (solid) + verwacht (dashed); morgen = één lijn
+  const solarDatasets = [];
+  if (day === 0) {
+    const actueelData = solarVandaag?.hourly?.length
+      ? prijzen.map(p => {
+          const h = p.tijd.getHours();
+          if (h > nowUur) return null;
+          const e = solarVandaag.hourly.find(x => x.hour === h);
+          return e ? Math.round(e.watt) : 0;
+        })
+      : null;
+    const verwachtData = openMeteoVandaag?.hourly?.length
+      ? prijzen.map(p => {
+          const h = p.tijd.getHours();
+          if (h < nowUur) return null;
+          const e = openMeteoVandaag.hourly.find(x => x.hour === h);
+          return (e && e.watt > 0) ? Math.round(e.watt) : 0;
+        })
+      : null;
+    if (actueelData) solarDatasets.push({ type:'line', data:actueelData, borderColor:'rgba(255,200,50,0.85)', backgroundColor:'rgba(255,200,50,0.12)', fill:true, tension:0.4, pointRadius:0, borderWidth:1.5, yAxisID:'ySolar' });
+    if (verwachtData) solarDatasets.push({ type:'line', data:verwachtData, borderColor:'rgba(255,200,50,0.65)', backgroundColor:'rgba(255,200,50,0.06)', fill:true, tension:0.4, pointRadius:0, borderWidth:1.5, borderDash:[5,4], yAxisID:'ySolar' });
+  } else {
+    const solarUurData = solarMorgen?.hourly
+      ? prijzen.map(p => { const h = solarMorgen.hourly.find(e => e.hour === p.tijd.getHours()); return h ? Math.round(h.watt) : 0; })
+      : null;
+    if (solarUurData) solarDatasets.push({ type:'line', data:solarUurData, borderColor:'rgba(255,200,50,0.8)', backgroundColor:'rgba(255,200,50,0.12)', fill:true, tension:0.4, pointRadius:0, borderWidth:1.5, yAxisID:'ySolar' });
+  }
 
   if (chart) chart.destroy();
 
@@ -142,7 +165,7 @@ function renderDashboard(prijzen, day) {
       labels: prijzen.map(p => uurStr(p.tijd)),
       datasets: [
         { data: prijzen.map(p => parseFloat(p.totaal.toFixed(3))), backgroundColor: barKleuren, borderColor: barBorders, borderWidth: barBorderWidths, borderRadius: 3, borderSkipped: false, yAxisID: 'y' },
-        ...(solarUurData ? [{ type: 'line', data: solarUurData, borderColor: 'rgba(255,200,50,0.8)', backgroundColor: 'rgba(255,200,50,0.12)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5, yAxisID: 'ySolar' }] : [])
+        ...solarDatasets
       ]
     },
     options: {
