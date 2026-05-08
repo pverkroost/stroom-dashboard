@@ -63,10 +63,16 @@ async function fetchSolarEdge() {
 }
 
 async function fetchGrowatt() {
-  const dateStr = new Date().toISOString().slice(0, 10);
-  const res = await fetch(`/api/growatt?type=power&date=${dateStr}`);
-  if (!res.ok) return null;
-  return null;
+  const res = await fetch('/api/growatt').catch(() => null);
+  if (!res?.ok) return null;
+  const data = await res.json().catch(() => null);
+  if (!data || data.error) return null;
+  return {
+    currentWatt: data.currentPower ?? 0,
+    totalEnergy: data.totalEnergy  ?? 0,
+    peakPower:   data.peakPower    ?? 0,
+    status:      data.status       ?? 0
+  };
 }
 
 async function fetchSolarData() {
@@ -184,22 +190,34 @@ function renderZonTab(day) {
   }
 
   const grEl = document.getElementById('zonGrowattContent');
-  if (!openMeteoVandaag) {
+  if (!growattVandaag && !openMeteoVandaag) {
     grEl.innerHTML = '<div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div>';
   } else if (isVandaag) {
+    const grFractie = GROWATT_PEAK_KW / TOTAL_PEAK_KW;
+    const grNuW     = growattVandaag?.currentWatt ?? 0;
+    const grTotKwh  = growattVandaag?.totalEnergy ?? null;
+    const grDagKwh  = (openMeteoVandaag?.hourly || [])
+      .reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
     grEl.innerHTML = `<div class="advies-vergelijk">
-      <div class="av-rij"><span class="av-label">+ verwacht</span><span class="av-prijs">~${verwachtRestKwh.toFixed(2)} kWh</span></div>
-      <div class="av-rij" style="margin-top:2px;font-size:10px;color:var(--muted)">Open-Meteo schatting</div>
+      <div class="av-rij"><span class="av-label">Nu</span><span class="av-prijs">${grNuW >= 1000 ? (grNuW/1000).toFixed(2)+' kW' : Math.round(grNuW)+' W'}</span></div>
+      ${grTotKwh !== null ? `<div class="av-rij"><span class="av-label">Totaal</span><span class="av-prijs">${Math.round(grTotKwh).toLocaleString('nl-NL')} kWh</span></div>` : ''}
+      ${grDagKwh > 0.01 ? `<div class="av-rij"><span class="av-label">Vandaag</span><span class="av-prijs">~${grDagKwh.toFixed(2)} kWh</span></div>
+      <div class="av-rij" style="margin-top:2px;font-size:10px;color:var(--muted)">Open-Meteo schatting</div>` : ''}
     </div>`;
   } else {
+    const grFractie   = GROWATT_PEAK_KW / TOTAL_PEAK_KW;
+    const grMorgenKwh = (solarMorgen?.hourly || [])
+      .reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
     grEl.innerHTML = `<div class="advies-vergelijk">
-      <div class="av-rij"><span class="av-label">Verwacht</span><span class="av-prijs">~${verwachtMorgenKwh.toFixed(2)} kWh</span></div>
+      <div class="av-rij"><span class="av-label">Verwacht</span><span class="av-prijs">~${grMorgenKwh.toFixed(2)} kWh</span></div>
       <div class="av-rij" style="margin-top:2px;font-size:10px;color:var(--muted)">Open-Meteo schatting</div>
     </div>`;
   }
 
   if (isVandaag) {
-    const w = solarVandaag?.currentWatt ?? 0;
+    const wSE = solarVandaag?.currentWatt ?? 0;
+    const wGR = growattVandaag?.currentWatt ?? 0;
+    const w   = wSE + wGR;
     document.getElementById('zonHeroLabel').textContent  = 'Nu opgewekt';
     document.getElementById('zonHeroPrice').textContent  = w >= 1000 ? (w/1000).toFixed(2)+' kW' : Math.round(w)+' W';
     document.getElementById('zonHeroUnit').textContent   = 'zonnepanelen totaal';

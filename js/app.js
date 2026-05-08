@@ -2,7 +2,7 @@ let chart = null, activeDay = 0, cacheVandaag = null, cacheMorgen = null;
 let toonVerleden = false, geselecteerdStartTijd = null, rAFId = null;
 let solarVandaag = null, solarMorgen = null;
 let isZonTab = false, zonChart = null, voorspellingChart = null;
-let openMeteoVandaag = null;
+let openMeteoVandaag = null, growattVandaag = null;
 let solarToggleAan = localStorage.getItem('solarToggle') !== 'uit';
 
 function switchDay(day) {
@@ -37,17 +37,19 @@ function switchZon() {
 async function laadPrijzen() {
   document.getElementById('lastUpdate').textContent = 'Ophalen...';
   try {
-    const [vandaag, morgen, solar, openMeteo] = await Promise.all([
+    const [vandaag, morgen, solar, openMeteo, growatt] = await Promise.all([
       fetchPrijzen(0),
       fetchPrijzen(1).catch(() => null),
       fetchSolarData().catch(() => null),
-      fetchOpenMeteo().catch(() => null)
+      fetchOpenMeteo().catch(() => null),
+      fetchGrowatt().catch(() => null)
     ]);
     cacheVandaag     = vandaag;
     cacheMorgen      = morgen;
     solarVandaag     = solar;
     openMeteoVandaag = openMeteo?.vandaag?.length ? { hourly: openMeteo.vandaag } : null;
     solarMorgen      = openMeteo?.morgen?.length  ? { hourly: openMeteo.morgen  } : null;
+    growattVandaag   = growatt;
     if (isZonTab) {
       renderZonTab(activeDay);
     } else {
@@ -82,5 +84,5 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.9.2 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.9.3 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
