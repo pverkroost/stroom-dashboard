@@ -200,23 +200,12 @@ function renderLaadadvies() {
       else                    vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
     }
 
-    const heeftSelectieToon = selStartIdx < komende18.length;
-    const sameDekking       = !heeftSelectieToon || dekPct === dekPctSel;
-    function zonLabel(pct) {
-      if (pct >= 100) return 'volledig gratis op zonne-energie';
-      if (pct >= 5)   return `zonne-energie dekt ${pct}%`;
-      return 'geen zonne-energie';
-    }
-    let zonBadge = '';
-    if (dekPct >= 5 || (heeftSelectieToon && dekPctSel >= 5)) {
-      if (sameDekking) {
-        zonBadge = `<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ ${zonLabel(dekPct)}</div>`;
-      } else {
-        const besteLijn = dekPct >= 5 ? `<div>☀️ Beste tijdvak: ${zonLabel(dekPct)}</div>` : '';
-        const selLijn   = `<div>☀️ Geselecteerd: ${zonLabel(dekPctSel)}</div>`;
-        zonBadge = `<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px;line-height:1.7">${besteLijn}${selLijn}</div>`;
-      }
-    }
+    const selTijdStr = (() => {
+      const t = selStartIdx < komende18.length ? komende18[selStartIdx]?.tijd : null;
+      if (!t) return '';
+      const e = new Date(t); e.setHours(e.getHours() + Math.ceil(uren));
+      return `${hs(t)}–${String(e.getHours()).padStart(2,'0')}:00`;
+    })();
 
     const isAuto    = naam.toLowerCase().includes('auto') || naam.toLowerCase().includes('phev');
     const nuTekst   = isAuto ? 'Nu laden!'  : 'Nu starten!';
@@ -229,22 +218,23 @@ function renderLaadadvies() {
           ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
           : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
 
-    // heeftZonHier is expliciet meegegeven — afgeleid van gemSolarVoorBlok, niet van prijsvergelijking
-    function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar, heeftZonHier, isGedeeltelijk = false) {
-      const effPrijs   = (heeftZonHier && solar !== null) ? solar : netstroom;
-      const prijsLabel = heeftZonHier ? 'Netstroom + zon' : 'Op netstroom';
-      const priceStr   = effPrijs !== null ? `€ ${effPrijs.toFixed(2)}` : '—';
-      const tijdLbl = tijdStr ? ` · ${tijdStr}${isMorgen ? ' <span style="font-weight:400">(morgen)</span>' : ''}` : '';
+    function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar, heeftZonHier, dekking, isGedeeltelijk = false) {
+      const effPrijs = (heeftZonHier && solar !== null) ? solar : netstroom;
+      const priceStr = effPrijs !== null ? `€ ${effPrijs.toFixed(2)}` : '—';
+      const bronStr  = heeftZonHier
+        ? `netstroom + zon · ☀️ ${dekking}% dekking`
+        : 'netstroom · geen zon';
+      const tijdDeel = tijdStr
+        ? ` · ${tijdStr}${isMorgen ? ' <span style="opacity:0.65">(morgen)</span>' : ''}`
+        : '';
       const noteStr = isGedeeltelijk
         ? '<div style="font-size:9px;color:var(--muted);margin-top:1px">* morgen prijzen nog niet beschikbaar, berekening is gedeeltelijk</div>'
         : '';
       return `
-        <div class="av-rij" style="margin-bottom:2px">
-          <span class="av-label" style="font-weight:600;color:var(--text)">${sectieLabel}${tijdLbl}</span>
-        </div>
-        <div class="av-rij">
-          <span class="av-label">${prijsLabel}</span>
-          <span class="av-prijs">${priceStr}</span>
+        <div style="margin-bottom:3px;font-size:12px;line-height:1.5">
+          <strong>${sectieLabel}:</strong>
+          <strong>${priceStr}</strong>
+          <span style="color:var(--muted)">(${bronStr})${tijdDeel}</span>
         </div>
         ${noteStr}`;
     }
@@ -253,20 +243,17 @@ function renderLaadadvies() {
       <div class="advies-device-icon">${icon}</div>
       <div class="advies-device-naam">${naam}</div>
       <div class="advies-vergelijk">
-        ${blokRijen('Beste tijdvak', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, besteSolar, heeftZon)}
+        ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, besteSolar, heeftZon, dekPct)}
         ${selStartIdx < komende18.length ? `
         <div style="height:0.5px;background:var(--border);margin:5px 0"></div>
-        ${blokRijen(selLabel, '', false, selNetstroom, selSolar, heeftZonSel, selGedeeltelijk)}` : ''}
+        ${blokRijen(selLabel, selTijdStr, false, selNetstroom, selSolar, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
         ${vergelijkBadge}
       </div>
-      ${zonBadge}
       ${statusStr}
     </div>`;
   }
 
-  const selLabel = heeftSelectie
-    ? `Om ${hs(komende18[geselecteerdIdx].tijd)}`
-    : (isMorgenTab ? 'Vroegst mogelijk' : 'Nu starten');
+  const selLabel = 'Geselecteerd';
 
   const kaarten = APPARATEN.map(ap => {
     if (ap.comboPart === 1) {
@@ -290,9 +277,7 @@ function renderLaadadvies() {
     if (ap.comboPart === 2) {
       if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
       const droogIdx    = geselecteerdIdx + 2;
-      const droogSelLbl = heeftSelectie && droogIdx < komende18.length
-        ? `Na was · ${hs(komende18[droogIdx].tijd)}`
-        : 'Na wasmachine';
+      const droogSelLbl = 'Na wasmachine';
       return maakKaart({
         icon: ap.icon, naam: ap.naam, uren: 2, kw: 2.5,
         besteStartIdx:  wasdroogRes.startIndex + 2,
