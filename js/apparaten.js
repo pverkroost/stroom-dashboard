@@ -60,6 +60,17 @@ function berekenComboBlok(uren1, kw1, uren2, kw2, prijzenLijst) {
   };
 }
 
+// Kies per uur de juiste solar-bron:
+// - morgen            → solarMorgen (Open-Meteo forecast)
+// - vandaag toekomst  → openMeteoVandaag (heeft alle uren incl. toekomst)
+// - vandaag verleden  → solarVandaag (SolarEdge actueel), fallback Open-Meteo
+function getSolarWatt(hour, isMorgenUur) {
+  if (isMorgenUur) return getSolarForIdx(solarMorgen, hour);
+  const nowH = new Date().getHours();
+  if (hour > nowH)  return getSolarForIdx(openMeteoVandaag, hour);
+  return getSolarForIdx(solarVandaag?.hourly?.length ? solarVandaag : openMeteoVandaag, hour);
+}
+
 function effectieveKosten(uren, vermogenKw, prijzenLijst, vanIdx) {
   const blokGrootte = Math.ceil(uren);
   if (!prijzenLijst || vanIdx + blokGrootte > prijzenLijst.length) return null;
@@ -70,10 +81,8 @@ function effectieveKosten(uren, vermogenKw, prijzenLijst, vanIdx) {
     const p = prijzenLijst[i];
     const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
     const isMorgenUur = dagStart.getTime() === morgenStart.getTime();
-    const src = isMorgenUur
-      ? solarMorgen
-      : (solarVandaag?.hourly?.length ? solarVandaag : openMeteoVandaag);
-    const nettoKw = Math.max(0, vermogenKw - getSolarForIdx(src, p.tijd.getHours()) / 1000);
+    const solarWatt = getSolarWatt(p.tijd.getHours(), isMorgenUur);
+    const nettoKw = Math.max(0, vermogenKw - solarWatt / 1000);
     totaal += nettoKw * p.totaal;
   }
   return totaal;
@@ -87,10 +96,7 @@ function gemSolarVoorBlok(startIdx, aantalUren, komende18) {
     const p = komende18[i];
     const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
     const isMorgenUur = dagStart.getTime() === morgenStart.getTime();
-    const src = isMorgenUur
-      ? solarMorgen
-      : (solarVandaag?.hourly?.length ? solarVandaag : openMeteoVandaag);
-    totaalW += getSolarForIdx(src, p.tijd.getHours());
+    totaalW += getSolarWatt(p.tijd.getHours(), isMorgenUur);
     n++;
   }
   return n > 0 ? (totaalW / n) / 1000 : 0;
@@ -100,7 +106,6 @@ function renderLaadadvies() {
   const container = document.getElementById('laadadviesContainer');
   const isMorgenTab = activeDay === 1;
 
-  // Sectietitel aanpassen op actieve tab
   const titleEl = document.getElementById('laadadviesTitle');
   if (titleEl) titleEl.textContent = isMorgenTab ? 'Slim inplannen · morgen' : 'Slim inplannen · vandaag';
 
@@ -109,7 +114,6 @@ function renderLaadadvies() {
   const now = new Date();
   const nowUur = now.getHours();
 
-  // Op Morgen tab: gebruik alleen morgen-prijzen; op Vandaag: rollend 18-uurs venster
   const komende18 = isMorgenTab
     ? (cacheMorgen || []).slice(0, 18)
     : [...cacheVandaag.filter(p => p.tijd.getHours() >= nowUur), ...(cacheMorgen || [])].slice(0, 18);
@@ -134,19 +138,31 @@ function renderLaadadvies() {
   function maakKaart({ icon, naam, uren, kw,
                         besteStartIdx, besteStartStr, besteEindStr, besteIsMorgen,
                         besteNetstroom, besteSolar,
-                        selLabel, selNetstroom, selSolar }) {
-    const gemSolarKw     = gemSolarVoorBlok(besteStartIdx, Math.ceil(uren), komende18);
-    const heeftZon       = gemSolarKw > 0.01;
+                        selLabel, selNetstroom, selSolar, selStartIdx }) {
+    // Solar voor beste blok
+    const gemSolarKw    = gemSolarVoorBlok(besteStartIdx, Math.ceil(uren), komende18);
+    // Solar voor geselecteerd blok — zelfde logica, juiste uren via getSolarWatt()
+    const gemSolarKwSel = selNetstroom !== null
+      ? gemSolarVoorBlok(selStartIdx, Math.ceil(uren), komende18)
+      : 0;
+
+    const heeftZon    = gemSolarKw    > 0.01;
+    const heeftZonSel = gemSolarKwSel > 0.01;
+
     const dekPct         = (heeftZon && kw > 0) ? Math.min(100, Math.round((gemSolarKw / kw) * 100)) : 0;
     const volledigGratis = heeftZon && gemSolarKw >= kw;
 
-    // Effectieve prijs: netstroom min zonne-opbrengst
-    const besteEff = (besteSolar !== null && besteSolar < besteNetstroom - 0.001) ? besteSolar : besteNetstroom;
+    // Effectieve prijs gebruikt dezelfde heeftZon/heeftZonSel vlag als het label
+    const besteEff = heeftZon && besteSolar !== null ? besteSolar : besteNetstroom;
     const selEff   = selNetstroom !== null
-      ? ((selSolar !== null && selSolar < selNetstroom - 0.001) ? selSolar : selNetstroom)
+      ? (heeftZonSel && selSolar !== null ? selSolar : selNetstroom)
       : null;
 
-    console.log(`[${naam}] gemSolarKw: ${gemSolarKw.toFixed(3)} kW | beste: € ${besteNetstroom.toFixed(3)} stroom → € ${besteEff.toFixed(3)} eff | sel: € ${selNetstroom?.toFixed(3) ?? '—'} stroom → € ${selEff?.toFixed(3) ?? '—'} eff`);
+    // Log per apparaat: geselecteerdUur, solarVoorGeselecteerdBlok, labelGekozen
+    const selStartUur = komende18[selStartIdx]?.tijd ? hs(komende18[selStartIdx].tijd) : '—';
+    const labelBeste  = heeftZon    ? 'Netstroom + zon' : 'Op netstroom';
+    const labelSel    = heeftZonSel ? 'Netstroom + zon' : 'Op netstroom';
+    console.log(`[${naam}] geselecteerdUur: ${selStartUur} | solarSel: ${gemSolarKwSel.toFixed(3)} kW | labelSel: ${labelSel} | solarBeste: ${gemSolarKw.toFixed(3)} kW | labelBeste: ${labelBeste}`);
 
     let vergelijkBadge = '';
     if (selEff !== null) {
@@ -162,7 +178,6 @@ function renderLaadadvies() {
         ? `<div class="advies-badge groen" style="align-self:flex-start;margin-top:4px">☀️ zonne-energie dekt ${dekPct}%</div>`
         : '';
 
-    // Statusregel: op Morgen tab altijd "Morgen · HH:00", op Vandaag relatief
     const statusStr = isMorgenTab
       ? `<div class="advies-status later">Morgen · ${besteStartStr}</div>`
       : besteStartIdx === 0
@@ -171,11 +186,10 @@ function renderLaadadvies() {
           ? `<div class="advies-status snel">⏰ Over ${besteStartIdx} uur</div>`
           : `<div class="advies-status later">Later: over ${besteStartIdx} uur</div>`;
 
-    // Eén rij per tijdblok: "Netstroom + zon" als zon de prijs verlaagt, anders "Op netstroom"
-    function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar) {
+    // heeftZonHier is expliciet meegegeven — afgeleid van gemSolarVoorBlok, niet van prijsvergelijking
+    function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, solar, heeftZonHier) {
       if (netstroom === null) return '';
-      const heeftZonHier = solar !== null && solar < netstroom - 0.001;
-      const effPrijs   = heeftZonHier ? solar : netstroom;
+      const effPrijs   = (heeftZonHier && solar !== null) ? solar : netstroom;
       const prijsLabel = heeftZonHier ? 'Netstroom + zon' : 'Op netstroom';
       const tijdLbl = tijdStr ? ` · ${tijdStr}${isMorgen ? ' <span style="font-weight:400">(morgen)</span>' : ''}` : '';
       return `
@@ -192,10 +206,10 @@ function renderLaadadvies() {
       <div class="advies-device-icon">${icon}</div>
       <div class="advies-device-naam">${naam}</div>
       <div class="advies-vergelijk">
-        ${blokRijen('Beste tijdvak', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, besteSolar)}
+        ${blokRijen('Beste tijdvak', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, besteSolar, heeftZon)}
         ${selNetstroom !== null ? `
         <div style="height:0.5px;background:var(--border);margin:5px 0"></div>
-        ${blokRijen(selLabel, '', false, selNetstroom, selSolar)}` : ''}
+        ${blokRijen(selLabel, '', false, selNetstroom, selSolar, heeftZonSel)}` : ''}
         ${vergelijkBadge}
       </div>
       ${zonBadge}
@@ -203,7 +217,6 @@ function renderLaadadvies() {
     </div>`;
   }
 
-  // Standaard label voor niet-geselecteerd tijdvak
   const selLabel = heeftSelectie
     ? `Om ${hs(komende18[geselecteerdIdx].tijd)}`
     : (isMorgenTab ? 'Vroegst mogelijk' : 'Nu starten');
@@ -222,6 +235,7 @@ function renderLaadadvies() {
         selLabel,
         selNetstroom:   berekenKostenVanaf(2, 1.5, komende18, geselecteerdIdx),
         selSolar:       effectieveKosten(2, 1.5, komende18, geselecteerdIdx),
+        selStartIdx:    geselecteerdIdx,
       });
     }
 
@@ -242,6 +256,7 @@ function renderLaadadvies() {
         selLabel:       droogSelLbl,
         selNetstroom:   droogIdx < komende18.length ? berekenKostenVanaf(2, 2.5, komende18, droogIdx) : null,
         selSolar:       droogIdx < komende18.length ? effectieveKosten(2, 2.5, komende18, droogIdx) : null,
+        selStartIdx:    droogIdx,
       });
     }
 
@@ -258,6 +273,7 @@ function renderLaadadvies() {
       selLabel,
       selNetstroom:   berekenKostenVanaf(ap.uren, ap.kw, komende18, geselecteerdIdx),
       selSolar:       effectieveKosten(ap.uren, ap.kw, komende18, geselecteerdIdx),
+      selStartIdx:    geselecteerdIdx,
     });
   }).join('');
 
