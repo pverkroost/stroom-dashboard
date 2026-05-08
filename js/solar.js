@@ -221,14 +221,13 @@ function renderZonTab(day) {
     grEl.innerHTML = '<div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div>';
   } else if (isVandaag) {
     const grFractie = GROWATT_PEAK_KW / TOTAL_PEAK_KW;
-    const grNuW     = growattVandaag?.currentWatt ?? 0;
-    const grTotKwh  = growattVandaag?.totalEnergy ?? null;
-    const grDagKwh  = (openMeteoVandaag?.hourly || [])
-      .reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
+    const grActKwh  = (openMeteoVandaag?.hourly || [])
+      .filter(e => e.hour <= nowH).reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
+    const grVerwKwh = (openMeteoVandaag?.hourly || [])
+      .filter(e => e.hour > nowH).reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
     grEl.innerHTML = `<div class="advies-vergelijk">
-      <div class="av-rij"><span class="av-label">Nu</span><span class="av-prijs">${(grNuW/1000).toFixed(2)} kW</span></div>
-      ${grTotKwh !== null ? `<div class="av-rij"><span class="av-label">Totaal</span><span class="av-prijs">${Math.round(grTotKwh).toLocaleString('nl-NL')} kWh</span></div>` : ''}
-      ${grDagKwh > 0.01 ? `<div class="av-rij"><span class="av-label">Vandaag</span><span class="av-prijs">~${grDagKwh.toFixed(2)} kWh</span></div>` : ''}
+      <div class="av-rij"><span class="av-label">Actueel</span><span class="av-prijs">${grActKwh.toFixed(2)} kWh</span></div>
+      ${grVerwKwh > 0.01 ? `<div class="av-rij"><span class="av-label">+ verwacht</span><span class="av-prijs">~${grVerwKwh.toFixed(2)} kWh</span></div>` : ''}
     </div>`;
   } else {
     const grFractie   = GROWATT_PEAK_KW / TOTAL_PEAK_KW;
@@ -241,6 +240,7 @@ function renderZonTab(day) {
 
   if (isVandaag) {
     document.getElementById('zonHero').style.display = 'none';
+    document.getElementById('zonVandaagCards').style.marginTop = '20px';
     const liveKw  = calcLiveKw();
     const actKwh  = calcVandaagKwh();
     const verwKwh = calcVerwachtKwh();
