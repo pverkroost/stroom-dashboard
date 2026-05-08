@@ -4,21 +4,25 @@ module.exports = async (req, res) => {
   const apiToken = process.env.GROWATT_API_TOKEN;
   const plantId  = process.env.GROWATT_PLANT_ID;
 
-  // Growatt energie endpoint gebruikt jaar-maand formaat (YYYY-MM)
-  const now       = new Date();
-  const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const date      = req.query.date || yearMonth;
+  // Probeer meerdere endpoints zonder datum
+  const endpoints = [
+    `https://openapi.growatt.com/v1/plant/energy?plant_id=${plantId}`,
+    `https://openapi.growatt.com/v1/plant/power?plant_id=${plantId}`,
+    `https://openapi.growatt.com/v1/device/list?plant_id=${plantId}`,
+  ];
+
+  const results = [];
+  for (const url of endpoints) {
+    try {
+      const r    = await fetch(url, { headers: { token: apiToken } });
+      const data = await r.json();
+      results.push({ url, status: r.status, data });
+      if (!data.error_code || data.error_code === 0) break;
+    } catch (e) {
+      results.push({ url, error: e.message });
+    }
+  }
 
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Content-Type', 'application/json');
-
-  try {
-    const data = await fetch(
-      `https://openapi.growatt.com/v1/plant/energy?plant_id=${plantId}&date=${date}`,
-      { headers: { token: apiToken } }
-    ).then(r => r.json());
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  res.json(results);
 };
