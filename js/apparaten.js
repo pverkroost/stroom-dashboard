@@ -255,20 +255,21 @@ function renderApDetail() {
     </div>`;
   }
 
-  // Dal + slechtste moment vergelijking
+  // Dal + slechtste moment vergelijking (op basis van effectieve kosten incl. zon)
   const dalRange = new Set([23, 0, 1, 2, 3, 4, 5]);
-  let dalRes = null, slechtsteKosten = null, slechtsteRes = null;
+  let dalRes = null, slechtsteEurEff = null, slechtsteRes = null;
   for (let i = 0; i <= planUren.length - blok; i++) {
     const h = planUren[i].tijd.getHours();
     const k = berekenKostenVanaf(uren, vermogen, planUren, i);
     if (k === null) continue;
-    if (!dalRes && dalRange.has(h)) dalRes = { kosten: k, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
-    if (slechtsteKosten === null || k > slechtsteKosten) {
-      slechtsteKosten = k;
-      slechtsteRes = { kosten: k, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
+    const e = effectieveKosten(uren, vermogen, planUren, i) ?? k;
+    if (!dalRes && dalRange.has(h)) dalRes = { kosten: e, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
+    if (slechtsteEurEff === null || e > slechtsteEurEff) {
+      slechtsteEurEff = e;
+      slechtsteRes = { kosten: e, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
     }
   }
-  const besparingEur = slechtsteRes && besteNet !== null ? slechtsteRes.kosten - besteNet : null;
+  const besparingEur = slechtsteEurEff !== null && besteEff !== null ? slechtsteEurEff - besteEff : null;
 
   const iconHtml = (typeof icon === 'string' && icon.includes('<svg'))
     ? `<div style="display:inline-block;transform:scale(2.5);transform-origin:center;margin:16px 0">${icon}</div>`
@@ -303,10 +304,10 @@ function renderApDetail() {
 
     <div class="section">
       <div class="advies-vergelijk" style="border-radius:var(--radius);border:1.5px solid var(--border)">
-        ${blokRijen('Beste tijd', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNet, dekBestePct > 0, dekBestePct)}
+        ${blokRijen('Beste tijd', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteEff, dekBestePct > 0, dekBestePct)}
         ${terugWaarschuwing}
         <div style="height:0.5px;background:var(--border);margin:6px 0"></div>
-        ${blokRijen('Jouw keuze', selTijdStr, false, selNet, dekSelPct > 0, dekSelPct)}
+        ${blokRijen('Jouw keuze', selTijdStr, false, selEff, dekSelPct > 0, dekSelPct)}
         ${vergelijkBadge}
       </div>
       ${statusStr}
