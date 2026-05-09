@@ -205,6 +205,17 @@ function renderApDetail() {
   const dekBestePct = Math.round(gemSolarDekking(besteStartIdx, blok, vermogen, planUren) * 100);
   const dekSelPct   = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
 
+  // Teruglevering waarschuwing: toon als solar > 0 én terugleverprijs < 0.05 in beste blok
+  const _msVandaagD = new Date(); _msVandaagD.setHours(0,0,0,0);
+  const _msMorgenD  = new Date(_msVandaagD); _msMorgenD.setDate(_msMorgenD.getDate() + 1);
+  const besteBlok = planUren.slice(besteStartIdx, besteStartIdx + blok);
+  const terugWaarschuwing = besteBlok.some(p => {
+    const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
+    const isMorgenUur = dagStart.getTime() === _msMorgenD.getTime();
+    return getSolarWatt(p.tijd.getHours(), isMorgenUur) > 0 && (p.terug ?? 1) < 0.05;
+  })
+    ? '<div class="advies-badge" style="background:#fef3c7;color:#92400e;margin-top:4px">☀️ slim moment: voorkomt terugleververlies</div>'
+    : '';
 
   // Vergelijk badge
   const isBeste = currentStartIdx === besteStartIdx;
@@ -274,6 +285,7 @@ function renderApDetail() {
     <div class="section">
       <div class="advies-vergelijk" style="border-radius:var(--radius);border:1.5px solid var(--border)">
         ${blokRijen('Beste tijd', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNet, dekBestePct > 0, dekBestePct)}
+        ${terugWaarschuwing}
         <div style="height:0.5px;background:var(--border);margin:6px 0"></div>
         ${blokRijen('Jouw keuze', selTijdStr, false, selNet, dekSelPct > 0, dekSelPct)}
         ${vergelijkBadge}
