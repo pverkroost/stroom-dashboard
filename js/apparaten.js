@@ -205,22 +205,6 @@ function renderApDetail() {
   const dekBestePct = Math.round(gemSolarDekking(besteStartIdx, blok, vermogen, planUren) * 100);
   const dekSelPct   = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
 
-  // Teruglevering waarschuwing (beste blok): alleen tonen als solar > 0 en verlies >= €0,02
-  const besteBlok = planUren.slice(besteStartIdx, besteStartIdx + blok);
-  const _msVandaag = new Date(); _msVandaag.setHours(0,0,0,0);
-  const _msMorgen  = new Date(_msVandaag); _msMorgen.setDate(_msMorgen.getDate() + 1);
-  let terugVerliesEur = 0;
-  for (const p of besteBlok) {
-    if ((p.terug ?? 0) >= 0) continue;
-    const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
-    const isMorgenUur = dagStart.getTime() === _msMorgen.getTime();
-    const solarWatt = getSolarWatt(p.tijd.getHours(), isMorgenUur);
-    if (solarWatt <= 0) continue;
-    terugVerliesEur += Math.abs(p.terug) * Math.min(vermogen, solarWatt / 1000);
-  }
-  const terugWaarschuwing = terugVerliesEur >= 0.02
-    ? '<div class="advies-badge" style="background:#fef3c7;color:#92400e;margin-top:4px">☀️ slim moment: voorkomt terugleververlies</div>'
-    : '';
 
   // Vergelijk badge
   const isBeste = currentStartIdx === besteStartIdx;
@@ -247,35 +231,33 @@ function renderApDetail() {
         ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
         : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
 
-  // blokRijen helper — zelfde opmaak als kaartoverzicht
+  // blokRijen helper
   function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, heeftZonHier, dekking) {
     const priceStr  = netstroom === null ? '—' : `€ ${netstroom.toFixed(2)}`;
     const bronStr   = heeftZonHier ? `☀️ ${dekking}%` : 'geen zon';
     const morgenStr = (tijdStr && isMorgen) ? '<span style="opacity:0.65"> (morgen)</span>' : '';
     return `<div>
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:600;line-height:1.4">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;line-height:1.5">
         <span>${sectieLabel}</span><span>${priceStr}</span>
       </div>
-      <div style="font-size:10px;color:var(--muted);line-height:1.3">${[tijdStr, bronStr].filter(Boolean).join(' · ')}${morgenStr}</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.3">${[tijdStr, bronStr].filter(Boolean).join(' · ')}${morgenStr}</div>
     </div>`;
   }
 
-  // Piek/dal vergelijking (netstroom, ter referentie)
-  const piekRange = new Set([18, 19, 20]);
-  const dalRange  = new Set([23, 0, 1, 2, 3, 4, 5]);
-  let piekRes = null, dalRes = null;
+  // Dal + slechtste moment vergelijking
+  const dalRange = new Set([23, 0, 1, 2, 3, 4, 5]);
+  let dalRes = null, slechtsteKosten = null, slechtsteRes = null;
   for (let i = 0; i <= planUren.length - blok; i++) {
     const h = planUren[i].tijd.getHours();
-    if (!piekRes && piekRange.has(h)) {
-      const k = berekenKostenVanaf(uren, vermogen, planUren, i);
-      if (k !== null) piekRes = { kosten: k, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
+    const k = berekenKostenVanaf(uren, vermogen, planUren, i);
+    if (k === null) continue;
+    if (!dalRes && dalRange.has(h)) dalRes = { kosten: k, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
+    if (slechtsteKosten === null || k > slechtsteKosten) {
+      slechtsteKosten = k;
+      slechtsteRes = { kosten: k, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
     }
-    if (!dalRes && dalRange.has(h)) {
-      const k = berekenKostenVanaf(uren, vermogen, planUren, i);
-      if (k !== null) dalRes = { kosten: k, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
-    }
-    if (piekRes && dalRes) break;
   }
+  const besparingEur = slechtsteRes && besteNet !== null ? slechtsteRes.kosten - besteNet : null;
 
   const iconHtml = (typeof icon === 'string' && icon.includes('<svg'))
     ? `<div style="display:inline-block;transform:scale(2.5);transform-origin:center;margin:16px 0">${icon}</div>`
@@ -290,11 +272,10 @@ function renderApDetail() {
     </div>
 
     <div class="section">
-      <div class="advies-vergelijk" style="border-radius:var(--radius)">
-        ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNet, dekBestePct > 0, dekBestePct)}
-        ${terugWaarschuwing}
-        <div style="height:0.5px;background:var(--border);margin:4px 0"></div>
-        ${blokRijen('Keuze', selTijdStr, false, selNet, dekSelPct > 0, dekSelPct)}
+      <div class="advies-vergelijk" style="border-radius:var(--radius);border:1.5px solid var(--border)">
+        ${blokRijen('Beste tijd', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNet, dekBestePct > 0, dekBestePct)}
+        <div style="height:0.5px;background:var(--border);margin:6px 0"></div>
+        ${blokRijen('Jouw keuze', selTijdStr, false, selNet, dekSelPct > 0, dekSelPct)}
         ${vergelijkBadge}
       </div>
       ${statusStr}
@@ -312,17 +293,21 @@ function renderApDetail() {
       </div>
     </div>
 
-    ${piekRes || dalRes ? `
+    ${slechtsteRes || dalRes ? `
     <div class="section">
       <div class="section-title">Vergelijking</div>
       <div class="tarief-card">
-        ${piekRes ? `<div class="tarief-row">
-          <span class="tarief-key">Piekuren (${piekRes.startStr}–${piekRes.eindStr})</span>
-          <span style="color:#a32d2d;font-weight:600">€ ${piekRes.kosten.toFixed(2)}</span>
+        ${slechtsteRes ? `<div class="tarief-row">
+          <span class="tarief-key">Slechtste moment (${slechtsteRes.startStr}–${slechtsteRes.eindStr})</span>
+          <span style="color:#a32d2d;font-weight:600">€ ${slechtsteRes.kosten.toFixed(2)}</span>
         </div>` : ''}
         ${dalRes ? `<div class="tarief-row">
           <span class="tarief-key">Daluren (${dalRes.startStr}–${dalRes.eindStr})</span>
           <span style="color:#27500a;font-weight:600">€ ${dalRes.kosten.toFixed(2)}</span>
+        </div>` : ''}
+        ${besparingEur !== null && besparingEur > 0.005 ? `<div class="tarief-row">
+          <span class="tarief-key">Jouw besparing</span>
+          <span style="color:#27500a;font-weight:600">€ ${besparingEur.toFixed(2)}</span>
         </div>` : ''}
       </div>
     </div>` : ''}
