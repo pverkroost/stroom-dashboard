@@ -282,6 +282,25 @@ function renderApDetail() {
       <div class="ap-detail-sub">Totale duur: ${blok} uur · ${totaalKwh} kWh</div>
     </div>
 
+    ${naam === 'Auto (PHEV)' ? `
+    <div class="section">
+      <div class="section-title">Slimme stekker</div>
+      <button class="ap-cta-btn ap-cta-groen" onclick="homeyActie('start')" id="homeyStartBtn">⚡ Start laden</button>
+      <button class="ap-cta-btn ap-cta-wit" onclick="homeyActie('stop')" id="homeyStopBtn">⏹ Stop laden</button>
+      <div id="homeyPincodeSection" style="display:none;margin-top:10px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="password" id="homeyPinInput" placeholder="Pincode" maxlength="4"
+                 inputmode="numeric" pattern="[0-9]*" autocomplete="off"
+                 style="flex:1;padding:16px;border-radius:10px;border:1.5px solid var(--border);font-size:22px;font-family:inherit;background:var(--card);color:var(--text);text-align:center;box-sizing:border-box"
+                 onkeydown="if(event.key==='Enter')bevestigHomey()"
+                 onfocus="this.scrollIntoView({behavior:'smooth',block:'center'})">
+          <button id="homeyOkBtn" onclick="bevestigHomey()"
+                  style="width:56px;height:56px;border-radius:10px;border:none;background:var(--green);color:white;font-size:24px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">✓</button>
+        </div>
+      </div>
+      <div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>
+    </div>` : ''}
+
     <div class="section">
       <div class="advies-vergelijk" style="border-radius:var(--radius);border:1.5px solid var(--border)">
         ${blokRijen('Beste tijd', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNet, dekBestePct > 0, dekBestePct)}
@@ -324,24 +343,7 @@ function renderApDetail() {
       </div>
     </div>` : ''}
 
-    <div style="padding-bottom:40px"></div>
-
-    ${naam === 'Auto (PHEV)' ? `
-    <div class="section" style="padding-bottom:40px">
-      <div class="section-title">Slimme stekker</div>
-      <button class="ap-cta-btn ap-cta-groen" onclick="homeyActie('start')" id="homeyStartBtn">⚡ Start laden</button>
-      <button class="ap-cta-btn ap-cta-wit" onclick="homeyActie('stop')" id="homeyStopBtn">⏹ Stop laden</button>
-      <div id="homeyPincodeSection" style="display:none;margin-top:10px">
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="password" id="homeyPinInput" placeholder="Pincode" maxlength="4" inputmode="numeric"
-                 style="flex:1;padding:12px;border-radius:10px;border:1.5px solid var(--border);font-size:18px;font-family:inherit;background:var(--card);color:var(--text);text-align:center;box-sizing:border-box"
-                 onkeydown="if(event.key==='Enter')bevestigHomey()">
-          <button id="homeyOkBtn" onclick="bevestigHomey()"
-                  style="width:48px;height:48px;border-radius:10px;border:none;background:var(--green);color:white;font-size:22px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">✓</button>
-        </div>
-      </div>
-      <div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>
-    </div>` : ''}`;
+    <div style="padding-bottom:40px"></div>`;
 }
 
 let _homeyPendingAction = null;
