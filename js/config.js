@@ -36,13 +36,14 @@ const VOLVO_SVG = `<svg viewBox="0 0 52 24" width="48" height="22" xmlns="http:/
 </svg>`;
 
 const APPARATEN = [
+  // Groot verbruik
   { naam: 'Auto (PHEV)',             icon: VOLVO_SVG, uren: 6, vermogen: 2.3, type: 'laden' },
-  { naam: 'Vaatwasser',              icon: '🍽️',      uren: 3, vermogen: 1.8, type: 'starten' },
+  { naam: 'Warmtepomp (warm water)', icon: '♨️',       uren: 2, vermogen: 2.0, type: 'inschakelen', opmerking: 'buffert warm water, niet voor verwarming' },
   { naam: 'Wasmachine',              icon: '👕',       uren: 2, vermogen: 1.5, type: 'starten', comboMet: 'Droger' },
   { naam: 'Droger',                  icon: '🌀',       uren: 2, vermogen: 2.5, type: 'starten', naApparaat: 'Wasmachine' },
-  { naam: 'E-bike 1',                icon: '🚲',       uren: 4, vermogen: 0.1, type: 'laden' },
-  { naam: 'E-bike 2',                icon: '🚲',       uren: 4, vermogen: 0.1, type: 'laden' },
-  { naam: 'Warmtepomp (warm water)', icon: '♨️',       uren: 2, vermogen: 2.0, type: 'inschakelen', opmerking: 'buffert warm water, niet voor verwarming' },
+  // Klein verbruik
+  { naam: 'Vaatwasser',              icon: '🍽️',      uren: 3, vermogen: 1.8, type: 'starten' },
+  { naam: 'E-bikes (2x)',            icon: '🚲',       uren: 4, vermogen: 0.2, type: 'laden' },
   { naam: 'Boiler kantoor',          icon: '🚿',       uren: 1, vermogen: 2.5, type: 'inschakelen' },
   { naam: 'Airco',                   icon: '❄️',       uren: 3, vermogen: 2.0, type: 'inschakelen' },
 ];

@@ -547,9 +547,8 @@ function renderLaadadvies() {
 
   const selLabel = heeftSelectie ? 'Keuze' : (isMorgenTab ? 'Vroegst' : 'Nu');
 
-  const kaarten = APPARATEN.map((ap, apIdx) => {
+  function renderApparaat(ap, apIdx) {
     if (ap.comboMet) {
-      // Eerste deel combo (Wasmachine)
       if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
       return maakKaart({
         apId: apIdx,
@@ -568,9 +567,7 @@ function renderLaadadvies() {
         selGedeeltelijk: !cacheMorgen && geselecteerdIdx + ap.uren > planUren.length && geselecteerdIdx < planUren.length,
       });
     }
-
     if (ap.naApparaat) {
-      // Tweede deel combo (Droger)
       if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
       const droogIdx = geselecteerdIdx + wasApparaat.uren;
       return maakKaart({
@@ -590,7 +587,6 @@ function renderLaadadvies() {
         selGedeeltelijk: !cacheMorgen && droogIdx + ap.uren > planUren.length && droogIdx < planUren.length,
       });
     }
-
     const res = berekenGoedkoopsteBlok(ap.uren, ap.vermogen, planUren);
     if (!res) return leegKaart(ap.icon, ap.naam);
     return maakKaart({
@@ -609,8 +605,18 @@ function renderLaadadvies() {
       selStartIdx:    geselecteerdIdx,
       selGedeeltelijk: !cacheMorgen && geselecteerdIdx + Math.ceil(ap.uren) > planUren.length && geselecteerdIdx < planUren.length,
     });
-  }).join('');
+  }
 
-  container.innerHTML = `<div class="advies-grid">${kaarten}</div>
+  const sectionHdr = label => `<div class="section-title" style="grid-column:1/-1;margin-top:4px;margin-bottom:8px">${label}</div>`;
+  const GROOT_GRENS = 4;
+  const grootKaarten = APPARATEN.slice(0, GROOT_GRENS).map(renderApparaat).join('');
+  const kleinKaarten = APPARATEN.slice(GROOT_GRENS).map((ap, i) => renderApparaat(ap, i + GROOT_GRENS)).join('');
+
+  container.innerHTML = `<div class="advies-grid">
+    ${sectionHdr('Groot verbruik')}
+    ${grootKaarten}
+    ${sectionHdr('Klein verbruik')}
+    ${kleinKaarten}
+  </div>
 <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 16px">* Berekeningen zijn per apparaat afzonderlijk. Bij gelijktijdig gebruik is de zonne-energie dekking lager.</p>`;
 }
