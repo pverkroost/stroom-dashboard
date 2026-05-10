@@ -342,21 +342,21 @@ function renderApDetail() {
           '<div style="font-size:11px;color:var(--muted)">' + (vpOpen ? '▲ inklappen' : '▼ uitklappen') + '</div>' +
         '</div>' +
         (vpOpen ?
-          '<div class="tarief-card" style="padding:12px 14px">' +
+          '<div class="tarief-card" style="padding:12px 14px;overflow:hidden">' +
             '<div style="margin-bottom:10px">' +
               '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Huidig batterijniveau</label>' +
-              '<div style="display:flex;align-items:center;gap:10px">' +
+              '<div style="display:flex;align-items:center;gap:10px;min-width:0">' +
                 '<input type="range" id="vpBatterij" min="0" max="100" value="' + vpBatterij + '"' +
                   ' oninput="apDetailState._vpBatterij=+this.value;document.getElementById(\'vpBatterijWaarde\').textContent=this.value+\'%\';herbereken()"' +
-                  ' style="flex:1;accent-color:var(--green)">' +
-                '<span id="vpBatterijWaarde" style="font-size:13px;font-weight:600;min-width:36px;text-align:right">' + vpBatterij + '%</span>' +
+                  ' style="flex:1;min-width:0;accent-color:var(--green)">' +
+                '<span id="vpBatterijWaarde" style="font-size:13px;font-weight:600;min-width:36px;text-align:right;flex-shrink:0">' + vpBatterij + '%</span>' +
               '</div>' +
             '</div>' +
             '<div style="margin-bottom:4px">' +
               '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Vertrek om</label>' +
               '<input type="time" id="vpVertrekTijd" value="' + vpTijd + '"' +
                 ' oninput="apDetailState._vpVertrekTijd=this.value;herbereken()"' +
-                ' style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
+                ' style="width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
             '</div>' +
             '<div id="vpResultaat"></div>' +
           '</div>'
