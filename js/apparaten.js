@@ -255,21 +255,7 @@ function renderApDetail() {
     </div>`;
   }
 
-  // Dal + slechtste moment vergelijking (op basis van effectieve kosten incl. zon)
-  const dalRange = new Set([23, 0, 1, 2, 3, 4, 5]);
-  let dalRes = null, slechtsteEurEff = null, slechtsteRes = null;
-  for (let i = 0; i <= planUren.length - blok; i++) {
-    const h = planUren[i].tijd.getHours();
-    const k = berekenKostenVanaf(uren, vermogen, planUren, i);
-    if (k === null) continue;
-    const e = effectieveKosten(uren, vermogen, planUren, i) ?? k;
-    if (!dalRes && dalRange.has(h)) dalRes = { kosten: e, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
-    if (slechtsteEurEff === null || e > slechtsteEurEff) {
-      slechtsteEurEff = e;
-      slechtsteRes = { kosten: e, startStr: hs(planUren[i].tijd), eindStr: eindH(h) };
-    }
-  }
-  const besparingEur = slechtsteEurEff !== null && besteEff !== null ? slechtsteEurEff - besteEff : null;
+  const besparingEur = selEff > besteEff ? selEff - besteEff : null;
 
   const iconHtml = (typeof icon === 'string' && icon.includes('<svg'))
     ? `<div style="display:inline-block;transform:scale(2.5);transform-origin:center;margin:16px 0">${icon}</div>`
@@ -304,13 +290,24 @@ function renderApDetail() {
     </div>` : ''}
 
     <div class="section">
-      <div class="advies-vergelijk" style="border-radius:var(--radius);border:1.5px solid var(--border)">
-        ${blokRijen('Beste tijd', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteEff, dekBestePct > 0, dekBestePct)}
-        ${terugWaarschuwing}
-        <div style="height:0.5px;background:var(--border);margin:6px 0"></div>
-        ${blokRijen('Jouw keuze', selTijdStr, false, selEff, dekSelPct > 0, dekSelPct)}
-        ${vergelijkBadge}
+      <div class="tarief-card">
+        <div style="padding:12px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600">
+            <span>Beste tijd</span>
+            <span style="color:#27500a">${besteEff !== null ? '€ ' + besteEff.toFixed(2) : '—'}</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">${[`${besteStartStr}–${besteEindStr}`, besteIsMorgen ? '(morgen)' : null, dekBestePct > 0 ? `☀️ ${dekBestePct}%` : 'geen zon'].filter(Boolean).join(' · ')}</div>
+          ${terugWaarschuwing}
+        </div>
+        <div style="padding:12px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600">
+            <span>Jouw keuze</span>
+            <span>${selEff !== null ? '€ ' + selEff.toFixed(2) : '—'}</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">${[selTijdStr, dekSelPct > 0 ? `☀️ ${dekSelPct}%` : 'geen zon'].filter(Boolean).join(' · ')}</div>
+        </div>
       </div>
+      ${vergelijkBadge}
       ${statusStr}
     </div>
 
@@ -326,22 +323,14 @@ function renderApDetail() {
       </div>
     </div>
 
-    ${slechtsteRes || dalRes ? `
+    ${besparingEur !== null && besparingEur > 0.005 ? `
     <div class="section">
       <div class="section-title">Vergelijking</div>
       <div class="tarief-card">
-        ${slechtsteRes ? `<div class="tarief-row">
-          <span class="tarief-key">Slechtste moment (${slechtsteRes.startStr}–${slechtsteRes.eindStr})</span>
-          <span style="color:#a32d2d;font-weight:600">€ ${slechtsteRes.kosten.toFixed(2)}</span>
-        </div>` : ''}
-        ${dalRes ? `<div class="tarief-row">
-          <span class="tarief-key">Daluren (${dalRes.startStr}–${dalRes.eindStr})</span>
-          <span style="color:#27500a;font-weight:600">€ ${dalRes.kosten.toFixed(2)}</span>
-        </div>` : ''}
-        ${besparingEur !== null && besparingEur > 0.005 ? `<div class="tarief-row">
-          <span class="tarief-key">Jouw besparing</span>
+        <div class="tarief-row">
+          <span class="tarief-key">Jouw besparing t.o.v. nu starten</span>
           <span style="color:#27500a;font-weight:600">€ ${besparingEur.toFixed(2)}</span>
-        </div>` : ''}
+        </div>
       </div>
     </div>` : ''}
 
