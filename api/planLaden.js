@@ -1,4 +1,5 @@
 const { Redis } = require('@upstash/redis');
+const { Client } = require('@upstash/qstash');
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
@@ -7,6 +8,30 @@ const redis = new Redis({
 
 function sleutel(apparaat) {
   return 'laadplanning_' + (apparaat || 'default');
+}
+
+async function planQStash(startTijd, stopTijd, apparaat) {
+  const appUrl = process.env.APP_URL;
+  if (!appUrl || !process.env.QSTASH_TOKEN) return;
+
+  const client = new Client({ token: process.env.QSTASH_TOKEN });
+  const now    = Date.now();
+
+  const delayStart = Math.max(0, Math.floor((new Date(startTijd) - now) / 1000));
+  const delayStop  = Math.max(0, Math.floor((new Date(stopTijd)  - now) / 1000));
+
+  await Promise.all([
+    client.publishJSON({
+      url:   `${appUrl}/api/cronLaden`,
+      delay: delayStart,
+      body:  { actie: 'starten', apparaat },
+    }),
+    client.publishJSON({
+      url:   `${appUrl}/api/cronLaden`,
+      delay: delayStop,
+      body:  { actie: 'stoppen', apparaat },
+    }),
+  ]);
 }
 
 module.exports = async (req, res) => {
@@ -28,7 +53,10 @@ module.exports = async (req, res) => {
     const { startTijd, stopTijd, apparaat: apBody } = req.body || {};
     const ap = apBody || apparaat;
     if (!startTijd || !stopTijd) return res.status(400).json({ error: 'startTijd en stopTijd verplicht' });
+
     await redis.set(sleutel(ap), JSON.stringify({ actief: true, startTijd, stopTijd, apparaat: ap }));
+    await planQStash(startTijd, stopTijd, ap);
+
     return res.json({ success: true });
   }
 

@@ -6,26 +6,40 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
+// Homey webhook namen per apparaat — voeg hier toe voor elk apparaat met automatisering: true
+const WEBHOOKS = {
+  autophev: { starten: 'auto-laden-starten', stoppen: 'auto-laden-stoppen' },
+};
+
+function sleutel(apparaat) {
+  return 'laadplanning_' + (apparaat || 'default');
+}
+
 module.exports = async (req, res) => {
-  const data = await redis.get('laadplanning_autophev');
-  if (!data) return res.json({ actie: 'geen planning' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const planning = typeof data === 'string' ? JSON.parse(data) : data;
-  const nuUur = new Date().getHours();
-  const startUur = new Date(planning.startTijd).getHours();
-  const stopUur = new Date(planning.stopTijd).getHours();
+  const { actie, apparaat } = req.body || {};
+  if (!actie || !apparaat) return res.status(400).json({ error: 'actie en apparaat verplicht' });
 
-  const homeyCloudId = process.env.HOMEY_CLOUD_ID;
+  const webhooks = WEBHOOKS[apparaat];
+  if (!webhooks) return res.status(400).json({ error: 'Onbekend apparaat: ' + apparaat });
 
-  if (nuUur === startUur) {
-    await fetch(`https://${homeyCloudId}.connect.athom.com/api/manager/logic/webhook/auto-laden-starten`);
-    return res.json({ actie: 'gestart' });
+  const homeyBase = `https://${process.env.HOMEY_CLOUD_ID}.connect.athom.com/api/manager/logic/webhook`;
+
+  if (actie === 'starten') {
+    // Controleer of planning nog actief is — gebruiker kan hebben geannuleerd
+    const data = await redis.get(sleutel(apparaat));
+    if (!data) return res.json({ actie: 'geannuleerd', reden: 'planning niet meer actief' });
+
+    await fetch(`${homeyBase}/${webhooks.starten}`);
+    return res.json({ actie: 'gestart', apparaat });
   }
-  if (nuUur === stopUur) {
-    await fetch(`https://${homeyCloudId}.connect.athom.com/api/manager/logic/webhook/auto-laden-stoppen`);
-    await redis.del('laadplanning_autophev');
-    return res.json({ actie: 'gestopt' });
+
+  if (actie === 'stoppen') {
+    await fetch(`${homeyBase}/${webhooks.stoppen}`);
+    await redis.del(sleutel(apparaat));
+    return res.json({ actie: 'gestopt', apparaat });
   }
 
-  res.json({ actie: 'wachten' });
+  res.status(400).json({ error: 'Onbekende actie: ' + actie });
 };
