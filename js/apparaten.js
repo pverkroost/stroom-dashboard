@@ -236,22 +236,20 @@ function renderApDetail() {
         ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
         : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
 
-  const iconHtml = (typeof icon === 'string' && icon.includes('<svg'))
-    ? `<div style="display:inline-block;transform:scale(2.5);transform-origin:center;margin:16px 0">${icon}</div>`
-    : `<div style="font-size:48px;line-height:1">${icon}</div>`;
-
   const isAuto = naam === 'Auto (PHEV)';
 
+  const iconHtml = (typeof icon === 'string' && icon.includes('<svg'))
+    ? `<div style="display:inline-block;transform:scale(${isAuto ? 1.5 : 2.5});transform-origin:center;margin:${isAuto ? 8 : 16}px 0">${icon}</div>`
+    : `<div style="font-size:${isAuto ? 2 : 3}em;line-height:1">${icon}</div>`;
+
   document.getElementById('apDetailNaam').textContent = naam;
-  document.getElementById('apDetailBody').innerHTML = `
-    <div class="ap-detail-hero">
+  document.getElementById('apDetailBody').innerHTML = isAuto ? `
+    <div class="ap-detail-hero" style="padding:12px 0 8px">
       ${iconHtml}
-      <div class="ap-detail-naam-groot">${naam}</div>
-      <div class="ap-detail-sub">Totale duur: ${blok} uur · ${totaalKwh} kWh</div>
-      ${opmerking ? `<div class="advies-device-sub" style="margin-top:4px">${opmerking}</div>` : ''}
+      <div class="ap-detail-naam-groot" style="font-size:16px;margin-top:4px">${naam}</div>
+      <div class="ap-detail-sub" style="font-size:11px">${blok} uur · ${totaalKwh} kWh</div>
     </div>
 
-    ${isAuto ? `
     <div class="section">
       <div class="section-title">🔌 Vertrekplanner</div>
       <div class="tarief-card" style="padding:14px 16px">
@@ -264,7 +262,7 @@ function renderApDetail() {
             <span id="vpBatterijWaarde" style="font-size:14px;font-weight:600;min-width:36px;text-align:right">50%</span>
           </div>
         </div>
-        <div style="margin-bottom:12px">
+        <div style="margin-bottom:4px">
           <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Vertrek om</label>
           <input type="time" id="vpVertrekTijd" value="07:00" oninput="herbereken()"
                  style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">
@@ -280,21 +278,21 @@ function renderApDetail() {
         <div style="font-size:11px;color:var(--muted);margin-top:4px">${[besteStartStr + '–' + besteEindStr, dekBestePct > 0 ? '☀️ ' + dekBestePct + '%' : ''].filter(Boolean).join(' · ')}</div>
         ${terugWaarschuwing}
       </div>
-      <div class="tarief-card" style="padding:14px 16px;margin-bottom:8px;${!isBeste ? 'border:1.5px solid rgba(186,117,23,0.45);background:rgba(186,117,23,0.07)' : 'background:rgba(59,109,17,0.04)'}">
+      <div class="tarief-card" style="padding:14px 16px;margin-bottom:4px;border:1.5px solid ${!isBeste ? 'rgba(186,117,23,0.45)' : 'transparent'};background:${!isBeste ? 'rgba(186,117,23,0.07)' : 'rgba(59,109,17,0.04)'}">
         <div style="font-size:11px;color:${!isBeste ? '#854f0b' : 'var(--muted)'};font-weight:600;margin-bottom:6px">Jouw keuze</div>
         <div style="font-size:22px;font-weight:700;color:${!isBeste ? '#854f0b' : 'inherit'}">${selEff !== null ? '€ ' + selEff.toFixed(2) : '—'}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:4px">${[selTijdStr, dekSelPct > 0 ? '☀️ ' + dekSelPct + '%' : ''].filter(Boolean).join(' · ')}</div>
-        ${vergelijkBadge ? `<div style="margin-top:4px">${vergelijkBadge}</div>` : ''}
+        ${vergelijkBadge ? '<div style="margin-top:4px">' + vergelijkBadge + '</div>' : ''}
       </div>
     </div>
 
     <div class="section">
       <button class="ap-cta-btn ap-cta-groen" onclick="planInladen()" id="planInladenBtn">📅 Plan dit in</button>
-      <div id="planningStatusEl" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px">Laden…</div>
+      <div id="planningStatusEl" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(59,109,17,0.08);font-size:12px;color:#27500a;text-align:center"></div>
     </div>
 
     <div class="section">
-      <div class="section-title">Handmatig</div>
+      <div class="section-title">Slimme stekker</div>
       <button class="ap-cta-btn ap-cta-groen" onclick="homeyActie('start')" id="homeyStartBtn">⚡ Start laden</button>
       <button class="ap-cta-btn ap-cta-wit" onclick="homeyActie('stop')" id="homeyStopBtn">⏹ Stop laden</button>
       <div id="homeyPincodeSection" style="display:none;margin-top:10px">
@@ -309,7 +307,27 @@ function renderApDetail() {
         </div>
       </div>
       <div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>
-    </div>` : `
+    </div>
+
+    <div class="section">
+      <div class="section-title">Starttijd aanpassen</div>
+      <div class="ap-tijd-row">
+        <button class="ap-tijd-btn" onclick="adjustApDetail(-1)" ${currentStartIdx <= 0 ? 'disabled' : ''}>−</button>
+        <div class="ap-tijd-display">
+          <div class="ap-tijd-main">${selStartStr}</div>
+          <div class="ap-tijd-eind-label">Klaar om: ${selEindStr}</div>
+        </div>
+        <button class="ap-tijd-btn" onclick="adjustApDetail(1)" ${currentStartIdx >= maxIdx ? 'disabled' : ''}>+</button>
+      </div>
+    </div>
+
+    <div style="padding-bottom:40px"></div>` : `
+    <div class="ap-detail-hero">
+      ${iconHtml}
+      <div class="ap-detail-naam-groot">${naam}</div>
+      <div class="ap-detail-sub">Totale duur: ${blok} uur · ${totaalKwh} kWh</div>
+      ${opmerking ? '<div class="advies-device-sub" style="margin-top:4px">' + opmerking + '</div>' : ''}
+    </div>
 
     <div class="section">
       <div class="tarief-card">
@@ -327,11 +345,11 @@ function renderApDetail() {
             <span>${selEff !== null ? '€ ' + selEff.toFixed(2) : '—'}</span>
           </div>
           <div style="font-size:11px;color:var(--muted);margin-top:3px">${[selTijdStr, dekSelPct > 0 ? '☀️ ' + dekSelPct + '%' : 'geen zon'].filter(Boolean).join(' · ')}</div>
-          ${vergelijkBadge ? `<div style="display:flex;justify-content:flex-end;margin-top:4px">${vergelijkBadge}</div>` : ''}
+          ${vergelijkBadge ? '<div style="display:flex;justify-content:flex-end;margin-top:4px">' + vergelijkBadge + '</div>' : ''}
         </div>
       </div>
       ${statusStr}
-    </div>`}
+    </div>
 
     <div class="section">
       <div class="section-title">Starttijd aanpassen</div>
@@ -406,27 +424,34 @@ async function laadPlanningStatus() {
       _planningActief = true;
       const start = new Date(data.startTijd);
       const stop  = new Date(data.stopTijd);
-      statusEl.innerHTML = `<span style="color:var(--green)">✅ Gepland: ${dagHStr(start)}–${hStr(stop)}</span>&nbsp;<button onclick="annuleerPlanning()" style="margin-left:6px;font-size:11px;border:none;background:none;color:#a32d2d;cursor:pointer;padding:0;text-decoration:underline">Annuleren</button>`;
+      statusEl.style.display = 'block';
+      statusEl.innerHTML = '<span style="color:var(--green)">&#9679;</span> Gepland: start ' + dagHStr(start) + ' &middot; stop ' + hStr(stop) + '&nbsp;<button onclick="annuleerPlanning()" style="margin-left:6px;font-size:11px;border:none;background:none;color:#a32d2d;cursor:pointer;padding:0;text-decoration:underline">Annuleren</button>';
     } else {
       _planningActief = false;
-      statusEl.textContent = 'Geen actieve planning';
-      statusEl.style.color = 'var(--muted)';
+      statusEl.style.display = 'none';
     }
   } catch {
-    if (statusEl) { statusEl.textContent = 'Status ophalen mislukt'; statusEl.style.color = 'var(--muted)'; }
+    statusEl.style.display = 'none';
   }
 }
 
 async function planInladen(stilUpdate = false) {
   if (!apDetailState) return;
+  const btn = document.getElementById('planInladenBtn');
+
+  // Toggle: als al ingepland → annuleer en reset knop
+  if (_planningActief) {
+    await annuleerPlanning();
+    if (btn) { btn.textContent = '📅 Plan dit in'; }
+    return;
+  }
+
   const { planUren, currentStartIdx, ap } = apDetailState;
   const startP = planUren[currentStartIdx];
   if (!startP) return;
   const stopTijd = new Date(startP.tijd);
   stopTijd.setHours(stopTijd.getHours() + Math.ceil(ap.uren));
 
-  const btn      = document.getElementById('planInladenBtn');
-  const statusEl = document.getElementById('planningStatusEl');
   if (!stilUpdate && btn) { btn.disabled = true; btn.textContent = '⏳ Inplannen…'; }
 
   try {
@@ -436,27 +461,28 @@ async function planInladen(stilUpdate = false) {
       body:    JSON.stringify({ startTijd: startP.tijd.toISOString(), stopTijd: stopTijd.toISOString() })
     });
     const data = await r.json();
-    if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
+    if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
     _planningActief = true;
+    if (!stilUpdate && btn) { btn.textContent = '✓ Ingepland — wijzig'; }
     await laadPlanningStatus();
   } catch(e) {
-    if (statusEl) { statusEl.textContent = `✗ ${e.message}`; statusEl.style.color = '#a32d2d'; }
+    const statusEl = document.getElementById('planningStatusEl');
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.style.background = 'rgba(163,45,45,0.08)'; statusEl.style.color = '#a32d2d'; statusEl.textContent = '✗ ' + e.message; }
   } finally {
-    if (!stilUpdate && btn) { btn.disabled = false; btn.textContent = '📅 Plan dit in'; }
+    if (!stilUpdate && btn) { btn.disabled = false; }
   }
 }
 
 async function annuleerPlanning() {
   const statusEl = document.getElementById('planningStatusEl');
-  if (statusEl) { statusEl.textContent = 'Annuleren…'; statusEl.style.color = 'var(--muted)'; }
   try {
     const r    = await fetch('/api/planLaden', { method: 'DELETE' });
     const data = await r.json();
-    if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
+    if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
     _planningActief = false;
-    if (statusEl) { statusEl.textContent = 'Planning geannuleerd'; statusEl.style.color = 'var(--muted)'; }
+    if (statusEl) statusEl.style.display = 'none';
   } catch(e) {
-    if (statusEl) { statusEl.textContent = `✗ ${e.message}`; statusEl.style.color = '#a32d2d'; }
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = '#a32d2d'; statusEl.textContent = '✗ ' + e.message; }
   }
 }
 
