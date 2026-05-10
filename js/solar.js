@@ -91,8 +91,8 @@ async function fetchOpenMeteo() {
   const data = await res.json();
   const times  = data?.hourly?.time || [];
   const direct = data?.hourly?.direct_radiation || [];
-  const today  = new Date(); today.setHours(0,0,0,0);
-  const morgen = new Date(today); morgen.setDate(morgen.getDate() + 1);
+  const today  = getTodayStart();
+  const morgen = getTomorrowStart();
   const vandaag = [], morgenArr = [];
   times.forEach((t, i) => {
     const d = new Date(t); d.setHours(0,0,0,0);

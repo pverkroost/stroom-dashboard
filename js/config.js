@@ -1,5 +1,5 @@
 const OPSLAG              = 0.03194; // € per kWh excl. btw
-const EB                  = 0.09161; // energiebelasting € per kWh excl. btw
+const EB                  = 0.08930; // energiebelasting € per kWh excl. btw
 const BTW                 = 1.21;
 const VASTE_KOSTEN_PER_DAG = 0.32819; // € per dag
 const LAT = 52.3647;
@@ -54,6 +54,10 @@ function berekenTerugleverPrijs(epex) { return (epex - TERUGLEVERING_OPSLAG) * B
 function uurStr(d) {
   return d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
+
+function getTodayStart()    { const d = new Date(); d.setHours(0,0,0,0); return d; }
+function getTomorrowStart() { const d = getTodayStart(); d.setDate(d.getDate() + 1); return d; }
+function hStr(d)            { return d ? String(d.getHours()).padStart(2,'0') + ':00' : '—'; }
 
 function kleur(p, min, max, gem) {
   if (p <= min * 1.05) return { bar: '#3b6d11', text: '#27500a', bg: 'rgba(192,221,151,0.25)' };

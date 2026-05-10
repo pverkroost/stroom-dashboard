@@ -89,44 +89,39 @@ function renderGeenData() {
   }
 }
 
-function renderDashboard(prijzen, day) {
-  const now = new Date(), nowUur = now.getHours();
-  const totalen = prijzen.map(p => p.totaal);
-  const min = Math.min(...totalen), max = Math.max(...totalen);
-  const gem = totalen.reduce((a,b) => a+b, 0) / totalen.length;
-  const laagste = prijzen.find(p => p.totaal === min);
-  const hoogste = prijzen.find(p => p.totaal === max);
-
+function renderHeroMetrics(prijzen, day, min, max, gem, laagste, hoogste, nowUur) {
   document.getElementById('chartTitle').innerHTML =
     (day === 0 ? 'Vandaag' : 'Morgen') +
     ' <span style="font-size:9px;font-weight:400;color:var(--muted);margin-left:4px">' +
     '<span style="color:#3b6d11">▪</span> Verbruik &nbsp;' +
     '<span style="color:rgba(200,50,50,0.75)">↩</span> Teruglevering</span>';
   document.getElementById('laagstePrijs').textContent = '€ ' + min.toFixed(3);
-  document.getElementById('laagsteUur').textContent = uurStr(laagste.tijd);
+  document.getElementById('laagsteUur').textContent   = uurStr(laagste.tijd);
   document.getElementById('hoogstePrijs').textContent = '€ ' + max.toFixed(3);
-  document.getElementById('hoogsteUur').textContent = uurStr(hoogste.tijd);
+  document.getElementById('hoogsteUur').textContent   = uurStr(hoogste.tijd);
 
   const pill = document.getElementById('prijsPill');
   pill.style.display = 'inline-block';
 
   if (day === 0) {
     const huidig = prijzen.find(p => p.tijd.getHours() === nowUur) || prijzen.at(-1);
-    document.getElementById('heroLabel').textContent = 'Nu betaal je';
+    document.getElementById('heroLabel').textContent    = 'Nu betaal je';
     document.getElementById('huidigePrijs').textContent = '€ ' + huidig.totaal.toFixed(3);
-    document.getElementById('huidigUur').textContent = uurStr(huidig.tijd) + '–' + String(huidig.tijd.getHours()+1).padStart(2,'0') + ':00 per kWh';
+    document.getElementById('huidigUur').textContent    = uurStr(huidig.tijd) + '–' + String(huidig.tijd.getHours()+1).padStart(2,'0') + ':00 per kWh';
     if (huidig.totaal <= min*1.05)      { pill.className='hero-pill pill-green'; pill.textContent='Goedkoop uur'; }
     else if (huidig.totaal >= max*0.95) { pill.className='hero-pill pill-red';   pill.textContent='Duur uur'; }
     else if (huidig.totaal < gem)       { pill.className='hero-pill pill-green'; pill.textContent='Onder gemiddelde'; }
     else                                { pill.className='hero-pill pill-amber'; pill.textContent='Boven gemiddelde'; }
   } else {
-    document.getElementById('heroLabel').textContent = 'Goedkoopste morgen';
+    document.getElementById('heroLabel').textContent    = 'Goedkoopste morgen';
     document.getElementById('huidigePrijs').textContent = '€ ' + min.toFixed(3);
-    document.getElementById('huidigUur').textContent = 'om ' + uurStr(laagste.tijd) + ' per kWh';
-    pill.className = 'hero-pill pill-gray';
+    document.getElementById('huidigUur').textContent    = 'om ' + uurStr(laagste.tijd) + ' per kWh';
+    pill.className   = 'hero-pill pill-gray';
     pill.textContent = 'Gemiddeld € ' + gem.toFixed(3) + ' / kWh';
   }
+}
 
+function renderGrafiek(prijzen, day, min, max, gem, nowUur) {
   const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
 
   const barKleuren = prijzen.map(p => {
@@ -135,34 +130,16 @@ function renderDashboard(prijzen, day) {
     if (p.terug !== undefined && p.terug < 0) return isDark ? 'rgba(180,60,60,0.6)' : 'rgba(200,60,60,0.45)';
     return kleur(p.totaal, min, max, gem).bar;
   });
+  const barBorders      = prijzen.map(p => (day === 0 && p.tijd.getHours() === nowUur) ? (isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.55)') : 'transparent');
+  const barBorderWidths = prijzen.map(p => (day === 0 && p.tijd.getHours() === nowUur) ? 2 : 0);
 
-  const barBorders = prijzen.map(p => {
-    const isNu = day === 0 && p.tijd.getHours() === nowUur;
-    return isNu ? (isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.55)') : 'transparent';
-  });
-
-  const barBorderWidths = prijzen.map(p => {
-    return day === 0 && p.tijd.getHours() === nowUur ? 2 : 0;
-  });
-
-  // Solar datasets: vandaag = actueel (solid) + verwacht (dashed); morgen = één lijn
   const solarDatasets = [];
   if (day === 0) {
     const actueelData = solarVandaag?.hourly?.length
-      ? prijzen.map(p => {
-          const h = p.tijd.getHours();
-          if (h > nowUur) return null;
-          const e = solarVandaag.hourly.find(x => x.hour === h);
-          return e ? Math.round(e.watt) : 0;
-        })
+      ? prijzen.map(p => { const h = p.tijd.getHours(); if (h > nowUur) return null; const e = solarVandaag.hourly.find(x => x.hour === h); return e ? Math.round(e.watt) : 0; })
       : null;
     const verwachtData = openMeteoVandaag?.hourly?.length
-      ? prijzen.map(p => {
-          const h = p.tijd.getHours();
-          if (h < nowUur) return null;
-          const e = openMeteoVandaag.hourly.find(x => x.hour === h);
-          return (e && e.watt > 0) ? Math.round(e.watt) : 0;
-        })
+      ? prijzen.map(p => { const h = p.tijd.getHours(); if (h < nowUur) return null; const e = openMeteoVandaag.hourly.find(x => x.hour === h); return (e && e.watt > 0) ? Math.round(e.watt) : 0; })
       : null;
     if (actueelData) solarDatasets.push({ type:'line', data:actueelData, borderColor:'rgba(255,200,50,0.85)', backgroundColor:'rgba(255,200,50,0.12)', fill:true, tension:0.4, pointRadius:0, borderWidth:1.5, yAxisID:'ySolar' });
     if (verwachtData) solarDatasets.push({ type:'line', data:verwachtData, borderColor:'rgba(255,200,50,0.65)', backgroundColor:'rgba(255,200,50,0.06)', fill:true, tension:0.4, pointRadius:0, borderWidth:1.5, borderDash:[5,4], yAxisID:'ySolar' });
@@ -173,20 +150,17 @@ function renderDashboard(prijzen, day) {
     if (solarUurData) solarDatasets.push({ type:'line', data:solarUurData, borderColor:'rgba(255,200,50,0.8)', backgroundColor:'rgba(255,200,50,0.12)', fill:true, tension:0.4, pointRadius:0, borderWidth:1.5, yAxisID:'ySolar' });
   }
 
-  const terugData = prijzen.map(p => {
-    if (day === 0 && p.tijd.getHours() < nowUur) return null;
-    return p.terug !== undefined ? parseFloat(p.terug.toFixed(3)) : null;
-  });
   const terugLijn = {
-    type: 'line', data: terugData,
+    type: 'line',
+    data: prijzen.map(p => (day === 0 && p.tijd.getHours() < nowUur) ? null : (p.terug !== undefined ? parseFloat(p.terug.toFixed(3)) : null)),
     borderColor: 'rgba(200,50,50,0.65)', backgroundColor: 'transparent',
-    fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5,
-    borderDash: [5, 4], yAxisID: 'y'
+    fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5, borderDash: [5, 4], yAxisID: 'y'
   };
 
   if (chart) chart.destroy();
 
   const nowUurIndex = day === 0 ? prijzen.findIndex(p => p.tijd.getHours() === nowUur) : -1;
+  const tooltip = document.getElementById('chartTooltip');
 
   const verticalLinePlugin = {
     id: 'verticalLine',
@@ -195,26 +169,19 @@ function renderDashboard(prijzen, day) {
       const activeEl = active?.find(el => el.datasetIndex === 0) ?? (active?.[0] ?? null);
       const idx = activeEl ? activeEl.index : nowUurIndex;
       if (idx < 0) return;
-      const ctx = chart.ctx;
-      const meta = chart.getDatasetMeta(0);
-      const bar = meta.data[idx];
+      const ctx = chart.ctx, meta = chart.getDatasetMeta(0), bar = meta.data[idx];
       if (!bar) return;
-      const x = bar.x;
-      const top = chart.chartArea.top;
-      const bottom = chart.chartArea.bottom;
       ctx.save();
       ctx.beginPath();
       ctx.setLineDash([4, 4]);
       ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.35)';
       ctx.lineWidth = 1.5;
-      ctx.moveTo(x, top);
-      ctx.lineTo(x, bottom);
+      ctx.moveTo(bar.x, chart.chartArea.top);
+      ctx.lineTo(bar.x, chart.chartArea.bottom);
       ctx.stroke();
       ctx.restore();
     }
   };
-
-  const tooltip = document.getElementById('chartTooltip');
 
   chart = new Chart(document.getElementById('chart'), {
     type: 'bar',
@@ -238,54 +205,48 @@ function renderDashboard(prijzen, day) {
             const { chart, tooltip: t } = context;
             if (t.opacity === 0) {
               tooltip.classList.remove('visible');
-              if (geselecteerdStartTijd !== null) {
-                geselecteerdStartTijd = null;
-                updateApparaatKaarten();
-              }
+              if (geselecteerdStartTijd !== null) { geselecteerdStartTijd = null; updateApparaatKaarten(); }
               return;
             }
             const idx = t.dataPoints?.[0]?.dataIndex;
             if (idx == null) return;
             const p = prijzen[idx];
-            const timeStr = uurStr(p.tijd) + '–' + String(p.tijd.getHours()+1).padStart(2,'0') + ':00';
+            const timeStr  = uurStr(p.tijd) + '–' + String(p.tijd.getHours()+1).padStart(2,'0') + ':00';
             const terugStr = p.terug !== undefined
               ? (p.terug < 0 ? ' · ↩ € ' + p.terug.toFixed(3) + ' ⚠️ kost geld' : ' · ↩ € ' + p.terug.toFixed(3) + ' / kWh bij teruglevering')
               : '';
             tooltip.textContent = timeStr + ' · € ' + p.totaal.toFixed(3) + terugStr;
-            const x = t.caretX;
-            const containerWidth = chart.canvas.parentElement.offsetWidth;
-            let left = x;
-            if (left < 60) left = 60;
-            if (left > containerWidth - 60) left = containerWidth - 60;
+            const x = t.caretX, containerWidth = chart.canvas.parentElement.offsetWidth;
+            let left = x; if (left < 60) left = 60; if (left > containerWidth - 60) left = containerWidth - 60;
             tooltip.style.left = left + 'px';
             tooltip.classList.add('visible');
             if (!geselecteerdStartTijd || geselecteerdStartTijd.getTime() !== p.tijd.getTime()) {
-              geselecteerdStartTijd = p.tijd;
-              updateApparaatKaarten();
+              geselecteerdStartTijd = p.tijd; updateApparaatKaarten();
             }
           }
         }
       },
       scales: {
-        x: { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, autoSkip:true, maxTicksLimit:8, maxRotation:0 }, grid:{display:false} },
-        y: { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, callback: v => '€'+v.toFixed(2) }, grid:{ color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)' } },
+        x:      { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, autoSkip:true, maxTicksLimit:8, maxRotation:0 }, grid:{display:false} },
+        y:      { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, callback: v => '€'+v.toFixed(2) }, grid:{ color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)' } },
         ySolar: { display: false, beginAtZero: true, position: 'right' }
       }
     }
   });
+}
 
-  const hasPast = day === 0 && prijzen.some(p => p.tijd.getHours() < nowUur);
+function renderUurOverzicht(prijzen, day, min, max, gem, nowUur) {
+  const isDark        = matchMedia('(prefers-color-scheme: dark)').matches;
+  const hasPast       = day === 0 && prijzen.some(p => p.tijd.getHours() < nowUur);
   const aantalVerleden = prijzen.filter(p => p.tijd.getHours() < nowUur).length;
 
   const rows = prijzen.map(p => {
-    const isNu = day === 0 && p.tijd.getHours() === nowUur;
-    const isPast = day === 0 && p.tijd.getHours() < nowUur;
+    const isNu      = day === 0 && p.tijd.getHours() === nowUur;
+    const isPast    = day === 0 && p.tijd.getHours() < nowUur;
     const isCheapest = p.totaal === min;
     const k = kleur(p.totaal, min, max, gem);
     const pct = max > min ? Math.round(((p.totaal-min)/(max-min))*100) : 50;
-    const hiddenClass = isPast && !toonVerleden ? 'hidden' : '';
-    const pastClass = isPast ? 'past' : '';
-    return `<div class="hour-row ${pastClass} ${hiddenClass}" data-past="${isPast}">
+    return `<div class="hour-row ${isPast ? 'past' : ''} ${isPast && !toonVerleden ? 'hidden' : ''}" data-past="${isPast}">
       <span class="hour-time">${uurStr(p.tijd)}</span>
       <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${isPast ? (isDark?'#555':'#bbb') : k.bar}"></div></div>
       <div class="hour-price-group">
@@ -302,6 +263,18 @@ function renderDashboard(prijzen, day) {
   </button>` : '';
 
   document.getElementById('urenLijst').innerHTML = knopje + rows;
+}
+
+function renderDashboard(prijzen, day) {
+  const nowUur  = new Date().getHours();
+  const totalen = prijzen.map(p => p.totaal);
+  const min     = Math.min(...totalen), max = Math.max(...totalen);
+  const gem     = totalen.reduce((a,b) => a+b, 0) / totalen.length;
+  const laagste = prijzen.find(p => p.totaal === min);
+  const hoogste = prijzen.find(p => p.totaal === max);
+  renderHeroMetrics(prijzen, day, min, max, gem, laagste, hoogste, nowUur);
+  renderGrafiek(prijzen, day, min, max, gem, nowUur);
+  renderUurOverzicht(prijzen, day, min, max, gem, nowUur);
 }
 
 function toggleVerleden() {

@@ -53,11 +53,10 @@ function berekenComboBlok(uren1, kw1, uren2, kw2, prijzenLijst) {
   const g2 = b2.reduce((s, p) => s + p.totaal, 0) / uren2;
   const e1 = new Date(b1.at(-1).tijd); e1.setHours(e1.getHours() + 1);
   const e2 = new Date(b2.at(-1).tijd); e2.setHours(e2.getHours() + 1);
-  const hs = d => String(d.getHours()).padStart(2,'0') + ':00';
   return {
     startIndex: besteI,
-    was:  { startTijd: b1[0].tijd, eindStr: hs(e1), kosten: uren1 * kw1 * g1 },
-    droog:{ startTijd: b2[0].tijd, eindStr: hs(e2), kosten: uren2 * kw2 * g2 },
+    was:  { startTijd: b1[0].tijd, eindStr: hStr(e1), kosten: uren1 * kw1 * g1 },
+    droog:{ startTijd: b2[0].tijd, eindStr: hStr(e2), kosten: uren2 * kw2 * g2 },
     totaalKosten: besteKosten
   };
 }
@@ -77,8 +76,8 @@ function effectieveKosten(uren, vermogenKw, prijzenLijst, vanIdx, allowPartial =
   const blokGrootte = Math.ceil(uren);
   if (!prijzenLijst || vanIdx >= prijzenLijst.length) return null;
   if (!allowPartial && vanIdx + blokGrootte > prijzenLijst.length) return null;
-  const vandaagStart = new Date(); vandaagStart.setHours(0,0,0,0);
-  const morgenStart  = new Date(vandaagStart); morgenStart.setDate(morgenStart.getDate() + 1);
+  const vandaagStart = getTodayStart();
+  const morgenStart  = getTomorrowStart();
   const beschikbaar = Math.min(blokGrootte, prijzenLijst.length - vanIdx);
   let som = 0;
   for (let i = vanIdx; i < vanIdx + beschikbaar; i++) {
@@ -95,8 +94,8 @@ function effectieveKosten(uren, vermogenKw, prijzenLijst, vanIdx, allowPartial =
 
 // Geeft werkelijke solar dekking als fractie (0.0–1.0): solar gecapt op vermogenKw per uur
 function gemSolarDekking(startIdx, aantalUren, vermogenKw, planUren) {
-  const vandaagStart = new Date(); vandaagStart.setHours(0,0,0,0);
-  const morgenStart  = new Date(vandaagStart); morgenStart.setDate(morgenStart.getDate() + 1);
+  const vandaagStart = getTodayStart();
+  const morgenStart  = getTomorrowStart();
   let gedektKwh = 0, n = 0;
   for (let i = startIdx; i < startIdx + aantalUren && i < planUren.length; i++) {
     const p = planUren[i];
@@ -111,10 +110,6 @@ function gemSolarDekking(startIdx, aantalUren, vermogenKw, planUren) {
 
 // ── Apparaat detail slide-in panel ───────────────────────────────────────────
 let apDetailState = null;
-
-function hStr(d) {
-  return d ? String(d.getHours()).padStart(2,'0') + ':00' : '—';
-}
 
 function getPlanUren() {
   const isMorgenTab = activeDay === 1;
@@ -183,7 +178,7 @@ function renderApDetail() {
   const besteStart    = planUren[besteStartIdx]?.tijd;
   const besteStartStr = besteStart ? hs(besteStart) : '—';
   const besteEindStr  = besteStart ? eindH(besteStart.getHours()) : '—';
-  const morgenStart   = new Date(); morgenStart.setHours(0,0,0,0); morgenStart.setDate(morgenStart.getDate() + 1);
+  const morgenStart   = getTomorrowStart();
   const besteIsMorgen = besteStart
     ? new Date(besteStart).setHours(0,0,0,0) === morgenStart.getTime()
     : false;
@@ -206,8 +201,7 @@ function renderApDetail() {
   const dekSelPct   = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
 
   // Teruglevering waarschuwing: toon als solar > 0 én terugleverprijs < 0.05 in beste blok
-  const _msVandaagD = new Date(); _msVandaagD.setHours(0,0,0,0);
-  const _msMorgenD  = new Date(_msVandaagD); _msMorgenD.setDate(_msMorgenD.getDate() + 1);
+  const _msMorgenD  = getTomorrowStart();
   const besteBlok = planUren.slice(besteStartIdx, besteStartIdx + blok);
   const terugWaarschuwing = besteBlok.some(p => {
     const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
