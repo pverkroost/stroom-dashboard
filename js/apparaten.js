@@ -244,9 +244,11 @@ function renderApDetail() {
   // Vergelijking geselecteerde tijd vs beste tijd — div heeft ID voor surgical update
   const _vDiff = (selEff !== null && besteEff !== null) ? selEff - besteEff : null;
   const vergelijkHtml = _vDiff === null ? '<div id="selVergelijkDiv"></div>' :
-    _vDiff < 0.005
+    Math.abs(_vDiff) < 0.005
       ? '<div id="selVergelijkDiv" style="font-size:11px;color:#27500a;margin-top:6px">✓ Dit is de beste tijd</div>'
-      : '<div id="selVergelijkDiv" style="font-size:11px;color:#92400e;background:rgba(146,64,14,0.06);border-radius:6px;padding:4px 8px;margin-top:6px">⚠️ € ' + _vDiff.toFixed(2) + ' duurder dan beste tijd</div>';
+      : _vDiff < 0
+        ? '<div id="selVergelijkDiv" style="font-size:11px;color:#27500a;margin-top:6px">✓ € ' + Math.abs(_vDiff).toFixed(2) + ' goedkoper dan beste tijd</div>'
+        : '<div id="selVergelijkDiv" style="font-size:11px;color:#92400e;background:rgba(146,64,14,0.06);border-radius:6px;padding:4px 8px;margin-top:6px">⚠️ € ' + _vDiff.toFixed(2) + ' duurder dan beste tijd</div>';
 
   // Teruglevering waarschuwing
   const morgenStart = getTomorrowStart();
@@ -424,14 +426,14 @@ function herbereken() {
   const dekVPPct = Math.round(gemSolarDekking(res.startIndex, aantalBlok, ap.vermogen, planUren) * 100);
   apDetailState._vertrekAdviesIdx = res.startIndex;
 
-  // Vergelijk VP advies met geselecteerde starttijd (zelfde laadduur)
-  const selEffVP = effectieveKosten(berekendeUren, ap.vermogen, planUren, apDetailState.currentStartIdx)
-    ?? berekenKostenVanaf(berekendeUren, ap.vermogen, planUren, apDetailState.currentStartIdx);
-  const diffVP = selEffVP != null ? effVP - selEffVP : null;
+  // Vergelijk VP advies met beste tijd (zelfde laadduur, zelfde vermogen)
+  const besteEffVP = effectieveKosten(berekendeUren, ap.vermogen, planUren, apDetailState.besteStartIdx)
+    ?? berekenKostenVanaf(berekendeUren, ap.vermogen, planUren, apDetailState.besteStartIdx);
+  const diffVP = (besteEffVP != null && effVP != null) ? effVP - besteEffVP : null;
   const vpVergelijkHtml = diffVP === null ? '' :
-    Math.abs(diffVP) < 0.005 ? '<div style="font-size:11px;color:#27500a;margin-top:4px">✓ Zelfde kosten als geselecteerde starttijd</div>' :
-    diffVP < 0 ? '<div style="font-size:11px;color:#27500a;margin-top:4px">↕️ € ' + Math.abs(diffVP).toFixed(2) + ' goedkoper dan geselecteerde starttijd</div>' :
-    '<div style="font-size:11px;color:#92400e;margin-top:4px">↕️ € ' + diffVP.toFixed(2) + ' duurder dan geselecteerde starttijd</div>';
+    Math.abs(diffVP) < 0.005 ? '<div style="font-size:11px;color:#27500a;margin-top:4px">✓ Zelfde als beste tijd</div>' :
+    diffVP < 0 ? '<div style="font-size:11px;color:#27500a;margin-top:4px">↕️ € ' + Math.abs(diffVP).toFixed(2) + ' goedkoper dan beste tijd</div>' :
+    '<div style="font-size:11px;color:#92400e;margin-top:4px">↕️ € ' + diffVP.toFixed(2) + ' duurder dan beste tijd</div>';
 
   resultEl.innerHTML =
     '<div style="padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);margin-top:8px">' +
