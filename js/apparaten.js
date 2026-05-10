@@ -29,7 +29,7 @@ function berekenGoedkoopsteBlok(uren, vermogenKw, prijzenLijst) {
   return {
     startIndex: besteI,
     startTijd:  blok[0].tijd,
-    eindStr:    String(eindDatum.getHours()).padStart(2,'0') + ':00',
+    eindDatum:  eindDatum,
     kosten:     berekenKostenVanaf(uren, vermogenKw, prijzenLijst, besteI)
   };
 }
@@ -55,8 +55,8 @@ function berekenComboBlok(uren1, kw1, uren2, kw2, prijzenLijst) {
   const e2 = new Date(b2.at(-1).tijd); e2.setHours(e2.getHours() + 1);
   return {
     startIndex: besteI,
-    was:  { startTijd: b1[0].tijd, eindStr: hStr(e1), kosten: uren1 * kw1 * g1 },
-    droog:{ startTijd: b2[0].tijd, eindStr: hStr(e2), kosten: uren2 * kw2 * g2 },
+    was:  { startTijd: b1[0].tijd, eindDatum: e1, kosten: uren1 * kw1 * g1 },
+    droog:{ startTijd: b2[0].tijd, eindDatum: e2, kosten: uren2 * kw2 * g2 },
     totaalKosten: besteKosten
   };
 }
@@ -170,23 +170,21 @@ function renderApDetail() {
   const { uren, vermogen, naam, icon, type, opmerking } = ap;
   const blok = Math.ceil(uren);
   const totaalKwh = (uren * vermogen).toFixed(1);
-  const hs = hStr;
-  const eindH = h => String((h + blok) % 24).padStart(2,'0') + ':00';
   const isMorgenTab = activeDay === 1;
 
   // Beste blok
-  const besteStart    = planUren[besteStartIdx]?.tijd;
-  const besteStartStr = besteStart ? hs(besteStart) : '—';
-  const besteEindStr  = besteStart ? eindH(besteStart.getHours()) : '—';
-  const morgenStart   = getTomorrowStart();
-  const besteIsMorgen = besteStart
-    ? new Date(besteStart).setHours(0,0,0,0) === morgenStart.getTime()
-    : false;
+  const besteStart   = planUren[besteStartIdx]?.tijd;
+  const besteEindDat = besteStart ? new Date(besteStart) : null;
+  if (besteEindDat) besteEindDat.setHours(besteEindDat.getHours() + blok);
+  const besteStartStr = dagHStr(besteStart);
+  const besteEindStr  = hStr(besteEindDat);
 
   // Keuze blok (aanpasbaar via +/-)
-  const selStart    = planUren[currentStartIdx]?.tijd;
-  const selStartStr = selStart ? hs(selStart) : '—';
-  const selEindStr  = selStart ? eindH(selStart.getHours()) : '—';
+  const selStart   = planUren[currentStartIdx]?.tijd;
+  const selEindDat = selStart ? new Date(selStart) : null;
+  if (selEindDat) selEindDat.setHours(selEindDat.getHours() + blok);
+  const selStartStr = dagHStr(selStart);
+  const selEindStr  = hStr(selEindDat);
   const selTijdStr  = selStart ? `${selStartStr}–${selEindStr}` : '';
 
   // Kosten (netstroom voor weergave, effectief voor vergelijking)
@@ -229,25 +227,12 @@ function renderApDetail() {
   const ctaMap = { laden: ['Nu laden!', 'Laden'], starten: ['Nu starten!', 'Starten'], inschakelen: ['Nu inschakelen!', 'Inschakelen'] };
   const [nuTekst, laterVerb] = ctaMap[type] ?? ['Nu starten!', 'Starten'];
   const statusStr = isMorgenTab
-    ? `<div class="advies-status later">Morgen · ${besteStartStr}</div>`
+    ? `<div class="advies-status later">Morgen · ${hStr(besteStart)}</div>`
     : besteStartIdx === 0
       ? `<div class="advies-status nu">✓ ${nuTekst}</div>`
       : besteStartIdx <= 2
         ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
         : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
-
-  // blokRijen helper
-  function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, heeftZonHier, dekking) {
-    const priceStr  = netstroom === null ? '—' : `€ ${netstroom.toFixed(2)}`;
-    const bronStr   = heeftZonHier ? `☀️ ${dekking}%` : 'geen zon';
-    const morgenStr = (tijdStr && isMorgen) ? '<span style="opacity:0.65"> (morgen)</span>' : '';
-    return `<div>
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;line-height:1.5">
-        <span>${sectieLabel}</span><span>${priceStr}</span>
-      </div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.3">${[tijdStr, bronStr].filter(Boolean).join(' · ')}${morgenStr}</div>
-    </div>`;
-  }
 
   const iconHtml = (typeof icon === 'string' && icon.includes('<svg'))
     ? `<div style="display:inline-block;transform:scale(2.5);transform-origin:center;margin:16px 0">${icon}</div>`
@@ -310,7 +295,7 @@ function renderApDetail() {
             <span>Beste tijd</span>
             <span style="color:#27500a">${besteEff !== null ? '€ ' + besteEff.toFixed(2) : '—'}</span>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:3px">${[`${besteStartStr}–${besteEindStr}`, besteIsMorgen ? '(morgen)' : null, dekBestePct > 0 ? `☀️ ${dekBestePct}%` : 'geen zon'].filter(Boolean).join(' · ')}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">${[`${besteStartStr}–${besteEindStr}`, dekBestePct > 0 ? `☀️ ${dekBestePct}%` : 'geen zon'].filter(Boolean).join(' · ')}</div>
           ${terugWaarschuwing}
         </div>
         <div style="padding:12px 16px">
@@ -385,7 +370,7 @@ function herbereken() {
   const eindDat   = new Date(res.startTijd); eindDat.setHours(eindDat.getHours() + aantalBlok);
   const eff       = effectieveKosten(berekendeUren, ap.vermogen, gefilterd, res.startIndex);
   const kostenStr = '€ ' + (eff ?? res.kosten).toFixed(2);
-  resultEl.innerHTML = `<div class="advies-status nu" style="margin-top:0">⚡ Start laden om ${hStr(res.startTijd)} · klaar om ${hStr(eindDat)} · ${kostenStr}</div>`;
+  resultEl.innerHTML = `<div class="advies-status nu" style="margin-top:0">⚡ Start laden om ${dagHStr(res.startTijd)} · klaar om ${hStr(eindDat)} · ${kostenStr}</div>`;
 }
 
 let _homeyPendingAction = null;
@@ -496,13 +481,12 @@ function renderLaadadvies() {
   const wasdroogRes   = wasApparaat && droogApparaat
     ? berekenComboBlok(wasApparaat.uren, wasApparaat.vermogen, droogApparaat.uren, droogApparaat.vermogen, planUren)
     : null;
-  const hs = hStr;
   const leegKaart = (icon, naam) =>
     `<div class="advies-card"><div class="advies-device-icon">${icon}</div><div class="advies-device-naam">${naam}</div><div class="advies-row">Onvoldoende data</div></div>`;
 
   function maakKaart({ apId, icon, naam, uren, kw,
                         type = 'starten', opmerking = null,
-                        besteStartIdx, besteStartStr, besteEindStr, besteIsMorgen,
+                        besteStartIdx, besteStartStr, besteEindStr,
                         besteNetstroom, besteSolar,
                         selLabel, selNetstroom, selSolar, selStartIdx,
                         selGedeeltelijk = false }) {
@@ -519,7 +503,7 @@ function renderLaadadvies() {
     const besteEff = besteSolar ?? besteNetstroom;
     const selEff   = selNetstroom !== null ? (selSolar ?? selNetstroom) : null;
 
-    const selStartUur = planUren[selStartIdx]?.tijd ? hs(planUren[selStartIdx].tijd) : '—';
+    const selStartUur = planUren[selStartIdx]?.tijd ? dagHStr(planUren[selStartIdx].tijd) : '—';
     console.log(`[${naam}] geselecteerdUur: ${selStartUur} | dekBeste: ${dekPct}% | dekSel: ${dekPctSel}% | besteEff: ${besteEff?.toFixed(2)} | selEff: ${selEff?.toFixed(2)}`);
 
     let vergelijkBadge = '';
@@ -539,7 +523,7 @@ function renderLaadadvies() {
       const t = selStartIdx < planUren.length ? planUren[selStartIdx]?.tijd : null;
       if (!t) return '';
       const e = new Date(t); e.setHours(e.getHours() + Math.ceil(uren));
-      return `${hs(t)}–${String(e.getHours()).padStart(2,'0')}:00`;
+      return `${dagHStr(t)}–${String(e.getHours()).padStart(2,'0')}:00`;
     })();
 
     const ctaMap = { laden: ['Nu laden!', 'Laden'], starten: ['Nu starten!', 'Starten'], inschakelen: ['Nu inschakelen!', 'Inschakelen'] };
@@ -552,10 +536,9 @@ function renderLaadadvies() {
           ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
           : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
 
-    function blokRijen(sectieLabel, tijdStr, isMorgen, netstroom, heeftZonHier, dekking, isGedeeltelijk = false) {
+    function blokRijen(sectieLabel, tijdStr, netstroom, heeftZonHier, dekking, isGedeeltelijk = false) {
       const priceStr = netstroom === null ? '—' : `€ ${netstroom.toFixed(2)}`;
       const bronStr  = heeftZonHier ? `☀️ ${dekking}%` : 'geen zon';
-      const morgenStr = (tijdStr && isMorgen) ? '<span style="opacity:0.65"> (morgen)</span>' : '';
       const subParts = [tijdStr, bronStr].filter(Boolean);
       const noteStr = isGedeeltelijk
         ? '<div style="font-size:9px;color:var(--muted);margin-top:1px">* morgen nog niet beschikbaar</div>'
@@ -565,7 +548,7 @@ function renderLaadadvies() {
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:600;line-height:1.4">
             <span>${sectieLabel}</span><span>${priceStr}</span>
           </div>
-          <div style="font-size:10px;color:var(--muted);line-height:1.3">${subParts.join(' · ')}${morgenStr}</div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.3">${subParts.join(' · ')}</div>
           ${noteStr}
         </div>`;
     }
@@ -574,10 +557,10 @@ function renderLaadadvies() {
       <div class="advies-device-icon">${icon}</div>
       <div class="advies-device-naam">${naam}</div>
       <div class="advies-vergelijk">
-        ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteEff, heeftZon, dekPct)}
+        ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteEff, heeftZon, dekPct)}
         ${selStartIdx < planUren.length ? `
         <div style="height:0.5px;background:var(--border);margin:3px 0"></div>
-        ${blokRijen(selLabel, selTijdStr, false, selEff, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
+        ${blokRijen(selLabel, selTijdStr, selEff, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
         ${vergelijkBadge}
       </div>
       ${statusStr}
@@ -594,9 +577,8 @@ function renderLaadadvies() {
         icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
         type: ap.type, opmerking: ap.opmerking,
         besteStartIdx:  wasdroogRes.startIndex,
-        besteStartStr:  hs(wasdroogRes.was.startTijd),
-        besteEindStr:   wasdroogRes.was.eindStr,
-        besteIsMorgen:  isMorgenTab || wasdroogRes.was.startTijd.getDate() !== now.getDate(),
+        besteStartStr:  dagHStr(wasdroogRes.was.startTijd),
+        besteEindStr:   hStr(wasdroogRes.was.eindDatum),
         besteNetstroom: wasdroogRes.was.kosten,
         besteSolar:     effectieveKosten(ap.uren, ap.vermogen, planUren, wasdroogRes.startIndex),
         selLabel,
@@ -614,9 +596,8 @@ function renderLaadadvies() {
         icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
         type: ap.type, opmerking: ap.opmerking,
         besteStartIdx:  wasdroogRes.startIndex + wasApparaat.uren,
-        besteStartStr:  hs(wasdroogRes.droog.startTijd),
-        besteEindStr:   wasdroogRes.droog.eindStr,
-        besteIsMorgen:  isMorgenTab || wasdroogRes.droog.startTijd.getDate() !== now.getDate(),
+        besteStartStr:  dagHStr(wasdroogRes.droog.startTijd),
+        besteEindStr:   hStr(wasdroogRes.droog.eindDatum),
         besteNetstroom: wasdroogRes.droog.kosten,
         besteSolar:     effectieveKosten(ap.uren, ap.vermogen, planUren, wasdroogRes.startIndex + wasApparaat.uren),
         selLabel:       'Na was',
@@ -633,9 +614,8 @@ function renderLaadadvies() {
       icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
       type: ap.type, opmerking: ap.opmerking,
       besteStartIdx:  res.startIndex,
-      besteStartStr:  hs(res.startTijd),
-      besteEindStr:   res.eindStr,
-      besteIsMorgen:  isMorgenTab || res.startTijd.getDate() !== now.getDate(),
+      besteStartStr:  dagHStr(res.startTijd),
+      besteEindStr:   hStr(res.eindDatum),
       besteNetstroom: res.kosten,
       besteSolar:     effectieveKosten(ap.uren, ap.vermogen, planUren, res.startIndex),
       selLabel,
