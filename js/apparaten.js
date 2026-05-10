@@ -255,7 +255,7 @@ function renderApDetail() {
   const canGoFwd         = (currentStartIdx * 60 + minuteOffset + 15) <= maxIdx * 60;
   const selInfoStr       = berekendeUren < 0.25
     ? 'Batterij al vol'
-    : '–' + selEindStr + ' · € ' + selEff.toFixed(2) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
+    : dagHMStrPlain(selStartActual) + '–' + selEindStr + ' · € ' + selEff.toFixed(2) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
 
   const isBeste = currentStartIdx === besteIdxBer && minuteOffset === 0;
 
@@ -438,7 +438,7 @@ function updateKostenWeergave(berekendeUren) {
 
   const selInfoEl = document.getElementById('selInfoDiv');
   if (selInfoEl) selInfoEl.textContent = berekendeUren < 0.25 ? 'Batterij al vol'
-    : '–' + hMStr(selEindActual) + ' · € ' + selEff.toFixed(2) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
+    : dagHMStrPlain(selStartActual) + '–' + hMStr(selEindActual) + ' · € ' + selEff.toFixed(2) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
 
   const _vDiff = selEff - besteEff;
   const vergelijkEl = document.getElementById('selVergelijkDiv');
