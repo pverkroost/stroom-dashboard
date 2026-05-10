@@ -57,7 +57,16 @@ function uurStr(d) {
 
 function getTodayStart()    { const d = new Date(); d.setHours(0,0,0,0); return d; }
 function getTomorrowStart() { const d = getTodayStart(); d.setDate(d.getDate() + 1); return d; }
-function hStr(d)            { return d ? String(d.getHours()).padStart(2,'0') + ':00' : '—'; }
+function hStr(d)            { return (d && typeof d.getHours === 'function') ? String(d.getHours()).padStart(2,'0') + ':00' : '—'; }
+
+const _DAGNAMEN = ['zo','ma','di','wo','do','vr','za'];
+function dagPrefix(datum) {
+  if (!datum) return '';
+  const dag = new Date(datum); dag.setHours(0,0,0,0);
+  if (dag.getTime() === getTodayStart().getTime()) return '';
+  return `<span style="opacity:0.65;font-size:0.9em">${_DAGNAMEN[new Date(datum).getDay()]} </span>`;
+}
+function dagHStr(datum) { return datum ? dagPrefix(datum) + hStr(datum) : '—'; }
 
 function kleur(p, min, max, gem) {
   if (p <= min * 1.05) return { bar: '#3b6d11', text: '#27500a', bg: 'rgba(192,221,151,0.25)' };

@@ -537,7 +537,7 @@ function renderLaadadvies() {
           : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
 
     function blokRijen(sectieLabel, tijdStr, netstroom, heeftZonHier, dekking, isGedeeltelijk = false) {
-      const priceStr = netstroom === null ? '—' : `€ ${netstroom.toFixed(2)}`;
+      const priceStr = netstroom == null ? '—' : `€ ${netstroom.toFixed(2)}`;
       const bronStr  = heeftZonHier ? `☀️ ${dekking}%` : 'geen zon';
       const subParts = [tijdStr, bronStr].filter(Boolean);
       const noteStr = isGedeeltelijk
