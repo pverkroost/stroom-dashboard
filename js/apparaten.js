@@ -196,7 +196,7 @@ function renderApDetail() {
 
   const heeftAutomatisering = !!ap.automatisering;
   const apparaat           = apSleutel(naam);
-  const heeftVertrekPlanner = type === 'laden';
+  const heeftVertrekPlanner = !!ap.automatisering;
   const vpOpen             = !!apDetailState._vertrekPlannerOpen;
   const vpBatterij         = apDetailState._vpBatterij  ?? 50;
   const vpTijd             = apDetailState._vpVertrekTijd ?? '07:00';
