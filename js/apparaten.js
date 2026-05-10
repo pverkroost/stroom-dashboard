@@ -181,11 +181,11 @@ function gebruikBesteTijdDetail() {
   sluitApDetail();
 }
 
-function overneemSuggestie(idx) {
+function overneemSuggestie(idx, handmatig = false) {
   if (!apDetailState) return;
-  apDetailState.currentStartIdx  = Math.max(0, Math.min(apDetailState.maxIdx, idx));
-  apDetailState._minuteOffset    = 0;
-  apDetailState._handmatigGekozen = false;
+  apDetailState.currentStartIdx   = Math.max(0, Math.min(apDetailState.maxIdx, idx));
+  apDetailState._minuteOffset     = 0;
+  apDetailState._handmatigGekozen = handmatig;
   renderApDetail();
   if (_planningActief) planInladen(true);
 }
@@ -550,7 +550,7 @@ function herbereken() {
           '<div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">🔌 Vertrekplanner advies</div>' +
           '<div style="font-size:12px;color:var(--muted)">' + dagHStrPlain(res.startTijd) + '–' + hStr(eindDat) + ' · € ' + effVP.toFixed(2) + (dekVPPct > 0 ? ' · ☀️ ' + dekVPPct + '%' : '') + '</div>' +
         '</div>' +
-        '<button onclick="overneemSuggestie(' + res.startIndex + ')" style="flex-shrink:0;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>' +
+        '<button onclick="overneemSuggestie(' + res.startIndex + ', true)" style="flex-shrink:0;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>' +
       '</div>' +
       vpVergelijkHtml +
     '</div>';
