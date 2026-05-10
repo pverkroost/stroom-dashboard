@@ -260,7 +260,7 @@
 <div class="footer">
   Prijzen via EnergyZero API · EPEX day-ahead<br>
   (EPEX + €0,03194 + €0,09161) × 1,21<br>
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.7.0</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.7.1</span>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -1040,7 +1040,7 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.7.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.7.1 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
 </script>
 </body>

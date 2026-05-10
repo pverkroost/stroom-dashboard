@@ -255,8 +255,6 @@ function renderApDetail() {
     </div>`;
   }
 
-  const besparingEur = selEff > besteEff ? selEff - besteEff : null;
-
   const iconHtml = (typeof icon === 'string' && icon.includes('<svg'))
     ? `<div style="display:inline-block;transform:scale(2.5);transform-origin:center;margin:16px 0">${icon}</div>`
     : `<div style="font-size:48px;line-height:1">${icon}</div>`;
@@ -322,17 +320,6 @@ function renderApDetail() {
         <button class="ap-tijd-btn" onclick="adjustApDetail(1)" ${currentStartIdx >= maxIdx ? 'disabled' : ''}>+</button>
       </div>
     </div>
-
-    ${besparingEur !== null && besparingEur > 0.005 ? `
-    <div class="section">
-      <div class="section-title">Vergelijking</div>
-      <div class="tarief-card">
-        <div class="tarief-row">
-          <span class="tarief-key">Jouw besparing t.o.v. nu starten</span>
-          <span style="color:#27500a;font-weight:600">€ ${besparingEur.toFixed(2)}</span>
-        </div>
-      </div>
-    </div>` : ''}
 
     <div style="padding-bottom:40px"></div>`;
 }
