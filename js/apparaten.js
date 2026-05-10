@@ -194,7 +194,7 @@ function renderApDetail() {
   const blok = Math.ceil(uren);
   const totaalKwh = (uren * vermogen).toFixed(1);
 
-  const isAuto             = naam === 'Auto (PHEV)';
+  const heeftAutomatisering = !!ap.automatisering;
   const apparaat           = apSleutel(naam);
   const heeftVertrekPlanner = type === 'laden';
   const vpOpen             = !!apDetailState._vertrekPlannerOpen;
@@ -235,7 +235,7 @@ function renderApDetail() {
     : '<span style="font-size:2em;line-height:1">' + icon + '</span>';
 
   // Automatisering sectie
-  const automatiseringSectie = isAuto
+  const automatiseringSectie = heeftAutomatisering
     ? '<div class="section" style="padding-top:4px">' +
         '<div class="section-title">Direct starten / stoppen</div>' +
         '<div style="display:flex;gap:8px">' +
@@ -253,9 +253,9 @@ function renderApDetail() {
         '<div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>' +
       '</div>'
     : '<div class="section" style="padding-top:4px">' +
-        '<div class="section-title">Direct starten / stoppen</div>' +
+        '<div class="section-title">Automatisch inplannen</div>' +
         '<div style="font-size:12px;color:var(--muted);padding:4px 0;line-height:1.6">' +
-          '○ Dit apparaat is nog niet gekoppeld aan een automatiseringssysteem.' +
+          'Automatisch inplannen is nog niet beschikbaar voor dit apparaat.' +
         '</div>' +
       '</div>';
 
@@ -331,18 +331,20 @@ function renderApDetail() {
       '</div>' +
     '</div>' +
 
-    // 5. PLAN DIT IN + STATUS
-    '<div class="section" style="padding-top:0;padding-bottom:4px">' +
-      '<button class="ap-cta-btn ap-cta-groen" onclick="planInladen()" id="planInladenBtn">📅 Plan dit in op ' + selStartStr + '</button>' +
-      '<div id="planningStatusEl" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(59,109,17,0.08);font-size:12px;color:#27500a;text-align:center"></div>' +
-    '</div>' +
+    // 5. PLAN DIT IN + STATUS — alleen voor apparaten met automatisering
+    (heeftAutomatisering
+      ? '<div class="section" style="padding-top:0;padding-bottom:4px">' +
+          '<button class="ap-cta-btn ap-cta-groen" onclick="planInladen()" id="planInladenBtn">📅 Plan dit in op ' + selStartStr + '</button>' +
+          '<div id="planningStatusEl" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(59,109,17,0.08);font-size:12px;color:#27500a;text-align:center"></div>' +
+        '</div>'
+      : '') +
 
     // 6. DIRECT STARTEN / STOPPEN
     automatiseringSectie +
     '<div style="padding-bottom:40px"></div>';
 
   if (heeftVertrekPlanner && vpOpen) herbereken();
-  laadPlanningStatus(apparaat);
+  if (heeftAutomatisering) laadPlanningStatus(apparaat);
 }
 
 function herbereken() {
