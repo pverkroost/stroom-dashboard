@@ -305,9 +305,9 @@ function renderApDetail() {
             <span>${selEff !== null ? '€ ' + selEff.toFixed(2) : '—'}</span>
           </div>
           <div style="font-size:11px;color:var(--muted);margin-top:3px">${[selTijdStr, dekSelPct > 0 ? `☀️ ${dekSelPct}%` : 'geen zon'].filter(Boolean).join(' · ')}</div>
+          ${vergelijkBadge ? `<div style="display:flex;justify-content:flex-end;margin-top:4px">${vergelijkBadge}</div>` : ''}
         </div>
       </div>
-      ${vergelijkBadge}
       ${statusStr}
     </div>
 
