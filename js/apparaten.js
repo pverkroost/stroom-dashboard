@@ -281,6 +281,7 @@ function renderApDetail() {
       ${iconHtml}
       <div class="ap-detail-naam-groot">${naam}</div>
       <div class="ap-detail-sub">Totale duur: ${blok} uur · ${totaalKwh} kWh</div>
+      ${opmerking ? `<div class="advies-device-sub" style="margin-top:4px">${opmerking}</div>` : ''}
     </div>
 
     ${naam === 'Auto (PHEV)' ? `
@@ -532,7 +533,6 @@ function renderLaadadvies() {
     return `<div class="advies-card" onclick="openApDetail(${apId})">
       <div class="advies-device-icon">${icon}</div>
       <div class="advies-device-naam">${naam}</div>
-      ${opmerking ? `<div class="advies-device-sub">${opmerking}</div>` : ''}
       <div class="advies-vergelijk">
         ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteEff, heeftZon, dekPct)}
         ${selStartIdx < planUren.length ? `
