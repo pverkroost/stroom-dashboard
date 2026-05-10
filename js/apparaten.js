@@ -194,6 +194,58 @@ function getSelStartActual() {
   return new Date(p.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
 }
 
+function selTijdInvoer(val) {
+  if (!apDetailState || !val) return;
+  const [h, m] = val.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return;
+  const { planUren, maxIdx, ap, besteStartIdx } = apDetailState;
+
+  const gevonden = planUren.findIndex(p => p.tijd.getHours() === h);
+  if (gevonden < 0) return;
+
+  const newIdx    = Math.min(gevonden, maxIdx);
+  const newOffset = newIdx < maxIdx ? m : 0;
+  apDetailState.currentStartIdx = newIdx;
+  apDetailState._minuteOffset   = newOffset;
+
+  // Herbereken weergave zonder full re-render (input behoudt focus)
+  const uren = ap.uren, vermogen = ap.vermogen, blok = Math.ceil(uren);
+  const selStartActual = new Date(planUren[newIdx].tijd.getTime() + newOffset * 60000);
+  const selEindActual  = new Date(selStartActual.getTime() + uren * 3600000);
+  const selEff  = effectieveKosten(uren, vermogen, planUren, newIdx) ?? berekenKostenVanaf(uren, vermogen, planUren, newIdx);
+  const dekPct  = Math.round(gemSolarDekking(newIdx, blok, vermogen, planUren) * 100);
+
+  const infoEl = document.getElementById('selInfoDiv');
+  if (infoEl) infoEl.textContent =
+    dagHMStrPlain(selStartActual) + '–' + hMStr(selEindActual) +
+    (selEff !== null ? ' · € ' + selEff.toFixed(2) : '') +
+    (dekPct > 0 ? ' · ☀️ ' + dekPct + '%' : '');
+
+  const besteNet = berekenKostenVanaf(uren, vermogen, planUren, besteStartIdx);
+  const besteEff = effectieveKosten(uren, vermogen, planUren, besteStartIdx) ?? besteNet;
+  const vEl = document.getElementById('selVergelijkDiv');
+  if (vEl && selEff !== null && besteEff !== null) {
+    const diff = selEff - besteEff;
+    if (diff < 0.005) {
+      vEl.style.cssText = 'font-size:11px;color:#27500a;margin-top:6px';
+      vEl.textContent   = '✓ Dit is de beste tijd';
+    } else {
+      vEl.style.cssText = 'font-size:11px;color:#92400e;background:rgba(146,64,14,0.06);border-radius:6px;padding:4px 8px;margin-top:6px';
+      vEl.textContent   = '⚠️ € ' + diff.toFixed(2) + ' duurder dan beste tijd';
+    }
+  }
+
+  const btn = document.getElementById('planInladenBtn');
+  if (btn && !_planningActief) btn.textContent = '📅 Plan dit in op ' + dagHMStrPlain(selStartActual);
+
+  const minBtn  = document.getElementById('selMinBtn');
+  const plusBtn = document.getElementById('selPlusBtn');
+  if (minBtn)  minBtn.disabled  = (newIdx === 0 && newOffset === 0);
+  if (plusBtn) plusBtn.disabled = (newIdx * 60 + newOffset >= maxIdx * 60);
+
+  if (_planningActief) planInladen(true);
+}
+
 function toggleVertrekplanner() {
   if (!apDetailState) return;
   apDetailState._vertrekPlannerOpen = !apDetailState._vertrekPlannerOpen;
@@ -235,16 +287,17 @@ function renderApDetail() {
   const selNet           = berekenKostenVanaf(uren, vermogen, planUren, currentStartIdx);
   const selEff           = effectieveKosten(uren, vermogen, planUren, currentStartIdx) ?? selNet;
   const dekSelPct        = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
+  const selTimeValue     = selStartActual ? hMStr(selStartActual) : '00:00';
+  const selInfoStr       = selStartStrPlain + '–' + selEindStr + (selEff !== null ? ' · € ' + selEff.toFixed(2) : '') + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
 
   const isBeste = currentStartIdx === besteStartIdx && minuteOffset === 0;
 
-  // Vergelijking geselecteerde tijd vs beste tijd
-  const vergelijkHtml = (() => {
-    if (selEff === null || besteEff === null) return '';
-    const diff = selEff - besteEff;
-    if (diff < 0.005) return '<div style="font-size:11px;color:#27500a;margin-top:6px">✓ Dit is de beste tijd</div>';
-    return '<div style="font-size:11px;color:#92400e;background:rgba(146,64,14,0.06);border-radius:6px;padding:4px 8px;margin-top:6px">⚠️ € ' + diff.toFixed(2) + ' duurder dan beste tijd</div>';
-  })();
+  // Vergelijking geselecteerde tijd vs beste tijd — div heeft ID voor surgical update
+  const _vDiff = (selEff !== null && besteEff !== null) ? selEff - besteEff : null;
+  const vergelijkHtml = _vDiff === null ? '<div id="selVergelijkDiv"></div>' :
+    _vDiff < 0.005
+      ? '<div id="selVergelijkDiv" style="font-size:11px;color:#27500a;margin-top:6px">✓ Dit is de beste tijd</div>'
+      : '<div id="selVergelijkDiv" style="font-size:11px;color:#92400e;background:rgba(146,64,14,0.06);border-radius:6px;padding:4px 8px;margin-top:6px">⚠️ € ' + _vDiff.toFixed(2) + ' duurder dan beste tijd</div>';
 
   // Teruglevering waarschuwing
   const morgenStart = getTomorrowStart();
@@ -350,13 +403,12 @@ function renderApDetail() {
         (heeftAutomatisering ? '<span style="font-size:10px;font-weight:500;color:var(--green);background:rgba(59,109,17,0.1);padding:2px 7px;border-radius:4px">wordt ingepland</span>' : '') +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
-        '<button class="ap-tijd-btn" onclick="adjustApDetail(-1)"' + (currentStartIdx === 0 && minuteOffset === 0 ? ' disabled' : '') + '>−</button>' +
-        '<div style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card)">' +
-          '<div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">📍 Starttijd</div>' +
-          '<div style="font-size:12px;color:var(--muted)">' + selStartStrPlain + '–' + selEindStr + (selEff !== null ? ' · € ' + selEff.toFixed(2) : '') + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '') + '</div>' +
-        '</div>' +
-        '<button class="ap-tijd-btn" onclick="adjustApDetail(1)"' + (currentStartIdx * 60 + minuteOffset >= maxIdx * 60 ? ' disabled' : '') + '>+</button>' +
+        '<button id="selMinBtn" class="ap-tijd-btn" onclick="adjustApDetail(-1)"' + (currentStartIdx === 0 && minuteOffset === 0 ? ' disabled' : '') + '>−</button>' +
+        '<input type="time" id="selStartTijdInput" value="' + selTimeValue + '" oninput="selTijdInvoer(this.value)"' +
+          ' style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
+        '<button id="selPlusBtn" class="ap-tijd-btn" onclick="adjustApDetail(1)"' + (currentStartIdx * 60 + minuteOffset >= maxIdx * 60 ? ' disabled' : '') + '>+</button>' +
       '</div>' +
+      '<div id="selInfoDiv" style="font-size:12px;color:var(--muted);margin-top:5px;padding-left:2px">' + selInfoStr + '</div>' +
       vergelijkHtml +
     '</div>' +
 
