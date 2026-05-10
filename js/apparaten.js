@@ -370,7 +370,7 @@ function herbereken() {
   const eindDat   = new Date(res.startTijd); eindDat.setHours(eindDat.getHours() + aantalBlok);
   const eff       = effectieveKosten(berekendeUren, ap.vermogen, gefilterd, res.startIndex);
   const kostenStr = '€ ' + (eff ?? res.kosten).toFixed(2);
-  resultEl.innerHTML = `<div class="advies-status nu" style="margin-top:0">⚡ Start laden om ${dagHStr(res.startTijd)} · klaar om ${hStr(eindDat)} · ${kostenStr}</div>`;
+  resultEl.innerHTML = `<div class="advies-status nu" style="margin-top:0">⚡ Start laden om ${dagHStr(res.startTijd)} · klaar om ${dagHStr(eindDat)} · ${kostenStr}</div>`;
 }
 
 let _homeyPendingAction = null;
