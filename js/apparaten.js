@@ -135,6 +135,10 @@ function openApDetail(apIdx) {
     apIdx, ap, planUren, besteStartIdx,
     currentStartIdx: besteStartIdx,
     maxIdx: Math.max(0, planUren.length - Math.ceil(ap.uren)),
+    _vertrekPlannerOpen: false,
+    _vpBatterij: 50,
+    _vpVertrekTijd: '07:00',
+    _vertrekAdviesIdx: null,
   };
   renderApDetail();
   document.getElementById('apparaatDetail').classList.add('open');
@@ -170,13 +174,32 @@ function gebruikBesteTijdDetail() {
   sluitApDetail();
 }
 
+function overneemSuggestie(idx) {
+  if (!apDetailState) return;
+  apDetailState.currentStartIdx = Math.max(0, Math.min(apDetailState.maxIdx, idx));
+  renderApDetail();
+  if (_planningActief) planInladen(true);
+}
+
+function toggleVertrekplanner() {
+  if (!apDetailState) return;
+  apDetailState._vertrekPlannerOpen = !apDetailState._vertrekPlannerOpen;
+  renderApDetail();
+}
+
 function renderApDetail() {
   if (!apDetailState) return;
   const { ap, planUren, besteStartIdx, currentStartIdx, maxIdx } = apDetailState;
   const { uren, vermogen, naam, icon, type, opmerking } = ap;
   const blok = Math.ceil(uren);
   const totaalKwh = (uren * vermogen).toFixed(1);
-  const isMorgenTab = activeDay === 1;
+
+  const isAuto             = naam === 'Auto (PHEV)';
+  const apparaat           = apSleutel(naam);
+  const heeftVertrekPlanner = type === 'laden';
+  const vpOpen             = !!apDetailState._vertrekPlannerOpen;
+  const vpBatterij         = apDetailState._vpBatterij  ?? 50;
+  const vpTijd             = apDetailState._vpVertrekTijd ?? '07:00';
 
   // Beste blok
   const besteStart   = planUren[besteStartIdx]?.tijd;
@@ -184,88 +207,120 @@ function renderApDetail() {
   if (besteEindDat) besteEindDat.setHours(besteEindDat.getHours() + blok);
   const besteStartStr = dagHStr(besteStart);
   const besteEindStr  = hStr(besteEindDat);
+  const besteNet = berekenKostenVanaf(uren, vermogen, planUren, besteStartIdx);
+  const besteEff = effectieveKosten(uren, vermogen, planUren, besteStartIdx) ?? besteNet;
+  const dekBestePct = Math.round(gemSolarDekking(besteStartIdx, blok, vermogen, planUren) * 100);
 
-  // Keuze blok (aanpasbaar via +/-)
+  // Geselecteerde tijd
   const selStart   = planUren[currentStartIdx]?.tijd;
   const selEindDat = selStart ? new Date(selStart) : null;
   if (selEindDat) selEindDat.setHours(selEindDat.getHours() + blok);
   const selStartStr = dagHStr(selStart);
   const selEindStr  = hStr(selEindDat);
-  const selTijdStr  = selStart ? `${selStartStr}–${selEindStr}` : '';
 
-  // Kosten (netstroom voor weergave, effectief voor vergelijking)
-  const allowP   = currentStartIdx + blok > planUren.length;
-  const besteNet = berekenKostenVanaf(uren, vermogen, planUren, besteStartIdx);
-  const selNet   = berekenKostenVanaf(uren, vermogen, planUren, currentStartIdx, allowP);
-  const besteEff = effectieveKosten(uren, vermogen, planUren, besteStartIdx) ?? besteNet;
-  const selEff   = effectieveKosten(uren, vermogen, planUren, currentStartIdx, allowP) ?? selNet;
+  const isBeste = currentStartIdx === besteStartIdx;
 
-  // Solar dekking
-  const dekBestePct = Math.round(gemSolarDekking(besteStartIdx, blok, vermogen, planUren) * 100);
-  const dekSelPct   = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
-
-  // Teruglevering waarschuwing: toon als solar > 0 én terugleverprijs < 0.05 in beste blok
-  const _msMorgenD  = getTomorrowStart();
-  const besteBlok = planUren.slice(besteStartIdx, besteStartIdx + blok);
-  const terugWaarschuwing = besteBlok.some(p => {
-    const dagStart = new Date(p.tijd); dagStart.setHours(0,0,0,0);
-    const isMorgenUur = dagStart.getTime() === _msMorgenD.getTime();
-    return getSolarWatt(p.tijd.getHours(), isMorgenUur) > 0 && (p.terug ?? 1) < 0.05;
+  // Teruglevering waarschuwing
+  const morgenStart = getTomorrowStart();
+  const terugWaarschuwing = planUren.slice(besteStartIdx, besteStartIdx + blok).some(p => {
+    const ds = new Date(p.tijd); ds.setHours(0,0,0,0);
+    return getSolarWatt(p.tijd.getHours(), ds.getTime() === morgenStart.getTime()) > 0 && (p.terug ?? 1) < 0.05;
   })
-    ? '<div class="advies-badge" style="background:#fef3c7;color:#92400e;margin-top:4px">☀️ slim moment: voorkomt terugleververlies</div>'
+    ? '<div style="font-size:10px;background:#fef3c7;color:#92400e;border-radius:4px;padding:3px 6px;margin-top:5px;display:inline-block">☀️ voorkomt terugleververlies</div>'
     : '';
 
-  // Vergelijk badge
-  const isBeste = currentStartIdx === besteStartIdx;
-  let vergelijkBadge = '';
-  if (selNet !== null) {
-    if (isBeste) {
-      vergelijkBadge = '<div class="advies-badge groen">beste tijd ✓</div>';
-    } else {
-      const diff = selEff - besteEff;
-      vergelijkBadge = diff > 0.005
-        ? `<div class="advies-badge rood">kost € ${diff.toFixed(2)} meer</div>`
-        : '<div class="advies-badge groen">beste tijd ✓</div>';
-    }
-  }
-
-  // CTA status
-  const ctaMap = { laden: ['Nu laden!', 'Laden'], starten: ['Nu starten!', 'Starten'], inschakelen: ['Nu inschakelen!', 'Inschakelen'] };
-  const [nuTekst, laterVerb] = ctaMap[type] ?? ['Nu starten!', 'Starten'];
-  const statusStr = isMorgenTab
-    ? `<div class="advies-status later">Morgen · ${hStr(besteStart)}</div>`
-    : besteStartIdx === 0
-      ? `<div class="advies-status nu">✓ ${nuTekst}</div>`
-      : besteStartIdx <= 2
-        ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
-        : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
-
-  const isAuto = naam === 'Auto (PHEV)';
-  const apparaat = apSleutel(naam);
-
+  // Icon — horizontaal formaat
   const iconHtml = (typeof icon === 'string' && icon.includes('<svg'))
-    ? '<div style="display:inline-block;transform:scale(1.5);transform-origin:center;margin:8px 0">' + icon + '</div>'
-    : '<div style="font-size:2em;line-height:1">' + icon + '</div>';
+    ? '<div style="display:inline-block;transform:scale(1.3);transform-origin:center">' + icon + '</div>'
+    : '<span style="font-size:2em;line-height:1">' + icon + '</span>';
 
-  const besteTijdKaart =
-    '<div class="tarief-card" style="padding:14px 16px;margin-bottom:8px;background:rgba(59,109,17,0.08);border:1.5px solid rgba(59,109,17,0.35)">' +
-      '<div style="font-size:11px;color:#27500a;font-weight:600;margin-bottom:6px">⭐ Beste tijd</div>' +
-      '<div style="font-size:22px;font-weight:700;color:#27500a">' + (besteEff !== null ? '€ ' + besteEff.toFixed(2) : '—') + '</div>' +
-      '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + [besteStartStr + '–' + besteEindStr, dekBestePct > 0 ? '☀️ ' + dekBestePct + '%' : ''].filter(Boolean).join(' · ') + '</div>' +
-      terugWaarschuwing +
-    '</div>';
+  // Automatisering sectie
+  const automatiseringSectie = isAuto
+    ? '<div class="section" style="padding-top:4px">' +
+        '<div class="section-title">Direct starten / stoppen</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button class="ap-cta-btn ap-cta-groen" onclick="homeyActie(\'start\')" id="homeyStartBtn" style="flex:1;margin-bottom:0">⚡ Nu starten</button>' +
+          '<button class="ap-cta-btn ap-cta-wit" onclick="homeyActie(\'stop\')" id="homeyStopBtn" style="flex:1;margin-bottom:0">■ Nu stoppen</button>' +
+        '</div>' +
+        '<div id="homeyPincodeSection" style="display:none;margin-top:10px">' +
+          '<div style="display:flex;gap:8px;align-items:center">' +
+            '<input type="password" id="homeyPinInput" placeholder="Pincode" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off"' +
+              ' style="flex:1;padding:16px;border-radius:10px;border:1.5px solid var(--border);font-size:22px;font-family:inherit;background:var(--card);color:var(--text);text-align:center;box-sizing:border-box"' +
+              ' onkeydown="if(event.key===\'Enter\')bevestigHomey()" onfocus="this.scrollIntoView({behavior:\'smooth\',block:\'center\'})">' +
+            '<button id="homeyOkBtn" onclick="bevestigHomey()" style="width:56px;height:56px;border-radius:10px;border:none;background:var(--green);color:white;font-size:24px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">✓</button>' +
+          '</div>' +
+        '</div>' +
+        '<div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>' +
+      '</div>'
+    : '<div class="section" style="padding-top:4px">' +
+        '<div class="section-title">Direct starten / stoppen</div>' +
+        '<div style="font-size:12px;color:var(--muted);padding:4px 0;line-height:1.6">' +
+          '○ Dit apparaat is nog niet gekoppeld aan een automatiseringssysteem.' +
+        '</div>' +
+      '</div>';
 
-  const jouweKeuzeKaart =
-    '<div class="tarief-card" style="padding:14px 16px;margin-bottom:4px;border:1.5px solid ' + (!isBeste ? 'rgba(186,117,23,0.45)' : 'transparent') + ';background:' + (!isBeste ? 'rgba(186,117,23,0.07)' : 'rgba(59,109,17,0.04)') + '">' +
-      '<div style="font-size:11px;color:' + (!isBeste ? '#854f0b' : 'var(--muted)') + ';font-weight:600;margin-bottom:6px">Jouw keuze</div>' +
-      '<div style="font-size:22px;font-weight:700;color:' + (!isBeste ? '#854f0b' : 'inherit') + '">' + (selEff !== null ? '€ ' + selEff.toFixed(2) : '—') + '</div>' +
-      '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + [selTijdStr, dekSelPct > 0 ? '☀️ ' + dekSelPct + '%' : ''].filter(Boolean).join(' · ') + '</div>' +
-      (vergelijkBadge ? '<div style="margin-top:4px">' + vergelijkBadge + '</div>' : '') +
-    '</div>';
+  document.getElementById('apDetailNaam').textContent = naam;
+  document.getElementById('apDetailBody').innerHTML =
 
-  const starttijdSectie =
-    '<div class="section">' +
-      '<div class="section-title">Starttijd aanpassen</div>' +
+    // 1. HEADER — compact, horizontaal
+    '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px 10px;border-bottom:0.5px solid var(--border)">' +
+      '<div style="flex-shrink:0">' + iconHtml + '</div>' +
+      '<div style="min-width:0">' +
+        '<div style="font-size:15px;font-weight:600;line-height:1.2">' + naam + '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + blok + ' uur · ' + totaalKwh + ' kWh' + (opmerking ? ' · ' + opmerking : '') + '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // 2. BESTE TIJD — suggestie met Overnemen knop
+    '<div class="section" style="padding-top:10px;padding-bottom:4px">' +
+      '<div class="tarief-card" style="padding:12px 14px;background:rgba(59,109,17,0.08);border:1.5px solid rgba(59,109,17,0.35)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+          '<div>' +
+            '<div style="font-size:10px;color:#27500a;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">⭐ Beste tijd</div>' +
+            '<div style="font-size:20px;font-weight:700;color:#27500a">' + (besteEff !== null ? '€ ' + besteEff.toFixed(2) : '—') + '</div>' +
+            '<div style="font-size:11px;color:var(--muted);margin-top:3px">' + [besteStartStr + '–' + besteEindStr, dekBestePct > 0 ? '☀️ ' + dekBestePct + '%' : ''].filter(Boolean).join(' · ') + '</div>' +
+            terugWaarschuwing +
+          '</div>' +
+          (isBeste
+            ? '<div style="font-size:11px;color:#27500a;font-weight:600;flex-shrink:0;align-self:center;padding:6px 10px;border-radius:6px;background:rgba(59,109,17,0.12)">✓ geselecteerd</div>'
+            : '<button onclick="overneemSuggestie(' + besteStartIdx + ')" style="flex-shrink:0;align-self:center;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>') +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // 3. VERTREKPLANNER — inklapbaar, alleen voor laden
+    (heeftVertrekPlanner ?
+      '<div class="section" style="padding-top:0;padding-bottom:4px">' +
+        '<div onclick="toggleVertrekplanner()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 0;user-select:none">' +
+          '<div style="font-size:12px;font-weight:600;color:var(--text)">🔌 Vertrekplanner</div>' +
+          '<div style="font-size:11px;color:var(--muted)">' + (vpOpen ? '▲ inklappen' : '▼ uitklappen') + '</div>' +
+        '</div>' +
+        (vpOpen ?
+          '<div class="tarief-card" style="padding:12px 14px">' +
+            '<div style="margin-bottom:10px">' +
+              '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Huidig batterijniveau</label>' +
+              '<div style="display:flex;align-items:center;gap:10px">' +
+                '<input type="range" id="vpBatterij" min="0" max="100" value="' + vpBatterij + '"' +
+                  ' oninput="apDetailState._vpBatterij=+this.value;document.getElementById(\'vpBatterijWaarde\').textContent=this.value+\'%\';herbereken()"' +
+                  ' style="flex:1;accent-color:var(--green)">' +
+                '<span id="vpBatterijWaarde" style="font-size:13px;font-weight:600;min-width:36px;text-align:right">' + vpBatterij + '%</span>' +
+              '</div>' +
+            '</div>' +
+            '<div style="margin-bottom:4px">' +
+              '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Vertrek om</label>' +
+              '<input type="time" id="vpVertrekTijd" value="' + vpTijd + '"' +
+                ' oninput="apDetailState._vpVertrekTijd=this.value;herbereken()"' +
+                ' style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
+            '</div>' +
+            '<div id="vpResultaat"></div>' +
+          '</div>'
+        : '') +
+      '</div>'
+    : '') +
+
+    // 4. GESELECTEERDE STARTTIJD
+    '<div class="section" style="padding-top:0;padding-bottom:4px">' +
+      '<div class="section-title">Geselecteerde starttijd</div>' +
       '<div class="ap-tijd-row">' +
         '<button class="ap-tijd-btn" onclick="adjustApDetail(-1)"' + (currentStartIdx <= 0 ? ' disabled' : '') + '>−</button>' +
         '<div class="ap-tijd-display">' +
@@ -274,78 +329,19 @@ function renderApDetail() {
         '</div>' +
         '<button class="ap-tijd-btn" onclick="adjustApDetail(1)"' + (currentStartIdx >= maxIdx ? ' disabled' : '') + '>+</button>' +
       '</div>' +
-    '</div>';
-
-  const automatiseringSectie = isAuto
-    ? '<div class="section">' +
-        '<div class="section-title">Slimme stekker</div>' +
-        '<button class="ap-cta-btn ap-cta-groen" onclick="homeyActie(\'start\')" id="homeyStartBtn">⚡ Start laden</button>' +
-        '<button class="ap-cta-btn ap-cta-wit" onclick="homeyActie(\'stop\')" id="homeyStopBtn">⏹ Stop laden</button>' +
-        '<div id="homeyPincodeSection" style="display:none;margin-top:10px">' +
-          '<div style="display:flex;gap:8px;align-items:center">' +
-            '<input type="password" id="homeyPinInput" placeholder="Pincode" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off"' +
-              ' style="flex:1;padding:16px;border-radius:10px;border:1.5px solid var(--border);font-size:22px;font-family:inherit;background:var(--card);color:var(--text);text-align:center;box-sizing:border-box"' +
-              ' onkeydown="if(event.key===\'Enter\')bevestigHomey()" onfocus="this.scrollIntoView({behavior:\'smooth\',block:\'center\'})">' +
-            '<button id="homeyOkBtn" onclick="bevestigHomey()"' +
-              ' style="width:56px;height:56px;border-radius:10px;border:none;background:var(--green);color:white;font-size:24px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">✓</button>' +
-          '</div>' +
-        '</div>' +
-        '<div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>' +
-      '</div>'
-    : '<div class="section">' +
-        '<div class="section-title">Automatisering</div>' +
-        '<div style="font-size:12px;color:var(--muted);padding:6px 0;line-height:1.6">' +
-          '○ Dit apparaat is nog niet gekoppeld aan een automatiseringssysteem.' +
-        '</div>' +
-      '</div>';
-
-  document.getElementById('apDetailNaam').textContent = naam;
-  document.getElementById('apDetailBody').innerHTML =
-    '<div class="ap-detail-hero" style="padding:12px 0 8px">' +
-      iconHtml +
-      '<div class="ap-detail-naam-groot" style="font-size:16px;margin-top:4px">' + naam + '</div>' +
-      '<div class="ap-detail-sub" style="font-size:11px">' + blok + ' uur · ' + totaalKwh + ' kWh</div>' +
-      (opmerking ? '<div class="advies-device-sub" style="margin-top:4px;font-size:11px">' + opmerking + '</div>' : '') +
     '</div>' +
 
-    (isAuto ?
-      '<div class="section">' +
-        '<div class="section-title">🔌 Vertrekplanner</div>' +
-        '<div class="tarief-card" style="padding:14px 16px">' +
-          '<div style="margin-bottom:12px">' +
-            '<label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Huidig batterijniveau</label>' +
-            '<div style="display:flex;align-items:center;gap:10px">' +
-              '<input type="range" id="vpBatterij" min="0" max="100" value="50"' +
-                ' oninput="document.getElementById(\'vpBatterijWaarde\').textContent=this.value+\'%\';herbereken()"' +
-                ' style="flex:1;accent-color:var(--green)">' +
-              '<span id="vpBatterijWaarde" style="font-size:14px;font-weight:600;min-width:36px;text-align:right">50%</span>' +
-            '</div>' +
-          '</div>' +
-          '<div style="margin-bottom:4px">' +
-            '<label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Vertrek om</label>' +
-            '<input type="time" id="vpVertrekTijd" value="07:00" oninput="herbereken()"' +
-              ' style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
-          '</div>' +
-          '<div id="vpResultaat"></div>' +
-        '</div>' +
-      '</div>'
-    : '') +
-
-    '<div class="section">' +
-      besteTijdKaart +
-      jouweKeuzeKaart +
-    '</div>' +
-
-    '<div class="section">' +
-      '<button class="ap-cta-btn ap-cta-groen" onclick="planInladen()" id="planInladenBtn">📅 Plan dit in</button>' +
+    // 5. PLAN DIT IN + STATUS
+    '<div class="section" style="padding-top:0;padding-bottom:4px">' +
+      '<button class="ap-cta-btn ap-cta-groen" onclick="planInladen()" id="planInladenBtn">📅 Plan dit in op ' + selStartStr + '</button>' +
       '<div id="planningStatusEl" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(59,109,17,0.08);font-size:12px;color:#27500a;text-align:center"></div>' +
     '</div>' +
 
+    // 6. DIRECT STARTEN / STOPPEN
     automatiseringSectie +
-    starttijdSectie +
     '<div style="padding-bottom:40px"></div>';
 
-  if (isAuto) herbereken();
+  if (heeftVertrekPlanner && vpOpen) herbereken();
   laadPlanningStatus(apparaat);
 }
 
@@ -393,7 +389,10 @@ function herbereken() {
   const eindDat   = new Date(res.startTijd); eindDat.setHours(eindDat.getHours() + aantalBlok);
   const eff       = effectieveKosten(berekendeUren, ap.vermogen, gefilterd, res.startIndex);
   const kostenStr = '€ ' + (eff ?? res.kosten).toFixed(2);
-  resultEl.innerHTML = `<div class="advies-status nu" style="margin-top:0">⚡ Start laden om ${dagHStr(res.startTijd)} · klaar om ${dagHStr(eindDat)} · ${kostenStr}</div>`;
+  apDetailState._vertrekAdviesIdx = res.startIndex;
+  resultEl.innerHTML =
+    '<div class="advies-status nu" style="margin-top:0">⚡ Start laden om ' + dagHStr(res.startTijd) + ' · klaar om ' + dagHStr(eindDat) + ' · ' + kostenStr + '</div>' +
+    '<button onclick="overneemSuggestie(' + res.startIndex + ')" style="margin-top:8px;width:100%;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">↑ Overnemen als starttijd</button>';
 }
 
 async function laadPlanningStatus(apparaat) {
@@ -414,7 +413,10 @@ async function laadPlanningStatus(apparaat) {
     } else {
       _planningActief = false;
       statusEl.style.display = 'none';
-      if (btn) btn.textContent = '📅 Plan dit in';
+      if (btn) {
+        const t = apDetailState?.planUren?.[apDetailState?.currentStartIdx]?.tijd;
+        btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHStr(t) : '');
+      }
     }
   } catch {
     statusEl.style.display = 'none';
@@ -428,7 +430,10 @@ async function planInladen(stilUpdate = false) {
 
   if (_planningActief) {
     await annuleerPlanning(apparaat);
-    if (btn) btn.textContent = '📅 Plan dit in';
+    if (btn) {
+      const t = apDetailState?.planUren?.[apDetailState?.currentStartIdx]?.tijd;
+      btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHStr(t) : '');
+    }
     return;
   }
 
@@ -468,6 +473,11 @@ async function annuleerPlanning(apparaat) {
     if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
     _planningActief = false;
     if (statusEl) statusEl.style.display = 'none';
+    const btn = document.getElementById('planInladenBtn');
+    if (btn) {
+      const t = apDetailState?.planUren?.[apDetailState?.currentStartIdx]?.tijd;
+      btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHStr(t) : '');
+    }
   } catch(e) {
     if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = '#a32d2d'; statusEl.textContent = '✗ ' + e.message; }
   }
