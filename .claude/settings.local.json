@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\pverk\\\\OneDrive - Pivit Consultancy B.V\\\\git-projecten\\\\stroom-dashboard\\\\css\",\"C:\\\\Users\\\\pverk\\\\OneDrive - Pivit Consultancy B.V\\\\git-projecten\\\\stroom-dashboard\\\\js\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Host \"Directories aangemaakt\")",
+      "Bash(node --check js/config.js)",
+      "Bash(node --check js/solar.js)",
+      "Bash(node --check js/prijzen.js)",
+      "Bash(node --check js/apparaten.js)",
+      "Bash(node --check js/app.js)",
+      "Bash(node --check \"C:\\\\Users\\\\pverk\\\\OneDrive - Pivit Consultancy B.V\\\\git-projecten\\\\stroom-dashboard\\\\netlify\\\\functions\\\\growatt.js\")",
+      "Bash(node --check \"C:\\\\Users\\\\pverk\\\\OneDrive - Pivit Consultancy B.V\\\\git-projecten\\\\stroom-dashboard\\\\js\\\\config.js\")",
+      "Bash(node --check \"C:\\\\Users\\\\pverk\\\\OneDrive - Pivit Consultancy B.V\\\\git-projecten\\\\stroom-dashboard\\\\js\\\\solar.js\")",
+      "Bash(node --check \"C:\\\\Users\\\\pverk\\\\OneDrive - Pivit Consultancy B.V\\\\git-projecten\\\\stroom-dashboard\\\\js\\\\app.js\")",
+      "Bash(node --check netlify/functions/growatt.js)",
+      "Bash(git *)"
+    ]
+  }
+}

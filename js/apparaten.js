@@ -264,6 +264,28 @@ function renderApDetail() {
 
     ${naam === 'Auto (PHEV)' ? `
     <div class="section">
+      <div class="section-title">🔌 Vertrekplanner</div>
+      <div class="tarief-card" style="padding:14px 16px">
+        <div style="margin-bottom:12px">
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Huidig batterijniveau</label>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="vpBatterij" min="0" max="100" value="50"
+                   oninput="document.getElementById('vpBatterijWaarde').textContent=this.value+'%';herbereken()"
+                   style="flex:1;accent-color:var(--green)">
+            <span id="vpBatterijWaarde" style="font-size:14px;font-weight:600;min-width:36px;text-align:right">50%</span>
+          </div>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Vertrek om</label>
+          <input type="time" id="vpVertrekTijd" value="07:00" oninput="herbereken()"
+                 style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">
+        </div>
+        <div id="vpResultaat"></div>
+      </div>
+    </div>` : ''}
+
+    ${naam === 'Auto (PHEV)' ? `
+    <div class="section">
       <div class="section-title">Slimme stekker</div>
       <button class="ap-cta-btn ap-cta-groen" onclick="homeyActie('start')" id="homeyStartBtn">⚡ Start laden</button>
       <button class="ap-cta-btn ap-cta-wit" onclick="homeyActie('stop')" id="homeyStopBtn">⏹ Stop laden</button>
@@ -316,6 +338,54 @@ function renderApDetail() {
     </div>
 
     <div style="padding-bottom:40px"></div>`;
+  if (naam === 'Auto (PHEV)') herbereken();
+}
+
+function herbereken() {
+  if (!apDetailState) return;
+  const { ap, planUren } = apDetailState;
+  const batterijEl = document.getElementById('vpBatterij');
+  const tijdEl     = document.getElementById('vpVertrekTijd');
+  const resultEl   = document.getElementById('vpResultaat');
+  if (!batterijEl || !tijdEl || !resultEl) return;
+
+  const batterijPct   = parseInt(batterijEl.value);
+  const berekendeUren = ((100 - batterijPct) / 100) * ap.uren;
+  const aantalBlok    = Math.ceil(berekendeUren);
+
+  if (berekendeUren < 0.25) {
+    resultEl.innerHTML = '<div class="advies-status nu" style="margin-top:0">Batterij is al vol 🎉</div>';
+    return;
+  }
+
+  // Vertrekmoment: vandaag, of morgen als het uur al voorbij is
+  const [uurV, minV] = tijdEl.value.split(':').map(Number);
+  const vertrekDatum = getTodayStart(); vertrekDatum.setHours(uurV, minV, 0, 0);
+  if (vertrekDatum <= new Date()) vertrekDatum.setDate(vertrekDatum.getDate() + 1);
+
+  // Laatste startpositie waarvandaan het hele blok vóór vertrek eindigt
+  let lastValidIdx = -1;
+  planUren.forEach((p, i) => {
+    const eind = new Date(p.tijd); eind.setHours(eind.getHours() + aantalBlok);
+    if (eind <= vertrekDatum) lastValidIdx = i;
+  });
+
+  if (lastValidIdx < 0 || lastValidIdx + aantalBlok > planUren.length) {
+    resultEl.innerHTML = `<div class="advies-status later" style="margin-top:0">⚠️ Geen laadmoment beschikbaar vóór ${tijdEl.value}</div>`;
+    return;
+  }
+
+  const gefilterd = planUren.slice(0, lastValidIdx + aantalBlok);
+  const res = berekenGoedkoopsteBlok(berekendeUren, ap.vermogen, gefilterd);
+  if (!res) {
+    resultEl.innerHTML = '<div class="advies-status later" style="margin-top:0">⚠️ Geen geschikt laadmoment gevonden</div>';
+    return;
+  }
+
+  const eindDat   = new Date(res.startTijd); eindDat.setHours(eindDat.getHours() + aantalBlok);
+  const eff       = effectieveKosten(berekendeUren, ap.vermogen, gefilterd, res.startIndex);
+  const kostenStr = '€ ' + (eff ?? res.kosten).toFixed(2);
+  resultEl.innerHTML = `<div class="advies-status nu" style="margin-top:0">⚡ Start laden om ${hStr(res.startTijd)} · klaar om ${hStr(eindDat)} · ${kostenStr}</div>`;
 }
 
 let _homeyPendingAction = null;
