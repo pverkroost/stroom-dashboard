@@ -339,7 +339,7 @@ function renderApDetail() {
 
     // 3. VERTREKPLANNER — inklapbaar, alleen voor laden
     (heeftVertrekPlanner ?
-      '<div class="section" style="padding-top:0;padding-bottom:4px">' +
+      '<div class="section" style="padding-top:0;padding-bottom:4px;max-width:100%;overflow:hidden">' +
         '<div onclick="toggleVertrekplanner()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 0;user-select:none">' +
           '<div style="font-size:12px;font-weight:600;color:var(--text)">🔌 Vertrekplanner</div>' +
           '<div style="font-size:11px;color:var(--muted)">' + (vpOpen ? '▲ inklappen' : '▼ uitklappen') + '</div>' +
@@ -355,11 +355,11 @@ function renderApDetail() {
                 '<span id="vpBatterijWaarde" style="font-size:13px;font-weight:600;min-width:36px;text-align:right;flex-shrink:0">' + vpBatterij + '%</span>' +
               '</div>' +
             '</div>' +
-            '<div style="margin-bottom:4px">' +
+            '<div style="margin-bottom:4px;overflow:hidden;width:100%;box-sizing:border-box">' +
               '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Vertrek om</label>' +
               '<input type="time" id="vpVertrekTijd" value="' + vpTijd + '"' +
                 ' oninput="apDetailState._vpVertrekTijd=this.value;herbereken()"' +
-                ' style="width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
+                ' style="display:block;width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
             '</div>' +
             '<div id="vpResultaat"></div>' +
           '</div>'
