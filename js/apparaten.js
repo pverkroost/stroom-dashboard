@@ -238,11 +238,6 @@ function selTijdInvoer(val) {
   const btn = document.getElementById('planInladenBtn');
   if (btn && !_planningActief) btn.textContent = '📅 Plan dit in op ' + dagHMStrPlain(selStartActual);
 
-  const minBtn  = document.getElementById('selMinBtn');
-  const plusBtn = document.getElementById('selPlusBtn');
-  if (minBtn)  minBtn.disabled  = (newIdx === 0 && newOffset === 0);
-  if (plusBtn) plusBtn.disabled = (newIdx * 60 + newOffset >= maxIdx * 60);
-
   if (_planningActief) planInladen(true);
 }
 
@@ -402,12 +397,8 @@ function renderApDetail() {
         'Geselecteerde starttijd' +
         (heeftAutomatisering ? '<span style="font-size:10px;font-weight:500;color:var(--green);background:rgba(59,109,17,0.1);padding:2px 7px;border-radius:4px">wordt ingepland</span>' : '') +
       '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
-        '<button id="selMinBtn" class="ap-tijd-btn" onclick="adjustApDetail(-1)"' + (currentStartIdx === 0 && minuteOffset === 0 ? ' disabled' : '') + '>−</button>' +
-        '<input type="time" id="selStartTijdInput" value="' + selTimeValue + '" oninput="selTijdInvoer(this.value)"' +
-          ' style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
-        '<button id="selPlusBtn" class="ap-tijd-btn" onclick="adjustApDetail(1)"' + (currentStartIdx * 60 + minuteOffset >= maxIdx * 60 ? ' disabled' : '') + '>+</button>' +
-      '</div>' +
+      '<input type="time" id="selStartTijdInput" value="' + selTimeValue + '" step="60" oninput="selTijdInvoer(this.value)"' +
+        ' style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box;margin-top:6px">' +
       '<div id="selInfoDiv" style="font-size:12px;color:var(--muted);margin-top:5px;padding-left:2px">' + selInfoStr + '</div>' +
       vergelijkHtml +
     '</div>' +
