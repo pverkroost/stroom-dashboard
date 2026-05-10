@@ -539,7 +539,6 @@ function renderLaadadvies() {
         <div style="height:0.5px;background:var(--border);margin:3px 0"></div>
         ${blokRijen(selLabel, selTijdStr, false, selEff, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
         ${vergelijkBadge}
-        ${isBesteMorgenGemist ? '<div style="font-size:9px;color:var(--muted);margin-top:2px">* morgen prijzen nog niet beschikbaar</div>' : ''}
       </div>
       ${statusStr}
     </div>`;
