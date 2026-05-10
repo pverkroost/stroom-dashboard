@@ -136,7 +136,7 @@ function openApDetail(apIdx) {
     currentStartIdx: besteStartIdx,
     maxIdx: Math.max(0, planUren.length - Math.ceil(ap.uren)),
     _vertrekPlannerOpen: true,
-    _vpBatterij: 50,
+    _vpBatterij: 0,
     _vpVertrekTijd: '07:00',
     _vertrekAdviesIdx: null,
     _minuteOffset: 0,
@@ -211,48 +211,65 @@ function renderApDetail() {
   const apparaat           = apSleutel(naam);
   const heeftVertrekPlanner = !!ap.automatisering;
   const vpOpen             = !!apDetailState._vertrekPlannerOpen;
-  const vpBatterij         = apDetailState._vpBatterij  ?? 50;
+  const vpBatterij         = apDetailState._vpBatterij  ?? 0;
   const vpTijd             = apDetailState._vpVertrekTijd ?? '07:00';
+  const berekendeUren      = vpBatterij >= 100 ? 0 : ((100 - vpBatterij) / 100) * uren;
+  const berekendeBlok      = berekendeUren > 0 ? Math.ceil(berekendeUren) : 0;
 
-  // Beste blok
-  const besteStart   = planUren[besteStartIdx]?.tijd;
-  const besteEindDat = besteStart ? new Date(besteStart) : null;
-  if (besteEindDat) besteEindDat.setHours(besteEindDat.getHours() + blok);
-  const besteStartStr = dagHStr(besteStart);
-  const besteEindStr  = hStr(besteEindDat);
-  const besteNet = berekenKostenVanaf(uren, vermogen, planUren, besteStartIdx);
-  const besteEff = effectieveKosten(uren, vermogen, planUren, besteStartIdx) ?? besteNet;
-  const dekBestePct = Math.round(gemSolarDekking(besteStartIdx, blok, vermogen, planUren) * 100);
+  // Beste blok — gebaseerd op benodigde laadtijd (batterijniveau)
+  const resBer       = berekendeUren >= 0.25 ? berekenGoedkoopsteBlok(berekendeUren, vermogen, planUren) : null;
+  const besteIdxBer  = resBer ? resBer.startIndex : besteStartIdx;
+  apDetailState._besteIdxBer = besteIdxBer;
+  const besteStartBer   = planUren[besteIdxBer]?.tijd;
+  const besteEindBerDat = besteStartBer ? new Date(besteStartBer) : null;
+  if (besteEindBerDat) besteEindBerDat.setHours(besteEindBerDat.getHours() + berekendeBlok);
+  const besteStartStr = dagHStr(besteStartBer);
+  const besteEindStr  = hStr(besteEindBerDat);
+  const besteEff     = berekendeUren >= 0.25
+    ? (effectieveKosten(berekendeUren, vermogen, planUren, besteIdxBer) ?? berekenKostenVanaf(berekendeUren, vermogen, planUren, besteIdxBer))
+    : 0;
+  const dekBestePct  = berekendeUren >= 0.25
+    ? Math.round(gemSolarDekking(besteIdxBer, berekendeBlok, vermogen, planUren) * 100)
+    : 0;
+  const besteInfoStr = berekendeUren < 0.25
+    ? 'Batterij al vol 🎉'
+    : besteStartStr + '–' + besteEindStr + ' · € ' + besteEff.toFixed(2) + (dekBestePct > 0 ? ' · ☀️ ' + dekBestePct + '%' : '');
 
-  // Geselecteerde tijd (met minuut-offset)
+  // Geselecteerde tijd (met minuut-offset) — kosten op basis van berekendeUren
   const minuteOffset     = apDetailState._minuteOffset ?? 0;
   const selStart         = planUren[currentStartIdx]?.tijd;
   const selStartActual   = selStart ? new Date(selStart.getTime() + minuteOffset * 60000) : null;
-  const selEindActual    = selStartActual ? new Date(selStartActual.getTime() + uren * 3600000) : null;
+  const selEindActual    = selStartActual && berekendeUren > 0
+    ? new Date(selStartActual.getTime() + berekendeUren * 3600000)
+    : null;
   const selStartStr      = dagHStr(selStart);
   const selStartStrPlain = dagHMStrPlain(selStartActual);
   const selEindStr       = hMStr(selEindActual);
-  const selNet           = berekenKostenVanaf(uren, vermogen, planUren, currentStartIdx);
-  const selEff           = effectieveKosten(uren, vermogen, planUren, currentStartIdx) ?? selNet;
-  const dekSelPct        = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
+  const selEff           = berekendeUren >= 0.25
+    ? (effectieveKosten(berekendeUren, vermogen, planUren, currentStartIdx) ?? berekenKostenVanaf(berekendeUren, vermogen, planUren, currentStartIdx))
+    : 0;
+  const dekSelPct        = berekendeUren >= 0.25
+    ? Math.round(gemSolarDekking(currentStartIdx, berekendeBlok, vermogen, planUren) * 100)
+    : 0;
   const canGoBack        = (currentStartIdx * 60 + minuteOffset) >= 15;
   const canGoFwd         = (currentStartIdx * 60 + minuteOffset + 15) <= maxIdx * 60;
-  const selInfoStr       = '–' + selEindStr + (selEff !== null ? ' · € ' + selEff.toFixed(2) : '') + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
+  const selInfoStr       = berekendeUren < 0.25
+    ? 'Batterij al vol'
+    : '–' + selEindStr + ' · € ' + selEff.toFixed(2) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
 
-  const isBeste = currentStartIdx === besteStartIdx && minuteOffset === 0;
+  const isBeste = currentStartIdx === besteIdxBer && minuteOffset === 0;
 
-  // Vergelijking geselecteerde tijd vs beste tijd — div heeft ID voor surgical update
-  const _vDiff = (selEff !== null && besteEff !== null) ? selEff - besteEff : null;
-  const vergelijkHtml = _vDiff === null ? '<div id="selVergelijkDiv"></div>' :
-    Math.abs(_vDiff) < 0.005
-      ? '<div id="selVergelijkDiv" style="font-size:11px;color:#27500a;margin-top:6px">✓ Dit is de beste tijd</div>'
-      : _vDiff < 0
-        ? '<div id="selVergelijkDiv" style="font-size:11px;color:#27500a;margin-top:6px">✓ € ' + Math.abs(_vDiff).toFixed(2) + ' goedkoper dan beste tijd</div>'
-        : '<div id="selVergelijkDiv" style="font-size:11px;color:#92400e;background:rgba(146,64,14,0.06);border-radius:6px;padding:4px 8px;margin-top:6px">⚠️ € ' + _vDiff.toFixed(2) + ' duurder dan beste tijd</div>';
+  // Vergelijking geselecteerde tijd vs beste tijd — beide met berekendeUren
+  const _vDiff = selEff - besteEff;
+  const vergelijkHtml = Math.abs(_vDiff) < 0.005
+    ? '<div id="selVergelijkDiv" style="font-size:11px;color:#27500a;margin-top:6px">✓ Dit is de beste tijd</div>'
+    : _vDiff < 0
+      ? '<div id="selVergelijkDiv" style="font-size:11px;color:#27500a;margin-top:6px">✓ € ' + Math.abs(_vDiff).toFixed(2) + ' goedkoper dan beste tijd</div>'
+      : '<div id="selVergelijkDiv" style="font-size:11px;color:#92400e;background:rgba(146,64,14,0.06);border-radius:6px;padding:4px 8px;margin-top:6px">⚠️ € ' + _vDiff.toFixed(2) + ' duurder dan beste tijd</div>';
 
   // Teruglevering waarschuwing
   const morgenStart = getTomorrowStart();
-  const terugWaarschuwing = planUren.slice(besteStartIdx, besteStartIdx + blok).some(p => {
+  const terugWaarschuwing = berekendeUren >= 0.25 && planUren.slice(besteIdxBer, besteIdxBer + berekendeBlok).some(p => {
     const ds = new Date(p.tijd); ds.setHours(0,0,0,0);
     return getSolarWatt(p.tijd.getHours(), ds.getTime() === morgenStart.getTime()) > 0 && (p.terug ?? 1) < 0.05;
   })
@@ -307,12 +324,12 @@ function renderApDetail() {
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
           '<div>' +
             '<div style="font-size:11px;font-weight:600;color:#27500a;margin-bottom:2px">⭐ Beste tijd</div>' +
-            '<div style="font-size:12px;color:var(--muted)">' + besteStartStr + '–' + besteEindStr + (besteEff !== null ? ' · € ' + besteEff.toFixed(2) : '') + (dekBestePct > 0 ? ' · ☀️ ' + dekBestePct + '%' : '') + '</div>' +
+            '<div id="besteTijdInfoDiv" style="font-size:12px;color:var(--muted)">' + besteInfoStr + '</div>' +
             terugWaarschuwing +
           '</div>' +
           (isBeste
             ? '<div style="font-size:11px;color:#27500a;font-weight:600;flex-shrink:0;padding:5px 9px;border-radius:6px;background:rgba(59,109,17,0.12)">✓ geselecteerd</div>'
-            : '<button onclick="overneemSuggestie(' + besteStartIdx + ')" style="flex-shrink:0;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>') +
+            : '<button onclick="overneemSuggestie(' + besteIdxBer + ')" style="flex-shrink:0;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>') +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -380,6 +397,65 @@ function renderApDetail() {
   if (heeftAutomatisering) laadPlanningStatus(apparaat);
 }
 
+function updateKostenWeergave(berekendeUren) {
+  if (!apDetailState) return;
+  const { ap, planUren, besteStartIdx, currentStartIdx } = apDetailState;
+  const { vermogen } = ap;
+  const berekendeBlok = berekendeUren > 0 ? Math.ceil(berekendeUren) : 0;
+
+  const resBer      = berekendeUren >= 0.25 ? berekenGoedkoopsteBlok(berekendeUren, vermogen, planUren) : null;
+  const besteIdxBer = resBer ? resBer.startIndex : besteStartIdx;
+  apDetailState._besteIdxBer = besteIdxBer;
+
+  const besteEff    = berekendeUren >= 0.25
+    ? (effectieveKosten(berekendeUren, vermogen, planUren, besteIdxBer) ?? berekenKostenVanaf(berekendeUren, vermogen, planUren, besteIdxBer))
+    : 0;
+  const dekBestePct = berekendeUren >= 0.25
+    ? Math.round(gemSolarDekking(besteIdxBer, berekendeBlok, vermogen, planUren) * 100)
+    : 0;
+  const besteStartBer   = planUren[besteIdxBer]?.tijd;
+  const besteEindBerDat = besteStartBer ? new Date(besteStartBer) : null;
+  if (besteEindBerDat) besteEindBerDat.setHours(besteEindBerDat.getHours() + berekendeBlok);
+
+  const besteTijdInfoEl = document.getElementById('besteTijdInfoDiv');
+  if (besteTijdInfoEl) besteTijdInfoEl.innerHTML = berekendeUren < 0.25
+    ? 'Batterij al vol 🎉'
+    : dagHStr(besteStartBer) + '–' + hStr(besteEindBerDat) + ' · € ' + besteEff.toFixed(2) + (dekBestePct > 0 ? ' · ☀️ ' + dekBestePct + '%' : '');
+
+  const minuteOffset   = apDetailState._minuteOffset ?? 0;
+  const selStartActual = planUren[currentStartIdx]?.tijd
+    ? new Date(planUren[currentStartIdx].tijd.getTime() + minuteOffset * 60000)
+    : null;
+  const selEindActual  = selStartActual && berekendeUren > 0
+    ? new Date(selStartActual.getTime() + berekendeUren * 3600000)
+    : null;
+  const selEff    = berekendeUren >= 0.25
+    ? (effectieveKosten(berekendeUren, vermogen, planUren, currentStartIdx) ?? berekenKostenVanaf(berekendeUren, vermogen, planUren, currentStartIdx))
+    : 0;
+  const dekSelPct = berekendeUren >= 0.25
+    ? Math.round(gemSolarDekking(currentStartIdx, berekendeBlok, vermogen, planUren) * 100)
+    : 0;
+
+  const selInfoEl = document.getElementById('selInfoDiv');
+  if (selInfoEl) selInfoEl.textContent = berekendeUren < 0.25 ? 'Batterij al vol'
+    : '–' + hMStr(selEindActual) + ' · € ' + selEff.toFixed(2) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
+
+  const _vDiff = selEff - besteEff;
+  const vergelijkEl = document.getElementById('selVergelijkDiv');
+  if (vergelijkEl) {
+    if (Math.abs(_vDiff) < 0.005) {
+      vergelijkEl.style.cssText = 'font-size:11px;color:#27500a;margin-top:6px';
+      vergelijkEl.textContent = '✓ Dit is de beste tijd';
+    } else if (_vDiff < 0) {
+      vergelijkEl.style.cssText = 'font-size:11px;color:#27500a;margin-top:6px';
+      vergelijkEl.textContent = '✓ € ' + Math.abs(_vDiff).toFixed(2) + ' goedkoper dan beste tijd';
+    } else {
+      vergelijkEl.style.cssText = 'font-size:11px;color:#92400e;background:rgba(146,64,14,0.06);border-radius:6px;padding:4px 8px;margin-top:6px';
+      vergelijkEl.textContent = '⚠️ € ' + _vDiff.toFixed(2) + ' duurder dan beste tijd';
+    }
+  }
+}
+
 function herbereken() {
   if (!apDetailState) return;
   const { ap, planUren } = apDetailState;
@@ -391,6 +467,8 @@ function herbereken() {
   const batterijPct   = parseInt(batterijEl.value);
   const berekendeUren = ((100 - batterijPct) / 100) * ap.uren;
   const aantalBlok    = Math.ceil(berekendeUren);
+
+  updateKostenWeergave(berekendeUren);
 
   if (berekendeUren < 0.25) {
     resultEl.innerHTML = '<div class="advies-status nu" style="margin-top:0">Batterij is al vol 🎉</div>';
@@ -426,9 +504,10 @@ function herbereken() {
   const dekVPPct = Math.round(gemSolarDekking(res.startIndex, aantalBlok, ap.vermogen, planUren) * 100);
   apDetailState._vertrekAdviesIdx = res.startIndex;
 
-  // Vergelijk VP advies met beste tijd (zelfde laadduur, zelfde vermogen)
-  const besteEffVP = effectieveKosten(berekendeUren, ap.vermogen, planUren, apDetailState.besteStartIdx)
-    ?? berekenKostenVanaf(berekendeUren, ap.vermogen, planUren, apDetailState.besteStartIdx);
+  // Vergelijk VP advies met beste tijd (zelfde berekendeUren)
+  const besteIdxVP = apDetailState._besteIdxBer ?? apDetailState.besteStartIdx;
+  const besteEffVP = effectieveKosten(berekendeUren, ap.vermogen, planUren, besteIdxVP)
+    ?? berekenKostenVanaf(berekendeUren, ap.vermogen, planUren, besteIdxVP);
   const diffVP = (besteEffVP != null && effVP != null) ? effVP - besteEffVP : null;
   const vpVergelijkHtml = diffVP === null ? '' :
     Math.abs(diffVP) < 0.005 ? '<div style="font-size:11px;color:#27500a;margin-top:4px">✓ Zelfde als beste tijd</div>' :
