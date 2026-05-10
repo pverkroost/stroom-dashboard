@@ -139,6 +139,7 @@ function openApDetail(apIdx) {
     _vpBatterij: 50,
     _vpVertrekTijd: '07:00',
     _vertrekAdviesIdx: null,
+    _minuteOffset: 0,
   };
   renderApDetail();
   document.getElementById('apparaatDetail').classList.add('open');
@@ -153,7 +154,11 @@ function sluitApDetail() {
 
 function adjustApDetail(delta) {
   if (!apDetailState) return;
-  apDetailState.currentStartIdx = Math.max(0, Math.min(apDetailState.maxIdx, apDetailState.currentStartIdx + delta));
+  const maxMinutes  = apDetailState.maxIdx * 60;
+  let totalMinutes  = apDetailState.currentStartIdx * 60 + (apDetailState._minuteOffset ?? 0) + delta;
+  totalMinutes      = Math.max(0, Math.min(maxMinutes, totalMinutes));
+  apDetailState.currentStartIdx = Math.floor(totalMinutes / 60);
+  apDetailState._minuteOffset   = totalMinutes % 60;
   renderApDetail();
   if (_planningActief) planInladen(true);
 }
@@ -177,8 +182,16 @@ function gebruikBesteTijdDetail() {
 function overneemSuggestie(idx) {
   if (!apDetailState) return;
   apDetailState.currentStartIdx = Math.max(0, Math.min(apDetailState.maxIdx, idx));
+  apDetailState._minuteOffset   = 0;
   renderApDetail();
   if (_planningActief) planInladen(true);
+}
+
+function getSelStartActual() {
+  if (!apDetailState) return null;
+  const p = apDetailState.planUren[apDetailState.currentStartIdx];
+  if (!p) return null;
+  return new Date(p.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
 }
 
 function toggleVertrekplanner() {
@@ -211,13 +224,14 @@ function renderApDetail() {
   const besteEff = effectieveKosten(uren, vermogen, planUren, besteStartIdx) ?? besteNet;
   const dekBestePct = Math.round(gemSolarDekking(besteStartIdx, blok, vermogen, planUren) * 100);
 
-  // Geselecteerde tijd
-  const selStart      = planUren[currentStartIdx]?.tijd;
-  const selEindDat    = selStart ? new Date(selStart) : null;
-  if (selEindDat) selEindDat.setHours(selEindDat.getHours() + blok);
+  // Geselecteerde tijd (met minuut-offset)
+  const minuteOffset     = apDetailState._minuteOffset ?? 0;
+  const selStart         = planUren[currentStartIdx]?.tijd;
+  const selStartActual   = selStart ? new Date(selStart.getTime() + minuteOffset * 60000) : null;
+  const selEindActual    = selStartActual ? new Date(selStartActual.getTime() + uren * 3600000) : null;
   const selStartStr      = dagHStr(selStart);
-  const selStartStrPlain = dagHStrPlain(selStart);
-  const selEindStr       = hStr(selEindDat);
+  const selStartStrPlain = dagHMStrPlain(selStartActual);
+  const selEindStr       = hMStr(selEindActual);
   const selNet           = berekenKostenVanaf(uren, vermogen, planUren, currentStartIdx);
   const selEff           = effectieveKosten(uren, vermogen, planUren, currentStartIdx) ?? selNet;
   const dekSelPct        = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
@@ -329,13 +343,13 @@ function renderApDetail() {
         (heeftAutomatisering ? '<span style="font-size:10px;font-weight:500;color:var(--green);background:rgba(59,109,17,0.1);padding:2px 7px;border-radius:4px">wordt ingepland</span>' : '') +
       '</div>' +
       '<div class="ap-tijd-row">' +
-        '<button class="ap-tijd-btn" onclick="adjustApDetail(-1)"' + (currentStartIdx <= 0 ? ' disabled' : '') + '>−</button>' +
+        '<button class="ap-tijd-btn" onclick="adjustApDetail(-1)"' + (currentStartIdx === 0 && minuteOffset === 0 ? ' disabled' : '') + '>−</button>' +
         '<div class="ap-tijd-display">' +
           '<div class="ap-tijd-main">' + selStartStrPlain + '</div>' +
           (selEff !== null ? '<div style="font-size:13px;font-weight:600;color:#27500a;margin-top:2px">€ ' + selEff.toFixed(2) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '') + '</div>' : '') +
           '<div class="ap-tijd-eind-label">Klaar om: ' + selEindStr + '</div>' +
         '</div>' +
-        '<button class="ap-tijd-btn" onclick="adjustApDetail(1)"' + (currentStartIdx >= maxIdx ? ' disabled' : '') + '>+</button>' +
+        '<button class="ap-tijd-btn" onclick="adjustApDetail(1)"' + (currentStartIdx * 60 + minuteOffset >= maxIdx * 60 ? ' disabled' : '') + '>+</button>' +
       '</div>' +
     '</div>' +
 
@@ -424,8 +438,8 @@ async function laadPlanningStatus(apparaat) {
       _planningActief = false;
       statusEl.style.display = 'none';
       if (btn) {
-        const t = apDetailState?.planUren?.[apDetailState?.currentStartIdx]?.tijd;
-        btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHStrPlain(t) : '');
+        const t = getSelStartActual();
+        btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
       }
     }
   } catch {
@@ -441,8 +455,8 @@ async function planInladen(stilUpdate = false) {
   if (_planningActief) {
     await annuleerPlanning(apparaat);
     if (btn) {
-      const t = apDetailState?.planUren?.[apDetailState?.currentStartIdx]?.tijd;
-      btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHStr(t) : '');
+      const t = getSelStartActual();
+      btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
     }
     return;
   }
@@ -450,8 +464,8 @@ async function planInladen(stilUpdate = false) {
   const { planUren, currentStartIdx, ap } = apDetailState;
   const startP = planUren[currentStartIdx];
   if (!startP) return;
-  const stopTijd = new Date(startP.tijd);
-  stopTijd.setHours(stopTijd.getHours() + Math.ceil(ap.uren));
+  const startTijd = new Date(startP.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
+  const stopTijd  = new Date(startTijd.getTime() + ap.uren * 3600000);
 
   if (!stilUpdate && btn) { btn.disabled = true; btn.textContent = '⏳ Inplannen…'; }
 
@@ -459,7 +473,7 @@ async function planInladen(stilUpdate = false) {
     const r = await fetch('/api/planLaden', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ startTijd: startP.tijd.toISOString(), stopTijd: stopTijd.toISOString(), apparaat })
+      body:    JSON.stringify({ startTijd: startTijd.toISOString(), stopTijd: stopTijd.toISOString(), apparaat })
     });
     const data = await r.json();
     if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
@@ -485,8 +499,8 @@ async function annuleerPlanning(apparaat) {
     if (statusEl) statusEl.style.display = 'none';
     const btn = document.getElementById('planInladenBtn');
     if (btn) {
-      const t = apDetailState?.planUren?.[apDetailState?.currentStartIdx]?.tijd;
-      btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHStr(t) : '');
+      const t = getSelStartActual();
+      btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
     }
   } catch(e) {
     if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = '#a32d2d'; statusEl.textContent = '✗ ' + e.message; }

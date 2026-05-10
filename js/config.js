@@ -73,6 +73,16 @@ function dagHStrPlain(datum) {
   const prefix = dag.getTime() === getTodayStart().getTime() ? '' : (_DAGNAMEN[new Date(datum).getDay()] + ' ');
   return prefix + hStr(datum);
 }
+function hMStr(d) {
+  if (!d || typeof d.getHours !== 'function') return '—';
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function dagHMStrPlain(datum) {
+  if (!datum) return '—';
+  const dag = new Date(datum); dag.setHours(0,0,0,0);
+  const prefix = dag.getTime() === getTodayStart().getTime() ? '' : (_DAGNAMEN[new Date(datum).getDay()] + ' ');
+  return prefix + hMStr(datum);
+}
 
 function kleur(p, min, max, gem) {
   if (p <= min * 1.05) return { bar: '#3b6d11', text: '#27500a', bg: 'rgba(192,221,151,0.25)' };
