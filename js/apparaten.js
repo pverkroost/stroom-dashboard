@@ -224,7 +224,7 @@ function renderApDetail() {
     if (isBeste) {
       vergelijkBadge = '<div class="advies-badge groen">beste tijd ✓</div>';
     } else {
-      const diff = (selEff ?? selNet) - (besteEff ?? besteNet);
+      const diff = selEff - besteEff;
       vergelijkBadge = diff > 0.005
         ? `<div class="advies-badge rood">kost € ${diff.toFixed(2)} meer</div>`
         : '<div class="advies-badge groen">beste tijd ✓</div>';
@@ -534,10 +534,10 @@ function renderLaadadvies() {
       <div class="advies-device-naam">${naam}</div>
       ${opmerking ? `<div class="advies-device-sub">${opmerking}</div>` : ''}
       <div class="advies-vergelijk">
-        ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteNetstroom, heeftZon, dekPct)}
+        ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteIsMorgen, besteEff, heeftZon, dekPct)}
         ${selStartIdx < planUren.length ? `
         <div style="height:0.5px;background:var(--border);margin:3px 0"></div>
-        ${blokRijen(selLabel, selTijdStr, false, selNetstroom, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
+        ${blokRijen(selLabel, selTijdStr, false, selEff, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}
         ${vergelijkBadge}
         ${isBesteMorgenGemist ? '<div style="font-size:9px;color:var(--muted);margin-top:2px">* morgen prijzen nog niet beschikbaar</div>' : ''}
       </div>
