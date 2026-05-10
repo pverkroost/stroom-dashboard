@@ -236,7 +236,15 @@ function renderApDetail() {
   const selEff           = effectieveKosten(uren, vermogen, planUren, currentStartIdx) ?? selNet;
   const dekSelPct        = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
 
-  const isBeste = currentStartIdx === besteStartIdx;
+  const isBeste = currentStartIdx === besteStartIdx && minuteOffset === 0;
+
+  // Vergelijking geselecteerde tijd vs beste tijd
+  const vergelijkHtml = (() => {
+    if (selEff === null || besteEff === null) return '';
+    const diff = selEff - besteEff;
+    if (diff < 0.005) return '<div style="font-size:11px;color:#27500a;margin-top:6px">✓ Dit is de beste tijd</div>';
+    return '<div style="font-size:11px;color:#92400e;background:rgba(146,64,14,0.06);border-radius:6px;padding:4px 8px;margin-top:6px">⚠️ € ' + diff.toFixed(2) + ' duurder dan beste tijd</div>';
+  })();
 
   // Teruglevering waarschuwing
   const morgenStart = getTomorrowStart();
@@ -291,17 +299,16 @@ function renderApDetail() {
 
     // 2. BESTE TIJD — suggestie met Overnemen knop
     '<div class="section" style="padding-top:10px;padding-bottom:4px">' +
-      '<div class="tarief-card" style="padding:12px 14px;background:rgba(59,109,17,0.08);border:1.5px solid rgba(59,109,17,0.35)">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+      '<div class="tarief-card" style="padding:10px 14px;background:rgba(59,109,17,0.08);border:1.5px solid rgba(59,109,17,0.35)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
           '<div>' +
-            '<div style="font-size:10px;color:#27500a;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">⭐ Beste tijd</div>' +
-            '<div style="font-size:20px;font-weight:700;color:#27500a">' + (besteEff !== null ? '€ ' + besteEff.toFixed(2) : '—') + '</div>' +
-            '<div style="font-size:11px;color:var(--muted);margin-top:3px">' + [besteStartStr + '–' + besteEindStr, dekBestePct > 0 ? '☀️ ' + dekBestePct + '%' : ''].filter(Boolean).join(' · ') + '</div>' +
+            '<div style="font-size:11px;font-weight:600;color:#27500a;margin-bottom:2px">⭐ Beste tijd</div>' +
+            '<div style="font-size:12px;color:var(--muted)">' + besteStartStr + '–' + besteEindStr + (besteEff !== null ? ' · € ' + besteEff.toFixed(2) : '') + (dekBestePct > 0 ? ' · ☀️ ' + dekBestePct + '%' : '') + '</div>' +
             terugWaarschuwing +
           '</div>' +
           (isBeste
-            ? '<div style="font-size:11px;color:#27500a;font-weight:600;flex-shrink:0;align-self:center;padding:6px 10px;border-radius:6px;background:rgba(59,109,17,0.12)">✓ geselecteerd</div>'
-            : '<button onclick="overneemSuggestie(' + besteStartIdx + ')" style="flex-shrink:0;align-self:center;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>') +
+            ? '<div style="font-size:11px;color:#27500a;font-weight:600;flex-shrink:0;padding:5px 9px;border-radius:6px;background:rgba(59,109,17,0.12)">✓ geselecteerd</div>'
+            : '<button onclick="overneemSuggestie(' + besteStartIdx + ')" style="flex-shrink:0;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>') +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -342,15 +349,15 @@ function renderApDetail() {
         'Geselecteerde starttijd' +
         (heeftAutomatisering ? '<span style="font-size:10px;font-weight:500;color:var(--green);background:rgba(59,109,17,0.1);padding:2px 7px;border-radius:4px">wordt ingepland</span>' : '') +
       '</div>' +
-      '<div class="ap-tijd-row">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
         '<button class="ap-tijd-btn" onclick="adjustApDetail(-1)"' + (currentStartIdx === 0 && minuteOffset === 0 ? ' disabled' : '') + '>−</button>' +
-        '<div class="ap-tijd-display">' +
-          '<div class="ap-tijd-main">' + selStartStrPlain + '</div>' +
-          (selEff !== null ? '<div style="font-size:13px;font-weight:600;color:#27500a;margin-top:2px">€ ' + selEff.toFixed(2) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '') + '</div>' : '') +
-          '<div class="ap-tijd-eind-label">Klaar om: ' + selEindStr + '</div>' +
+        '<div style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card)">' +
+          '<div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">📍 Starttijd</div>' +
+          '<div style="font-size:12px;color:var(--muted)">' + selStartStrPlain + '–' + selEindStr + (selEff !== null ? ' · € ' + selEff.toFixed(2) : '') + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '') + '</div>' +
         '</div>' +
         '<button class="ap-tijd-btn" onclick="adjustApDetail(1)"' + (currentStartIdx * 60 + minuteOffset >= maxIdx * 60 ? ' disabled' : '') + '>+</button>' +
       '</div>' +
+      vergelijkHtml +
     '</div>' +
 
     // 5. PLAN DIT IN + STATUS — alleen voor apparaten met automatisering
@@ -410,13 +417,31 @@ function herbereken() {
     return;
   }
 
-  const eindDat   = new Date(res.startTijd); eindDat.setHours(eindDat.getHours() + aantalBlok);
-  const eff       = effectieveKosten(berekendeUren, ap.vermogen, gefilterd, res.startIndex);
-  const kostenStr = '€ ' + (eff ?? res.kosten).toFixed(2);
+  const eindDat  = new Date(res.startTijd); eindDat.setHours(eindDat.getHours() + aantalBlok);
+  const effVP    = effectieveKosten(berekendeUren, ap.vermogen, gefilterd, res.startIndex) ?? res.kosten;
+  const dekVPPct = Math.round(gemSolarDekking(res.startIndex, aantalBlok, ap.vermogen, planUren) * 100);
   apDetailState._vertrekAdviesIdx = res.startIndex;
+
+  // Vergelijk VP advies met geselecteerde starttijd (zelfde laadduur)
+  const selEffVP = effectieveKosten(berekendeUren, ap.vermogen, planUren, apDetailState.currentStartIdx)
+    ?? berekenKostenVanaf(berekendeUren, ap.vermogen, planUren, apDetailState.currentStartIdx);
+  const diffVP = selEffVP != null ? effVP - selEffVP : null;
+  const vpVergelijkHtml = diffVP === null ? '' :
+    Math.abs(diffVP) < 0.005 ? '<div style="font-size:11px;color:#27500a;margin-top:4px">✓ Zelfde kosten als geselecteerde starttijd</div>' :
+    diffVP < 0 ? '<div style="font-size:11px;color:#27500a;margin-top:4px">↕️ € ' + Math.abs(diffVP).toFixed(2) + ' goedkoper dan geselecteerde starttijd</div>' :
+    '<div style="font-size:11px;color:#92400e;margin-top:4px">↕️ € ' + diffVP.toFixed(2) + ' duurder dan geselecteerde starttijd</div>';
+
   resultEl.innerHTML =
-    '<div class="advies-status nu" style="margin-top:0">⚡ Start laden om ' + dagHStr(res.startTijd) + ' · klaar om ' + dagHStr(eindDat) + ' · ' + kostenStr + '</div>' +
-    '<button onclick="overneemSuggestie(' + res.startIndex + ')" style="margin-top:8px;width:100%;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">↑ Overnemen als starttijd</button>';
+    '<div style="padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);margin-top:8px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+        '<div>' +
+          '<div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">🔌 Vertrekplanner advies</div>' +
+          '<div style="font-size:12px;color:var(--muted)">' + dagHStrPlain(res.startTijd) + '–' + hStr(eindDat) + ' · € ' + effVP.toFixed(2) + (dekVPPct > 0 ? ' · ☀️ ' + dekVPPct + '%' : '') + '</div>' +
+        '</div>' +
+        '<button onclick="overneemSuggestie(' + res.startIndex + ')" style="flex-shrink:0;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>' +
+      '</div>' +
+      vpVergelijkHtml +
+    '</div>';
 }
 
 async function laadPlanningStatus(apparaat) {
