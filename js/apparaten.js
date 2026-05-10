@@ -454,21 +454,31 @@ function updateKostenWeergave(berekendeUren) {
       vergelijkEl.textContent = '⚠️ € ' + _vDiff.toFixed(2) + ' duurder dan beste tijd';
     }
   }
+
+  const btn = document.getElementById('planInladenBtn');
+  if (btn && !_planningActief) {
+    const t = selStartActual;
+    btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
+  }
 }
 
 function herbereken() {
   if (!apDetailState) return;
   const { ap, planUren } = apDetailState;
+
+  // Lees berekendeUren altijd uit state (al bijgewerkt door oninput)
+  const batterijPct   = apDetailState._vpBatterij ?? 0;
+  const berekendeUren = ((100 - batterijPct) / 100) * ap.uren;
+  const aantalBlok    = Math.ceil(berekendeUren);
+
+  // Altijd: update secties 2, 4 en "Plan dit in" knop
+  updateKostenWeergave(berekendeUren);
+
+  // VP-specifiek: alleen als vertrekplanner elementen aanwezig zijn
   const batterijEl = document.getElementById('vpBatterij');
   const tijdEl     = document.getElementById('vpVertrekTijd');
   const resultEl   = document.getElementById('vpResultaat');
   if (!batterijEl || !tijdEl || !resultEl) return;
-
-  const batterijPct   = parseInt(batterijEl.value);
-  const berekendeUren = ((100 - batterijPct) / 100) * ap.uren;
-  const aantalBlok    = Math.ceil(berekendeUren);
-
-  updateKostenWeergave(berekendeUren);
 
   if (berekendeUren < 0.25) {
     resultEl.innerHTML = '<div class="advies-status nu" style="margin-top:0">Batterij is al vol 🎉</div>';
