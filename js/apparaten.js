@@ -110,6 +110,7 @@ function gemSolarDekking(startIdx, aantalUren, vermogenKw, planUren) {
 
 // ── Apparaat detail slide-in panel ───────────────────────────────────────────
 let apDetailState = null;
+let _planningActief = false;
 
 function getPlanUren() {
   const isMorgenTab = activeDay === 1;
@@ -146,6 +147,7 @@ function adjustApDetail(delta) {
   if (!apDetailState) return;
   apDetailState.currentStartIdx = Math.max(0, Math.min(apDetailState.maxIdx, apDetailState.currentStartIdx + delta));
   renderApDetail();
+  if (apDetailState?.ap.naam === 'Auto (PHEV)' && _planningActief) planInladen(true);
 }
 
 function gebruikTijdDetail() {
@@ -238,6 +240,8 @@ function renderApDetail() {
     ? `<div style="display:inline-block;transform:scale(2.5);transform-origin:center;margin:16px 0">${icon}</div>`
     : `<div style="font-size:48px;line-height:1">${icon}</div>`;
 
+  const isAuto = naam === 'Auto (PHEV)';
+
   document.getElementById('apDetailNaam').textContent = naam;
   document.getElementById('apDetailBody').innerHTML = `
     <div class="ap-detail-hero">
@@ -247,7 +251,7 @@ function renderApDetail() {
       ${opmerking ? `<div class="advies-device-sub" style="margin-top:4px">${opmerking}</div>` : ''}
     </div>
 
-    ${naam === 'Auto (PHEV)' ? `
+    ${isAuto ? `
     <div class="section">
       <div class="section-title">🔌 Vertrekplanner</div>
       <div class="tarief-card" style="padding:14px 16px">
@@ -267,11 +271,30 @@ function renderApDetail() {
         </div>
         <div id="vpResultaat"></div>
       </div>
-    </div>` : ''}
+    </div>
 
-    ${naam === 'Auto (PHEV)' ? `
     <div class="section">
-      <div class="section-title">Slimme stekker</div>
+      <div class="tarief-card" style="padding:14px 16px;margin-bottom:8px;background:rgba(59,109,17,0.08);border:1.5px solid rgba(59,109,17,0.35)">
+        <div style="font-size:11px;color:#27500a;font-weight:600;margin-bottom:6px">⭐ Beste tijd</div>
+        <div style="font-size:22px;font-weight:700;color:#27500a">${besteEff !== null ? '€ ' + besteEff.toFixed(2) : '—'}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${[besteStartStr + '–' + besteEindStr, dekBestePct > 0 ? '☀️ ' + dekBestePct + '%' : ''].filter(Boolean).join(' · ')}</div>
+        ${terugWaarschuwing}
+      </div>
+      <div class="tarief-card" style="padding:14px 16px;margin-bottom:8px;${!isBeste ? 'border:1.5px solid rgba(186,117,23,0.45);background:rgba(186,117,23,0.07)' : 'background:rgba(59,109,17,0.04)'}">
+        <div style="font-size:11px;color:${!isBeste ? '#854f0b' : 'var(--muted)'};font-weight:600;margin-bottom:6px">Jouw keuze</div>
+        <div style="font-size:22px;font-weight:700;color:${!isBeste ? '#854f0b' : 'inherit'}">${selEff !== null ? '€ ' + selEff.toFixed(2) : '—'}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${[selTijdStr, dekSelPct > 0 ? '☀️ ' + dekSelPct + '%' : ''].filter(Boolean).join(' · ')}</div>
+        ${vergelijkBadge ? `<div style="margin-top:4px">${vergelijkBadge}</div>` : ''}
+      </div>
+    </div>
+
+    <div class="section">
+      <button class="ap-cta-btn ap-cta-groen" onclick="planInladen()" id="planInladenBtn">📅 Plan dit in</button>
+      <div id="planningStatusEl" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px">Laden…</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Handmatig</div>
       <button class="ap-cta-btn ap-cta-groen" onclick="homeyActie('start')" id="homeyStartBtn">⚡ Start laden</button>
       <button class="ap-cta-btn ap-cta-wit" onclick="homeyActie('stop')" id="homeyStopBtn">⏹ Stop laden</button>
       <div id="homeyPincodeSection" style="display:none;margin-top:10px">
@@ -286,7 +309,7 @@ function renderApDetail() {
         </div>
       </div>
       <div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>
-    </div>` : ''}
+    </div>` : `
 
     <div class="section">
       <div class="tarief-card">
@@ -295,7 +318,7 @@ function renderApDetail() {
             <span>Beste tijd</span>
             <span style="color:#27500a">${besteEff !== null ? '€ ' + besteEff.toFixed(2) : '—'}</span>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:3px">${[`${besteStartStr}–${besteEindStr}`, dekBestePct > 0 ? `☀️ ${dekBestePct}%` : 'geen zon'].filter(Boolean).join(' · ')}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">${[besteStartStr + '–' + besteEindStr, dekBestePct > 0 ? '☀️ ' + dekBestePct + '%' : 'geen zon'].filter(Boolean).join(' · ')}</div>
           ${terugWaarschuwing}
         </div>
         <div style="padding:12px 16px">
@@ -303,12 +326,12 @@ function renderApDetail() {
             <span>Jouw keuze</span>
             <span>${selEff !== null ? '€ ' + selEff.toFixed(2) : '—'}</span>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:3px">${[selTijdStr, dekSelPct > 0 ? `☀️ ${dekSelPct}%` : 'geen zon'].filter(Boolean).join(' · ')}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">${[selTijdStr, dekSelPct > 0 ? '☀️ ' + dekSelPct + '%' : 'geen zon'].filter(Boolean).join(' · ')}</div>
           ${vergelijkBadge ? `<div style="display:flex;justify-content:flex-end;margin-top:4px">${vergelijkBadge}</div>` : ''}
         </div>
       </div>
       ${statusStr}
-    </div>
+    </div>`}
 
     <div class="section">
       <div class="section-title">Starttijd aanpassen</div>
@@ -323,7 +346,7 @@ function renderApDetail() {
     </div>
 
     <div style="padding-bottom:40px"></div>`;
-  if (naam === 'Auto (PHEV)') herbereken();
+  if (isAuto) { herbereken(); laadPlanningStatus(); }
 }
 
 function herbereken() {
@@ -373,9 +396,80 @@ function herbereken() {
   resultEl.innerHTML = `<div class="advies-status nu" style="margin-top:0">⚡ Start laden om ${dagHStr(res.startTijd)} · klaar om ${dagHStr(eindDat)} · ${kostenStr}</div>`;
 }
 
+async function laadPlanningStatus() {
+  const statusEl = document.getElementById('planningStatusEl');
+  if (!statusEl) return;
+  try {
+    const r    = await fetch('/api/planLaden');
+    const data = await r.json();
+    if (data.actief) {
+      _planningActief = true;
+      const start = new Date(data.startTijd);
+      const stop  = new Date(data.stopTijd);
+      statusEl.innerHTML = `<span style="color:var(--green)">✅ Gepland: ${dagHStr(start)}–${hStr(stop)}</span>&nbsp;<button onclick="annuleerPlanning()" style="margin-left:6px;font-size:11px;border:none;background:none;color:#a32d2d;cursor:pointer;padding:0;text-decoration:underline">Annuleren</button>`;
+    } else {
+      _planningActief = false;
+      statusEl.textContent = 'Geen actieve planning';
+      statusEl.style.color = 'var(--muted)';
+    }
+  } catch {
+    if (statusEl) { statusEl.textContent = 'Status ophalen mislukt'; statusEl.style.color = 'var(--muted)'; }
+  }
+}
+
+async function planInladen(stilUpdate = false) {
+  if (!apDetailState) return;
+  const { planUren, currentStartIdx, ap } = apDetailState;
+  const startP = planUren[currentStartIdx];
+  if (!startP) return;
+  const stopTijd = new Date(startP.tijd);
+  stopTijd.setHours(stopTijd.getHours() + Math.ceil(ap.uren));
+
+  const btn      = document.getElementById('planInladenBtn');
+  const statusEl = document.getElementById('planningStatusEl');
+  if (!stilUpdate && btn) { btn.disabled = true; btn.textContent = '⏳ Inplannen…'; }
+
+  try {
+    const r = await fetch('/api/planLaden', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ startTijd: startP.tijd.toISOString(), stopTijd: stopTijd.toISOString() })
+    });
+    const data = await r.json();
+    if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
+    _planningActief = true;
+    await laadPlanningStatus();
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = `✗ ${e.message}`; statusEl.style.color = '#a32d2d'; }
+  } finally {
+    if (!stilUpdate && btn) { btn.disabled = false; btn.textContent = '📅 Plan dit in'; }
+  }
+}
+
+async function annuleerPlanning() {
+  const statusEl = document.getElementById('planningStatusEl');
+  if (statusEl) { statusEl.textContent = 'Annuleren…'; statusEl.style.color = 'var(--muted)'; }
+  try {
+    const r    = await fetch('/api/planLaden', { method: 'DELETE' });
+    const data = await r.json();
+    if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
+    _planningActief = false;
+    if (statusEl) { statusEl.textContent = 'Planning geannuleerd'; statusEl.style.color = 'var(--muted)'; }
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = `✗ ${e.message}`; statusEl.style.color = '#a32d2d'; }
+  }
+}
+
 let _homeyPendingAction = null;
 
 function homeyActie(action) {
+  if (action === 'start' && _planningActief) {
+    fetch('/api/planLaden', { method: 'DELETE' }).then(() => {
+      _planningActief = false;
+      const statusEl = document.getElementById('planningStatusEl');
+      if (statusEl) { statusEl.textContent = 'Planning geannuleerd (handmatig gestart)'; statusEl.style.color = 'var(--muted)'; }
+    }).catch(() => {});
+  }
   _homeyPendingAction = action;
   const section  = document.getElementById('homeyPincodeSection');
   const input    = document.getElementById('homeyPinInput');
