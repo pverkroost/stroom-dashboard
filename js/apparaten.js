@@ -140,6 +140,7 @@ function openApDetail(apIdx) {
     _vpVertrekTijd: '07:00',
     _vertrekAdviesIdx: null,
     _minuteOffset: 0,
+    _handmatigGekozen: false,
   };
   renderApDetail();
   document.getElementById('apparaatDetail').classList.add('open');
@@ -157,8 +158,9 @@ function adjustApDetail(delta) {
   const maxMinutes  = apDetailState.maxIdx * 60;
   let totalMinutes  = apDetailState.currentStartIdx * 60 + (apDetailState._minuteOffset ?? 0) + delta;
   totalMinutes      = Math.max(0, Math.min(maxMinutes, totalMinutes));
-  apDetailState.currentStartIdx = Math.floor(totalMinutes / 60);
-  apDetailState._minuteOffset   = totalMinutes % 60;
+  apDetailState.currentStartIdx  = Math.floor(totalMinutes / 60);
+  apDetailState._minuteOffset    = totalMinutes % 60;
+  apDetailState._handmatigGekozen = true;
   renderApDetail();
   if (_planningActief) planInladen(true);
 }
@@ -181,8 +183,9 @@ function gebruikBesteTijdDetail() {
 
 function overneemSuggestie(idx) {
   if (!apDetailState) return;
-  apDetailState.currentStartIdx = Math.max(0, Math.min(apDetailState.maxIdx, idx));
-  apDetailState._minuteOffset   = 0;
+  apDetailState.currentStartIdx  = Math.max(0, Math.min(apDetailState.maxIdx, idx));
+  apDetailState._minuteOffset    = 0;
+  apDetailState._handmatigGekozen = false;
   renderApDetail();
   if (_planningActief) planInladen(true);
 }
@@ -371,10 +374,10 @@ function renderApDetail() {
         (heeftAutomatisering ? '<span style="font-size:10px;font-weight:500;color:var(--green);background:rgba(59,109,17,0.1);padding:2px 7px;border-radius:4px">wordt ingepland</span>' : '') +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
-        '<button onclick="adjustApDetail(-15)"' + (!canGoBack ? ' disabled' : '') +
+        '<button id="selStepperLeft" onclick="adjustApDetail(-15)"' + (!canGoBack ? ' disabled' : '') +
           ' style="min-width:44px;min-height:44px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center' + (!canGoBack ? ';opacity:0.35;cursor:default' : '') + '">←</button>' +
-        '<div style="flex:1;text-align:center;font-size:16px;font-weight:600;padding:11px 8px;border-radius:8px;border:1px solid var(--border);background:var(--card);min-height:44px;display:flex;align-items:center;justify-content:center">' + selStartStrPlain + '</div>' +
-        '<button onclick="adjustApDetail(15)"' + (!canGoFwd ? ' disabled' : '') +
+        '<div id="selStepperDisplay" style="flex:1;text-align:center;font-size:16px;font-weight:600;padding:11px 8px;border-radius:8px;border:1px solid var(--border);background:var(--card);min-height:44px;display:flex;align-items:center;justify-content:center">' + selStartStrPlain + '</div>' +
+        '<button id="selStepperRight" onclick="adjustApDetail(15)"' + (!canGoFwd ? ' disabled' : '') +
           ' style="min-width:44px;min-height:44px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center' + (!canGoFwd ? ';opacity:0.35;cursor:default' : '') + '">→</button>' +
       '</div>' +
       '<div id="selInfoDiv" style="font-size:12px;color:var(--muted);margin-top:5px;padding-left:2px">' + selInfoStr + '</div>' +
@@ -399,13 +402,29 @@ function renderApDetail() {
 
 function updateKostenWeergave(berekendeUren) {
   if (!apDetailState) return;
-  const { ap, planUren, besteStartIdx, currentStartIdx } = apDetailState;
+  const { ap, planUren, besteStartIdx } = apDetailState;
   const { vermogen } = ap;
   const berekendeBlok = berekendeUren > 0 ? Math.ceil(berekendeUren) : 0;
 
   const resBer      = berekendeUren >= 0.25 ? berekenGoedkoopsteBlok(berekendeUren, vermogen, planUren) : null;
   const besteIdxBer = resBer ? resBer.startIndex : besteStartIdx;
   apDetailState._besteIdxBer = besteIdxBer;
+
+  if (!apDetailState._handmatigGekozen) {
+    apDetailState.currentStartIdx = besteIdxBer;
+    apDetailState._minuteOffset   = 0;
+    const dispEl  = document.getElementById('selStepperDisplay');
+    const leftEl  = document.getElementById('selStepperLeft');
+    const rightEl = document.getElementById('selStepperRight');
+    if (dispEl) {
+      const selStart = planUren[besteIdxBer]?.tijd;
+      dispEl.textContent = selStart ? dagHMStrPlain(selStart) : '—';
+    }
+    if (leftEl)  leftEl.disabled  = besteIdxBer === 0;
+    if (rightEl) rightEl.disabled = besteIdxBer >= apDetailState.maxIdx;
+  }
+
+  const currentStartIdx = apDetailState.currentStartIdx;
 
   const besteEff    = berekendeUren >= 0.25
     ? (effectieveKosten(berekendeUren, vermogen, planUren, besteIdxBer) ?? berekenKostenVanaf(berekendeUren, vermogen, planUren, besteIdxBer))
