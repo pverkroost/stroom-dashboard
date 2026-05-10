@@ -135,7 +135,7 @@ function openApDetail(apIdx) {
     apIdx, ap, planUren, besteStartIdx,
     currentStartIdx: besteStartIdx,
     maxIdx: Math.max(0, planUren.length - Math.ceil(ap.uren)),
-    _vertrekPlannerOpen: false,
+    _vertrekPlannerOpen: true,
     _vpBatterij: 50,
     _vpVertrekTijd: '07:00',
     _vertrekAdviesIdx: null,
@@ -212,11 +212,15 @@ function renderApDetail() {
   const dekBestePct = Math.round(gemSolarDekking(besteStartIdx, blok, vermogen, planUren) * 100);
 
   // Geselecteerde tijd
-  const selStart   = planUren[currentStartIdx]?.tijd;
-  const selEindDat = selStart ? new Date(selStart) : null;
+  const selStart      = planUren[currentStartIdx]?.tijd;
+  const selEindDat    = selStart ? new Date(selStart) : null;
   if (selEindDat) selEindDat.setHours(selEindDat.getHours() + blok);
-  const selStartStr = dagHStr(selStart);
-  const selEindStr  = hStr(selEindDat);
+  const selStartStr      = dagHStr(selStart);
+  const selStartStrPlain = dagHStrPlain(selStart);
+  const selEindStr       = hStr(selEindDat);
+  const selNet           = berekenKostenVanaf(uren, vermogen, planUren, currentStartIdx);
+  const selEff           = effectieveKosten(uren, vermogen, planUren, currentStartIdx) ?? selNet;
+  const dekSelPct        = Math.round(gemSolarDekking(currentStartIdx, blok, vermogen, planUren) * 100);
 
   const isBeste = currentStartIdx === besteStartIdx;
 
@@ -320,11 +324,15 @@ function renderApDetail() {
 
     // 4. GESELECTEERDE STARTTIJD
     '<div class="section" style="padding-top:0;padding-bottom:4px">' +
-      '<div class="section-title">Geselecteerde starttijd</div>' +
+      '<div class="section-title" style="display:flex;justify-content:space-between;align-items:center">' +
+        'Geselecteerde starttijd' +
+        (heeftAutomatisering ? '<span style="font-size:10px;font-weight:500;color:var(--green);background:rgba(59,109,17,0.1);padding:2px 7px;border-radius:4px">wordt ingepland</span>' : '') +
+      '</div>' +
       '<div class="ap-tijd-row">' +
         '<button class="ap-tijd-btn" onclick="adjustApDetail(-1)"' + (currentStartIdx <= 0 ? ' disabled' : '') + '>−</button>' +
         '<div class="ap-tijd-display">' +
-          '<div class="ap-tijd-main">' + selStartStr + '</div>' +
+          '<div class="ap-tijd-main">' + selStartStrPlain + '</div>' +
+          (selEff !== null ? '<div style="font-size:13px;font-weight:600;color:#27500a;margin-top:2px">€ ' + selEff.toFixed(2) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '') + '</div>' : '') +
           '<div class="ap-tijd-eind-label">Klaar om: ' + selEindStr + '</div>' +
         '</div>' +
         '<button class="ap-tijd-btn" onclick="adjustApDetail(1)"' + (currentStartIdx >= maxIdx ? ' disabled' : '') + '>+</button>' +
@@ -334,7 +342,7 @@ function renderApDetail() {
     // 5. PLAN DIT IN + STATUS — alleen voor apparaten met automatisering
     (heeftAutomatisering
       ? '<div class="section" style="padding-top:0;padding-bottom:4px">' +
-          '<button class="ap-cta-btn ap-cta-groen" onclick="planInladen()" id="planInladenBtn">📅 Plan dit in op ' + selStartStr + '</button>' +
+          '<button class="ap-cta-btn ap-cta-groen" onclick="planInladen()" id="planInladenBtn">📅 Plan dit in op ' + selStartStrPlain + '</button>' +
           '<div id="planningStatusEl" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(59,109,17,0.08);font-size:12px;color:#27500a;text-align:center"></div>' +
         '</div>'
       : '') +
@@ -417,7 +425,7 @@ async function laadPlanningStatus(apparaat) {
       statusEl.style.display = 'none';
       if (btn) {
         const t = apDetailState?.planUren?.[apDetailState?.currentStartIdx]?.tijd;
-        btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHStr(t) : '');
+        btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHStrPlain(t) : '');
       }
     }
   } catch {

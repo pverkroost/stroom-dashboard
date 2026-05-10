@@ -67,6 +67,12 @@ function dagPrefix(datum) {
   return `<span style="opacity:0.65;font-size:0.9em">${_DAGNAMEN[new Date(datum).getDay()]} </span>`;
 }
 function dagHStr(datum) { return datum ? dagPrefix(datum) + hStr(datum) : '—'; }
+function dagHStrPlain(datum) {
+  if (!datum) return '—';
+  const dag = new Date(datum); dag.setHours(0,0,0,0);
+  const prefix = dag.getTime() === getTodayStart().getTime() ? '' : (_DAGNAMEN[new Date(datum).getDay()] + ' ');
+  return prefix + hStr(datum);
+}
 
 function kleur(p, min, max, gem) {
   if (p <= min * 1.05) return { bar: '#3b6d11', text: '#27500a', bg: 'rgba(192,221,151,0.25)' };
