@@ -7,7 +7,7 @@ const redis = new Redis({
 });
 
 module.exports = async (req, res) => {
-  const data = await redis.get('laadplanning');
+  const data = await redis.get('laadplanning_autophev');
   if (!data) return res.json({ actie: 'geen planning' });
 
   const planning = typeof data === 'string' ? JSON.parse(data) : data;
@@ -23,7 +23,7 @@ module.exports = async (req, res) => {
   }
   if (nuUur === stopUur) {
     await fetch(`https://${homeyCloudId}.connect.athom.com/api/manager/logic/webhook/auto-laden-stoppen`);
-    await redis.del('laadplanning');
+    await redis.del('laadplanning_autophev');
     return res.json({ actie: 'gestopt' });
   }
 
