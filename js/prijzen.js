@@ -90,11 +90,7 @@ function renderGeenData() {
 }
 
 function renderHeroMetrics(prijzen, day, min, max, gem, laagste, hoogste, nowUur) {
-  document.getElementById('chartTitle').innerHTML =
-    (day === 0 ? 'Vandaag' : 'Morgen') +
-    ' <span style="font-size:9px;font-weight:400;color:var(--muted);margin-left:4px">' +
-    '<span style="color:#3b6d11">▪</span> Verbruik &nbsp;' +
-    '<span style="color:rgba(200,50,50,0.75)">↩</span> Teruglevering</span>';
+  document.getElementById('chartTitle').textContent = day === 0 ? 'Vandaag' : 'Morgen';
   document.getElementById('laagstePrijs').textContent = '€ ' + min.toFixed(3);
   document.getElementById('laagsteUur').textContent   = uurStr(laagste.tijd);
   document.getElementById('hoogstePrijs').textContent = '€ ' + max.toFixed(3);
@@ -153,8 +149,8 @@ function renderGrafiek(prijzen, day, min, max, gem, nowUur) {
   const terugLijn = {
     type: 'line',
     data: prijzen.map(p => (day === 0 && p.tijd.getHours() < nowUur) ? null : (p.terug !== undefined ? parseFloat(p.terug.toFixed(3)) : null)),
-    borderColor: 'rgba(200,50,50,0.65)', backgroundColor: 'transparent',
-    fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5, borderDash: [5, 4], yAxisID: 'y'
+    borderColor: 'rgba(200,50,50,0.8)', backgroundColor: 'transparent',
+    fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2, borderDash: [5, 4], yAxisID: 'y'
   };
 
   if (chart) chart.destroy();
