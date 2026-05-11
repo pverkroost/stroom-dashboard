@@ -1044,9 +1044,16 @@ function renderLaadadvies() {
 
   const veiligRender = (ap, i) => { try { return renderApparaat(ap, i); } catch(e) { console.error(`[${ap.naam}]`, e); return `<div class="advies-card" style="color:#a32d2d;font-size:11px">${ap.icon} ${ap.naam}: ${e.message}</div>`; } };
   const sortedAll = getApparatenSorted();
-  const top4Html  = sortedAll.slice(0, 4).map(x => veiligRender(x.ap, x.originalIdx)).join('');
-  const meerHtml  = sortedAll.slice(4).map(x => veiligRender(x.ap, x.originalIdx)).join('');
+  const top4      = sortedAll.slice(0, 4);
+  const meer      = sortedAll.slice(4);
+  const top4Html  = top4.map(x => veiligRender(x.ap, x.originalIdx)).join('');
+  const meerHtml  = meer.map(x => veiligRender(x.ap, x.originalIdx)).join('');
+  console.log('[Slim inplannen] top4:', top4.map(x => x.ap.naam), '| meer:', meer.map(x => x.ap.naam), '| containerMeer:', !!containerMeer);
   container.innerHTML = `<div class="advies-grid">${top4Html}</div>`;
-  if (containerMeer) containerMeer.innerHTML = `<div class="advies-grid">${meerHtml}</div>
+  if (containerMeer) {
+    containerMeer.innerHTML = `<div class="advies-grid">${meerHtml}</div>
 <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 16px">* Berekeningen zijn per apparaat afzonderlijk. Bij gelijktijdig gebruik is de zonne-energie dekking lager.</p>`;
+  } else {
+    console.warn('[Slim inplannen] #meerApparatenContainer niet gevonden in DOM');
+  }
 }
