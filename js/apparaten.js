@@ -269,7 +269,7 @@ function openApDetail(apIdx) {
     apIdx, ap, planUren, besteStartIdx,
     currentStartIdx: besteStartIdx,
     maxIdx: Math.max(0, planUren.length - Math.ceil(ap.uren)),
-    _vertrekPlannerOpen: true,
+    _aanpassenOpen: false,
     _vpBatterij: 0,
     _vpVertrekTijd: '07:00',
     _vertrekAdviesIdx: null,
@@ -345,9 +345,14 @@ function getSelStartActual() {
   return new Date(p.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
 }
 
-function toggleVertrekplanner() {
+function toggleAanpassen() {
   if (!apDetailState) return;
-  apDetailState._vertrekPlannerOpen = !apDetailState._vertrekPlannerOpen;
+  apDetailState._aanpassenOpen = !apDetailState._aanpassenOpen;
+  renderApDetail();
+}
+function openAanpassen() {
+  if (!apDetailState) return;
+  apDetailState._aanpassenOpen = true;
   renderApDetail();
 }
 
@@ -363,7 +368,7 @@ function renderApDetail() {
   const apparaat           = apSleutel(naam);
   const heeftVertrekPlanner = !!ap.automatisering;
   const heeftBatterij       = !!ap.batterij;
-  const vpOpen             = !!apDetailState._vertrekPlannerOpen;
+  const aanpOpen           = !!apDetailState._aanpassenOpen;
   const vpBatterij         = apDetailState._vpBatterij  ?? 0;
   const vpTijd             = apDetailState._vpVertrekTijd ?? '07:00';
   const berekendeUren      = vpBatterij >= 100 ? 0 : ((100 - vpBatterij) / 100) * uren;
@@ -439,8 +444,7 @@ function renderApDetail() {
 
   // Automatisering sectie
   const automatiseringSectie = heeftAutomatisering
-    ? '<div class="section" style="padding-top:4px">' +
-        '<div class="section-title">Direct starten / stoppen</div>' +
+    ? '<div class="section" style="padding-top:8px;padding-bottom:4px">' +
         '<div style="display:flex;gap:8px">' +
           '<button class="ap-cta-btn ap-cta-groen" onclick="homeyActie(\'start\')" id="homeyStartBtn" style="flex:1;margin-bottom:0">⚡ Nu starten</button>' +
           '<button class="ap-cta-btn ap-cta-wit" onclick="homeyActie(\'stop\')" id="homeyStopBtn" style="flex:1;margin-bottom:0">■ Nu stoppen</button>' +
@@ -464,96 +468,84 @@ function renderApDetail() {
   document.getElementById('apDetailNaam').textContent = naam;
   document.getElementById('apDetailBody').innerHTML =
 
-    // 1. HEADER — compact, horizontaal
-    '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px 10px;border-bottom:0.5px solid var(--border)">' +
-      '<div style="flex-shrink:0">' + iconHtml + '</div>' +
-      '<div style="min-width:0">' +
-        '<div style="font-size:15px;font-weight:600;line-height:1.2">' + naam + '</div>' +
-        '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + urenStr + ' · ' + totaalKwh + ' kWh' + (opmerking ? ' · ' + opmerking : '') + '</div>' +
-      '</div>' +
-    '</div>' +
-
-    // 1b. BATTERIJNIVEAU — los van vertrekplanner, alleen voor apparaten met een batterij
-    (heeftBatterij ?
-      '<div class="section" style="padding-top:10px;padding-bottom:4px">' +
-        '<div class="tarief-card" style="padding:10px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">' +
-            '<label for="vpBatterij" style="font-size:12px;font-weight:600;color:var(--text)">🔋 Huidig batterijniveau</label>' +
-            '<span id="vpBatterijWaarde" style="font-size:13px;font-weight:600;min-width:36px;text-align:right">' + vpBatterij + '%</span>' +
-          '</div>' +
+    // 1. HEADER — naam + (batterij%) + slider op één regel, of klassiek met uren/kWh
+    (heeftBatterij
+      ? '<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:0.5px solid var(--border)">' +
+          '<div style="flex-shrink:0">' + iconHtml + '</div>' +
+          '<div style="font-size:14px;font-weight:600;line-height:1.2;flex-shrink:0;white-space:nowrap">' + naam + ' <span style="color:var(--muted);font-weight:500">· <span id="vpBatterijWaarde">' + vpBatterij + '%</span> 🔋</span></div>' +
           '<input type="range" id="vpBatterij" min="0" max="100" value="' + vpBatterij + '"' +
             ' oninput="apDetailState._vpBatterij=+this.value;document.getElementById(\'vpBatterijWaarde\').textContent=this.value+\'%\';herbereken()"' +
-            ' style="display:block;width:100%;min-width:0;max-width:100%;accent-color:var(--green);box-sizing:border-box">' +
-        '</div>' +
-      '</div>'
-    : '') +
+            ' style="flex:1;min-width:60px;accent-color:var(--green)">' +
+        '</div>'
+      : '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:0.5px solid var(--border)">' +
+          '<div style="flex-shrink:0">' + iconHtml + '</div>' +
+          '<div style="min-width:0">' +
+            '<div style="font-size:15px;font-weight:600;line-height:1.2">' + naam + '</div>' +
+            '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + urenStr + ' · ' + totaalKwh + ' kWh' + (opmerking ? ' · ' + opmerking : '') + '</div>' +
+          '</div>' +
+        '</div>') +
 
-    // 2. BESTE TIJD — suggestie met Overnemen knop
+    // 2. BESTE TIJD — prominent, klik op kaart opent Aanpassen
     '<div class="section" style="padding-top:10px;padding-bottom:4px">' +
-      '<div class="tarief-card" style="padding:10px 14px;background:rgba(59,109,17,0.08);border:1.5px solid rgba(59,109,17,0.35)">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
-          '<div>' +
-            '<div style="font-size:11px;font-weight:600;color:#27500a;margin-bottom:2px">⭐ Beste tijd</div>' +
-            '<div id="besteTijdInfoDiv" style="font-size:12px;color:var(--muted)">' + besteInfoStr + '</div>' +
+      '<div onclick="openAanpassen()" class="tarief-card" style="padding:12px 14px;background:rgba(59,109,17,0.08);border:1.5px solid rgba(59,109,17,0.35);cursor:pointer">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:14px;font-weight:600;color:#27500a">⭐ <span id="besteTijdInfoDiv">' + besteInfoStr + '</span></div>' +
             terugWaarschuwing +
           '</div>' +
           (isBeste
             ? '<div style="font-size:11px;color:#27500a;font-weight:600;flex-shrink:0;padding:5px 9px;border-radius:6px;background:rgba(59,109,17,0.12)">✓ geselecteerd</div>'
-            : '<button onclick="overneemSuggestie(' + besteIdxBer + ')" style="flex-shrink:0;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>') +
+            : '<button onclick="event.stopPropagation();overneemSuggestie(' + besteIdxBer + ')" style="flex-shrink:0;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>') +
         '</div>' +
       '</div>' +
     '</div>' +
 
-    // 3. VERTREKPLANNER — inklapbaar, alleen voor laden
-    (heeftVertrekPlanner ?
-      '<div class="section" style="padding-top:0;padding-bottom:4px;max-width:100%;overflow:hidden">' +
-        '<div onclick="toggleVertrekplanner()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 0;user-select:none">' +
-          '<div style="font-size:12px;font-weight:600;color:var(--text)">🔌 Vertrekplanner</div>' +
-          '<div style="font-size:11px;color:var(--muted)">' + (vpOpen ? '▲ inklappen' : '▼ uitklappen') + '</div>' +
-        '</div>' +
-        (vpOpen ?
-          '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
-            '<div style="margin-bottom:4px;overflow:hidden;width:100%;box-sizing:border-box">' +
-              '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Vertrek om</label>' +
-              '<input type="time" id="vpVertrekTijd" value="' + vpTijd + '"' +
-                ' oninput="apDetailState._vpVertrekTijd=this.value;herbereken()"' +
-                ' style="display:block;width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
-            '</div>' +
-            '<div id="vpResultaat"></div>' +
-          '</div>'
-        : '') +
-      '</div>'
-    : '') +
-
-    // 4. GESELECTEERDE STARTTIJD — time input + kwartier fine-tuning
-    '<div class="section" style="padding-top:0;padding-bottom:4px">' +
-      '<div class="section-title">Geselecteerde starttijd</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-top:6px;overflow:hidden;width:100%;box-sizing:border-box">' +
-        '<button id="selStepperLeft" onclick="adjustApDetail(-15)"' + (!canGoBack ? ' disabled' : '') +
-          ' style="flex-shrink:0;min-width:72px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoBack ? ';opacity:0.35;cursor:default' : '') + '">← 15min</button>' +
-        '<input type="time" id="selStartInput" value="' + selTimeValue + '"' +
-          ' oninput="selTijdWijzig(this.value)"' +
-          ' style="flex:1;min-width:0;height:42px;padding:0 9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box;text-align:center">' +
-        '<button id="selStepperRight" onclick="adjustApDetail(15)"' + (!canGoFwd ? ' disabled' : '') +
-          ' style="flex-shrink:0;min-width:72px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoFwd ? ';opacity:0.35;cursor:default' : '') + '">15min →</button>' +
-      '</div>' +
-      '<div id="selInfoDiv" style="font-size:12px;color:var(--muted);margin-top:5px;padding-left:2px">' + selInfoStr + '</div>' +
-      vergelijkHtml +
-    '</div>' +
-
-    // 5. PLAN DIT IN + STATUS — alleen voor apparaten met automatisering
+    // 3. PLAN DIT IN — direct onder beste tijd, alleen bij automatisering
     (heeftAutomatisering
-      ? '<div class="section" style="padding-top:0;padding-bottom:4px">' +
+      ? '<div class="section" style="padding-top:4px;padding-bottom:4px">' +
           '<button class="ap-cta-btn ap-cta-groen" onclick="planInladen()" id="planInladenBtn">📅 Plan dit in op ' + selStartStrPlain + '</button>' +
           '<div id="planningStatusEl" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(59,109,17,0.08);font-size:12px;color:#27500a;text-align:center"></div>' +
         '</div>'
       : '') +
 
-    // 6. DIRECT STARTEN / STOPPEN
+    // 4. AANPASSEN — inklapbaar (standaard dicht); bevat Vertrek om + geselecteerde tijd
+    '<div class="section" style="padding-top:0;padding-bottom:4px;max-width:100%;overflow:hidden">' +
+      '<div onclick="toggleAanpassen()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 0;user-select:none">' +
+        '<div style="font-size:12px;font-weight:600;color:var(--text)">⚙️ Aanpassen</div>' +
+        '<div style="font-size:11px;color:var(--muted)">' + (aanpOpen ? '▲ inklappen' : '▼ uitklappen') + '</div>' +
+      '</div>' +
+      (aanpOpen ?
+        '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
+          (heeftVertrekPlanner ?
+            '<div style="margin-bottom:10px;overflow:hidden;width:100%;box-sizing:border-box">' +
+              '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Vertrek om</label>' +
+              '<input type="time" id="vpVertrekTijd" value="' + vpTijd + '"' +
+                ' oninput="apDetailState._vpVertrekTijd=this.value;herbereken()"' +
+                ' style="display:block;width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
+              '<div id="vpResultaat"></div>' +
+            '</div>'
+          : '') +
+          '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Geselecteerde starttijd</label>' +
+          '<div style="display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box">' +
+            '<button id="selStepperLeft" onclick="adjustApDetail(-15)"' + (!canGoBack ? ' disabled' : '') +
+              ' style="flex-shrink:0;min-width:72px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoBack ? ';opacity:0.35;cursor:default' : '') + '">← 15min</button>' +
+            '<input type="time" id="selStartInput" value="' + selTimeValue + '"' +
+              ' oninput="selTijdWijzig(this.value)"' +
+              ' style="flex:1;min-width:0;height:42px;padding:0 9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box;text-align:center">' +
+            '<button id="selStepperRight" onclick="adjustApDetail(15)"' + (!canGoFwd ? ' disabled' : '') +
+              ' style="flex-shrink:0;min-width:72px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoFwd ? ';opacity:0.35;cursor:default' : '') + '">15min →</button>' +
+          '</div>' +
+          '<div id="selInfoDiv" style="font-size:12px;color:var(--muted);margin-top:6px;padding-left:2px">' + selInfoStr + '</div>' +
+          vergelijkHtml +
+        '</div>'
+      : '') +
+    '</div>' +
+
+    // 5. DIRECT STARTEN / STOPPEN — onderaan, geen sectielabel
     automatiseringSectie +
     '<div style="padding-bottom:40px"></div>';
 
-  if (heeftVertrekPlanner && vpOpen) herbereken();
+  if (heeftVertrekPlanner && aanpOpen) herbereken();
   if (heeftAutomatisering) laadPlanningStatus(apparaat);
 }
 
