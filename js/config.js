@@ -36,16 +36,14 @@ const VOLVO_SVG = `<svg viewBox="0 0 52 24" width="48" height="22" xmlns="http:/
 </svg>`;
 
 const APPARATEN = [
-  // Groot verbruik
-  { naam: 'Auto (PHEV)',             icon: VOLVO_SVG, uren: 6, vermogen: 2.3, type: 'laden',       automatisering: true  },
-  { naam: 'Warmtepomp (warm water)', icon: '♨️',       uren: 2, vermogen: 2.0, type: 'inschakelen', automatisering: false, opmerking: 'buffert warm water, niet voor verwarming' },
-  { naam: 'Wasmachine',              icon: '👕',       uren: 2, vermogen: 1.5, type: 'starten',     automatisering: false, comboMet: 'Droger' },
-  { naam: 'Droger',                  icon: '🌀',       uren: 2, vermogen: 2.5, type: 'starten',     automatisering: false, naApparaat: 'Wasmachine' },
-  // Klein verbruik
-  { naam: 'Vaatwasser',              icon: '🍽️',      uren: 3.5, vermogen: 1.8, type: 'starten',     automatisering: false },
-  { naam: 'E-bikes (2x)',            icon: '🚲',       uren: 4, vermogen: 0.2, type: 'laden',       automatisering: false },
-  { naam: 'Boiler kantoor',          icon: '🚿',       uren: 1, vermogen: 2.5, type: 'inschakelen', automatisering: false },
-  { naam: 'Airco',                   icon: '❄️',       uren: 3, vermogen: 2.0, type: 'inschakelen', automatisering: false },
+  { naam: 'Auto (PHEV)',             icon: VOLVO_SVG, uren: 6,   vermogen: 2.3, type: 'laden',       automatisering: true,  favoriet: true  },
+  { naam: 'Warmtepomp (warm water)', icon: '♨️',       uren: 2,   vermogen: 2.0, type: 'inschakelen', automatisering: false, favoriet: false, opmerking: 'buffert warm water, niet voor verwarming' },
+  { naam: 'Wasmachine',              icon: '👕',       uren: 2,   vermogen: 1.5, type: 'starten',     automatisering: false, favoriet: true,  comboMet: 'Droger' },
+  { naam: 'Droger',                  icon: '🌀',       uren: 2,   vermogen: 2.5, type: 'starten',     automatisering: false, favoriet: true,  naApparaat: 'Wasmachine' },
+  { naam: 'Vaatwasser',              icon: '🍽️',      uren: 3.5, vermogen: 1.8, type: 'starten',     automatisering: false, favoriet: true  },
+  { naam: 'E-bikes (2x)',            icon: '🚲',       uren: 4,   vermogen: 0.2, type: 'laden',       automatisering: false, favoriet: false },
+  { naam: 'Boiler kantoor',          icon: '🚿',       uren: 1,   vermogen: 2.5, type: 'inschakelen', automatisering: false, favoriet: false },
+  { naam: 'Airco',                   icon: '❄️',       uren: 3,   vermogen: 2.0, type: 'inschakelen', automatisering: false, favoriet: false },
 ];
 
 const TERUGLEVERING_OPSLAG = 0.0353; // € per kWh excl. btw

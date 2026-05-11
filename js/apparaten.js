@@ -924,15 +924,14 @@ function renderLaadadvies() {
   }
 
   const sectionHdr = label => `<div class="section-title" style="grid-column:1/-1;margin-top:4px;margin-bottom:8px">${label}</div>`;
-  const GROOT_GRENS = 4;
   const veiligRender = (ap, i) => { try { return renderApparaat(ap, i); } catch(e) { console.error(`[${ap.naam}]`, e); return `<div class="advies-card" style="color:#a32d2d;font-size:11px">${ap.icon} ${ap.naam}: ${e.message}</div>`; } };
-  const grootKaarten = APPARATEN.slice(0, GROOT_GRENS).map(veiligRender).join('');
-  const kleinKaarten = APPARATEN.slice(GROOT_GRENS).map((ap, i) => veiligRender(ap, i + GROOT_GRENS)).join('');
+  const favKaarten    = APPARATEN.map((ap, i) => ({ ap, i })).filter(x => x.ap.favoriet).map(x => veiligRender(x.ap, x.i)).join('');
+  const overigKaarten = APPARATEN.map((ap, i) => ({ ap, i })).filter(x => !x.ap.favoriet).map(x => veiligRender(x.ap, x.i)).join('');
   container.innerHTML = `<div class="advies-grid">
-    ${sectionHdr('Groot verbruik')}
-    ${grootKaarten}
-    ${sectionHdr('Klein verbruik')}
-    ${kleinKaarten}
+    ${sectionHdr('Favorieten')}
+    ${favKaarten}
+    ${sectionHdr('Meer apparaten')}
+    ${overigKaarten}
   </div>
 <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 16px">* Berekeningen zijn per apparaat afzonderlijk. Bij gelijktijdig gebruik is de zonne-energie dekking lager.</p>`;
 }
