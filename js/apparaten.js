@@ -362,6 +362,7 @@ function renderApDetail() {
   const heeftAutomatisering = !!ap.automatisering;
   const apparaat           = apSleutel(naam);
   const heeftVertrekPlanner = !!ap.automatisering;
+  const heeftBatterij       = !!ap.batterij;
   const vpOpen             = !!apDetailState._vertrekPlannerOpen;
   const vpBatterij         = apDetailState._vpBatterij  ?? 0;
   const vpTijd             = apDetailState._vpVertrekTijd ?? '07:00';
@@ -472,6 +473,21 @@ function renderApDetail() {
       '</div>' +
     '</div>' +
 
+    // 1b. BATTERIJNIVEAU — los van vertrekplanner, alleen voor apparaten met een batterij
+    (heeftBatterij ?
+      '<div class="section" style="padding-top:10px;padding-bottom:4px">' +
+        '<div class="tarief-card" style="padding:10px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">' +
+            '<label for="vpBatterij" style="font-size:12px;font-weight:600;color:var(--text)">🔋 Huidig batterijniveau</label>' +
+            '<span id="vpBatterijWaarde" style="font-size:13px;font-weight:600;min-width:36px;text-align:right">' + vpBatterij + '%</span>' +
+          '</div>' +
+          '<input type="range" id="vpBatterij" min="0" max="100" value="' + vpBatterij + '"' +
+            ' oninput="apDetailState._vpBatterij=+this.value;document.getElementById(\'vpBatterijWaarde\').textContent=this.value+\'%\';herbereken()"' +
+            ' style="display:block;width:100%;min-width:0;max-width:100%;accent-color:var(--green);box-sizing:border-box">' +
+        '</div>' +
+      '</div>'
+    : '') +
+
     // 2. BESTE TIJD — suggestie met Overnemen knop
     '<div class="section" style="padding-top:10px;padding-bottom:4px">' +
       '<div class="tarief-card" style="padding:10px 14px;background:rgba(59,109,17,0.08);border:1.5px solid rgba(59,109,17,0.35)">' +
@@ -497,15 +513,6 @@ function renderApDetail() {
         '</div>' +
         (vpOpen ?
           '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
-            '<div style="margin-bottom:10px">' +
-              '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Huidig batterijniveau</label>' +
-              '<div style="display:flex;align-items:center;gap:10px;min-width:0">' +
-                '<input type="range" id="vpBatterij" min="0" max="100" value="' + vpBatterij + '"' +
-                  ' oninput="apDetailState._vpBatterij=+this.value;document.getElementById(\'vpBatterijWaarde\').textContent=this.value+\'%\';herbereken()"' +
-                  ' style="flex:1;min-width:0;accent-color:var(--green)">' +
-                '<span id="vpBatterijWaarde" style="font-size:13px;font-weight:600;min-width:36px;text-align:right;flex-shrink:0">' + vpBatterij + '%</span>' +
-              '</div>' +
-            '</div>' +
             '<div style="margin-bottom:4px;overflow:hidden;width:100%;box-sizing:border-box">' +
               '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Vertrek om</label>' +
               '<input type="time" id="vpVertrekTijd" value="' + vpTijd + '"' +
@@ -645,11 +652,10 @@ function herbereken() {
   // Altijd: update secties 2, 4 en "Plan dit in" knop
   updateKostenWeergave(berekendeUren);
 
-  // VP-specifiek: alleen als vertrekplanner elementen aanwezig zijn
-  const batterijEl = document.getElementById('vpBatterij');
-  const tijdEl     = document.getElementById('vpVertrekTijd');
-  const resultEl   = document.getElementById('vpResultaat');
-  if (!batterijEl || !tijdEl || !resultEl) return;
+  // VP-specifiek: alleen als vertrekplanner is uitgeklapt (Vertrek om + resultaat aanwezig)
+  const tijdEl   = document.getElementById('vpVertrekTijd');
+  const resultEl = document.getElementById('vpResultaat');
+  if (!tijdEl || !resultEl) return;
 
   if (berekendeUren < 0.25) {
     resultEl.innerHTML = '<div class="advies-status nu" style="margin-top:0">Batterij is al vol 🎉</div>';
