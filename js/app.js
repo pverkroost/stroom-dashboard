@@ -3,7 +3,7 @@ let toonVerleden = false, geselecteerdStartTijd = null, rAFId = null;
 let solarVandaag = null, solarMorgen = null;
 let isZonTab = false, isInstTab = false, zonChart = null, voorspellingChart = null;
 let openMeteoVandaag = null, growattVandaag = null;
-let apiStatus = { epex: null, solar: null, growatt: null, openMeteo: null };
+let apiStatus = { epex: null, solar: null, growatt: null, openMeteo: null, homey: null };
 
 function resetZonCanvassen() {
   if (zonChart)          { zonChart.destroy(); zonChart = null; }
@@ -27,7 +27,9 @@ function switchTab(newTab) {
     document.getElementById('instellingenContent').style.display = '';
     document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
     document.getElementById('tab-3').classList.add('active');
+    apiStatus.homey = null;
     renderInstellingen();
+    testHomeyVerbinding();
 
   } else if (newTab === 'zon') {
     isZonTab = true; isInstTab = false;
@@ -122,14 +124,23 @@ function renderInstellingen() {
     { naam: 'SolarEdge API',   sub: null,             key: 'solar' },
     { naam: 'Growatt OpenAPI', sub: null,             key: 'growatt' },
     { naam: 'Open-Meteo',      sub: null,             key: 'openMeteo' },
-    { naam: 'Homey',           sub: null,             statisch: '✅ Verbonden' },
+    { naam: 'Homey',           sub: null,             key: 'homey', homey: true },
   ];
   const card = document.getElementById('integratiesCard');
   if (card) {
     card.innerHTML = bronnen.map(b => {
       let statusStr, tijdStr = '', kleurStr = '';
-      if (b.statisch) {
-        statusStr = b.statisch;
+      if (b.homey) {
+        const s = apiStatus.homey;
+        if (!s) {
+          statusStr = 'Controleren…';
+          kleurStr  = 'color:var(--muted)';
+        } else if (s.ok) {
+          statusStr = '<span style="color:var(--green)">●</span> Verbonden';
+        } else {
+          statusStr = '<span style="color:var(--muted)">○</span> Niet bereikbaar';
+          kleurStr  = 'color:#a32d2d';
+        }
       } else {
         const s = apiStatus[b.key];
         statusStr = !s   ? '⏳ Ophalen…'
@@ -159,6 +170,17 @@ function renderInstellingen() {
   }
 }
 
+async function testHomeyVerbinding() {
+  try {
+    const r = await fetch('/api/homey?test=true');
+    const data = await r.json();
+    apiStatus.homey = { ok: !!data.verbonden };
+  } catch {
+    apiStatus.homey = { ok: false };
+  }
+  if (isInstTab) renderInstellingen();
+}
+
 (function() {
   const now = new Date();
   const fmt = new Intl.DateTimeFormat('nl-NL', {
@@ -169,5 +191,5 @@ function renderInstellingen() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.41.1 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.42.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
