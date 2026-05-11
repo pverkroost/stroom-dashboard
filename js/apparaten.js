@@ -27,40 +27,61 @@ function getApparatenSorted() {
 
 // ── Instellingen: dynamische apparaten lijst met drag&drop ──────────────────
 let _draggedRow = null;
+let _touchDragRow = null;
+let _apparatenDragSetup = false;
+
+function instIconHtml(icon) {
+  if (typeof icon === 'string' && icon.includes('<svg')) {
+    return '<span class="ap-icon" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:24px;flex-shrink:0;overflow:hidden"><span style="display:inline-block;transform:scale(0.6);transform-origin:center">' + icon + '</span></span>';
+  }
+  return '<span class="ap-icon" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:24px;flex-shrink:0;font-size:20px;line-height:1">' + icon + '</span>';
+}
 
 function renderApparatenInstellingen() {
   const card = document.getElementById('apparatenLijst');
   if (!card) return;
   const sorted = getApparatenSorted();
   card.innerHTML = sorted.map(({ ap }) => {
-    const iconHtml = (typeof ap.icon === 'string' && ap.icon.includes('<svg'))
-      ? '<span style="display:inline-block;width:28px;height:18px;flex-shrink:0">' + ap.icon + '</span>'
-      : '<span style="font-size:16px;flex-shrink:0">' + ap.icon + '</span>';
     const subStr = (ap.uren % 1 === 0 ? ap.uren : ap.uren.toString().replace('.', ',')) + ' uur · ' + ap.vermogen.toString().replace('.', ',') + ' kW';
     return `<div class="apparaat-row" draggable="true" data-naam="${ap.naam}"
-              ondragstart="rowDragStart(event)" ondragover="rowDragOver(event)" ondrop="rowDrop(event)" ondragend="rowDragEnd(event)"
-              style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:0.5px solid var(--border)">
-      <span style="cursor:grab;color:var(--muted);font-size:18px;user-select:none;flex-shrink:0;touch-action:none">☰</span>
-      ${iconHtml}
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:500">${ap.naam}</div>
-        <div style="font-size:10px;color:var(--muted)">${subStr}</div>
+              style="display:flex;align-items:center;gap:12px;padding:8px 4px;border-bottom:0.5px solid var(--border)">
+      <span class="drag-handle" style="cursor:grab;color:var(--muted);font-size:18px;user-select:none;flex-shrink:0;width:24px;text-align:center;touch-action:none;padding:8px 0">☰</span>
+      ${instIconHtml(ap.icon)}
+      <div style="flex:1;overflow:hidden;min-width:0">
+        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ap.naam}</div>
+        <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subStr}</div>
       </div>
-      ${ap.grootverbruik ? '<span style="font-size:10px;color:var(--muted);background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;flex-shrink:0">groot</span>' : ''}
     </div>`;
   }).join('');
+  setupApparaatDrag();
+}
+
+function setupApparaatDrag() {
+  if (_apparatenDragSetup) return;
+  const card = document.getElementById('apparatenLijst');
+  if (!card) return;
+  card.addEventListener('dragstart', rowDragStart);
+  card.addEventListener('dragover',  rowDragOver);
+  card.addEventListener('drop',      rowDrop);
+  card.addEventListener('dragend',   rowDragEnd);
+  card.addEventListener('touchstart', rowTouchStart, { passive: false });
+  card.addEventListener('touchmove',  rowTouchMove,  { passive: false });
+  card.addEventListener('touchend',   rowTouchEnd);
+  _apparatenDragSetup = true;
 }
 
 function rowDragStart(e) {
-  _draggedRow = e.target.closest('.apparaat-row');
-  if (_draggedRow) {
-    e.dataTransfer.effectAllowed = 'move';
-    _draggedRow.style.opacity = '0.4';
-  }
+  const row = e.target.closest('.apparaat-row');
+  if (!row) return;
+  _draggedRow = row;
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', row.dataset.naam || ''); } catch {}
+  row.style.opacity = '0.4';
 }
 function rowDragOver(e) {
-  e.preventDefault();
   if (!_draggedRow) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
   const row = e.target.closest('.apparaat-row');
   if (!row || row === _draggedRow) return;
   const rect     = row.getBoundingClientRect();
@@ -68,10 +89,45 @@ function rowDragOver(e) {
   row.parentNode.insertBefore(_draggedRow, e.clientY < midpoint ? row : row.nextSibling);
 }
 function rowDrop(e) {
-  e.preventDefault();
   if (!_draggedRow) return;
+  e.preventDefault();
   _draggedRow.style.opacity = '';
   _draggedRow = null;
+  bewaarApparaatVolgorde();
+}
+function rowDragEnd() {
+  if (_draggedRow) { _draggedRow.style.opacity = ''; _draggedRow = null; }
+}
+
+function rowTouchStart(e) {
+  const handle = e.target.closest('.drag-handle');
+  if (!handle) return;
+  _touchDragRow = e.target.closest('.apparaat-row');
+  if (!_touchDragRow) return;
+  _touchDragRow.style.opacity = '0.5';
+  _touchDragRow.style.background = 'rgba(59,109,17,0.06)';
+  e.preventDefault();
+}
+function rowTouchMove(e) {
+  if (!_touchDragRow) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  const row = el?.closest?.('.apparaat-row');
+  if (!row || row === _touchDragRow) return;
+  const rect     = row.getBoundingClientRect();
+  const midpoint = rect.top + rect.height / 2;
+  row.parentNode.insertBefore(_touchDragRow, t.clientY < midpoint ? row : row.nextSibling);
+}
+function rowTouchEnd() {
+  if (!_touchDragRow) return;
+  _touchDragRow.style.opacity = '';
+  _touchDragRow.style.background = '';
+  _touchDragRow = null;
+  bewaarApparaatVolgorde();
+}
+
+function bewaarApparaatVolgorde() {
   const cfg = getApparaatConfig();
   document.querySelectorAll('#apparatenLijst .apparaat-row').forEach((row, i) => {
     const naam = row.dataset.naam;
@@ -79,9 +135,6 @@ function rowDrop(e) {
   });
   saveApparaatConfig(cfg);
   renderLaadadvies();
-}
-function rowDragEnd() {
-  if (_draggedRow) { _draggedRow.style.opacity = ''; _draggedRow = null; }
 }
 
 function berekenKostenVanaf(uren, vermogenKw, prijzenLijst, vanIdx, allowPartial = false) {
