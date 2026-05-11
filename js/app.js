@@ -1,6 +1,5 @@
 let chart = null, activeDay = 0, cacheVandaag = null, cacheMorgen = null;
 let toonVerleden = false, geselecteerdStartTijd = null, rAFId = null;
-let uurOverzichtOpen = false;
 let solarVandaag = null, solarMorgen = null;
 let isZonTab = false, isInstTab = false, zonChart = null, voorspellingChart = null;
 let openMeteoVandaag = null, growattVandaag = null;
@@ -172,52 +171,6 @@ function renderInstellingen() {
   }
 }
 
-// ── Uur-selectie: koppelt grafiek + uuroverzicht + apparaatkaarten ──────────
-function selecteerUur(uurIdx) {
-  const prijzen = activeDay === 0 ? cacheVandaag : cacheMorgen;
-  if (!prijzen || uurIdx < 0 || uurIdx >= prijzen.length) return;
-  geselecteerdStartTijd = prijzen[uurIdx].tijd;
-  highlightChartBar(uurIdx);
-  renderLaadadvies();
-}
-function resetUur() {
-  if (!geselecteerdStartTijd) return;
-  geselecteerdStartTijd = null;
-  highlightChartBar(-1);
-  renderLaadadvies();
-}
-function highlightChartBar(selectedIdx) {
-  if (!chart || !chart.data?.datasets?.[0]) return;
-  const ds = chart.data.datasets[0];
-  if (!Array.isArray(ds.backgroundColor)) return;
-  if (!ds._origColors) ds._origColors = [...ds.backgroundColor];
-  ds.backgroundColor = selectedIdx < 0
-    ? [...ds._origColors]
-    : ds._origColors.map((c, i) => i === selectedIdx ? c : fadeColor(c, 0.35));
-  chart.update('none');
-}
-function fadeColor(color, alpha) {
-  if (!color || typeof color !== 'string') return color;
-  if (color.startsWith('#')) {
-    const hex = color.slice(1);
-    const r = parseInt(hex.substr(0,2), 16);
-    const g = parseInt(hex.substr(2,2), 16);
-    const b = parseInt(hex.substr(4,2), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
-  }
-  return color.replace(/rgba?\(([^)]+)\)/, (m, vals) => {
-    const parts = vals.split(',').map(s => s.trim());
-    return `rgba(${parts[0]},${parts[1]},${parts[2]},${alpha})`;
-  });
-}
-function toggleUurOverzicht() {
-  uurOverzichtOpen = !uurOverzichtOpen;
-  const lijst  = document.getElementById('urenLijst');
-  const toggle = document.getElementById('uurOverzichtToggle');
-  if (lijst)  lijst.style.display  = uurOverzichtOpen ? '' : 'none';
-  if (toggle) toggle.textContent   = uurOverzichtOpen ? '▲ Uuroverzicht verbergen' : '▼ Uuroverzicht';
-}
-
 async function testHomeyVerbinding() {
   try {
     const r = await fetch('/api/homey?test=true');
@@ -239,5 +192,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.49.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.48.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
