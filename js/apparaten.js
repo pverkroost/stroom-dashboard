@@ -3,28 +3,29 @@ function updateApparaatKaarten() {
   rAFId = requestAnimationFrame(() => { rAFId = null; renderLaadadvies(); });
 }
 
-// ── Apparaten config (favoriet + volgorde) in localStorage ──────────────────
+// ── Apparaten config (volgorde) in localStorage ─────────────────────────────
 function getApparaatConfig() {
-  try { return JSON.parse(localStorage.getItem('apparaten_config') || '{}'); }
-  catch { return {}; }
+  const raw = localStorage.getItem('apparaten_config');
+  if (raw) { try { return JSON.parse(raw); } catch {} }
+  const cfg = {};
+  APPARATEN.forEach(ap => { cfg[ap.naam] = { volgorde: ap.volgorde }; });
+  localStorage.setItem('apparaten_config', JSON.stringify(cfg));
+  return cfg;
 }
 function saveApparaatConfig(cfg) {
   localStorage.setItem('apparaten_config', JSON.stringify(cfg));
 }
-// Combineer APPARATEN defaults met localStorage overrides en sorteer op volgorde
+// Sorteer APPARATEN op volgorde uit localStorage (fallback: config.js default)
 function getApparatenSorted() {
   const cfg = getApparaatConfig();
-  return APPARATEN.map((ap, originalIdx) => {
-    const o = cfg[ap.naam] || {};
-    return {
-      ap: { ...ap, favoriet: o.favoriet ?? ap.favoriet },
-      volgorde:    o.volgorde ?? ap.volgorde ?? 99,
-      originalIdx,
-    };
-  }).sort((a, b) => a.volgorde - b.volgorde);
+  return APPARATEN.map((ap, originalIdx) => ({
+    ap,
+    volgorde: cfg[ap.naam]?.volgorde ?? ap.volgorde ?? 99,
+    originalIdx,
+  })).sort((a, b) => a.volgorde - b.volgorde);
 }
 
-// ── Instellingen: dynamische apparaten lijst met drag&drop + favoriet toggle ─
+// ── Instellingen: dynamische apparaten lijst met drag&drop ──────────────────
 let _draggedRow = null;
 
 function renderApparatenInstellingen() {
@@ -35,8 +36,7 @@ function renderApparatenInstellingen() {
     const iconHtml = (typeof ap.icon === 'string' && ap.icon.includes('<svg'))
       ? '<span style="display:inline-block;width:28px;height:18px;flex-shrink:0">' + ap.icon + '</span>'
       : '<span style="font-size:16px;flex-shrink:0">' + ap.icon + '</span>';
-    const naamEsc = ap.naam.replace(/'/g, "\\'");
-    const subStr  = (ap.uren % 1 === 0 ? ap.uren : ap.uren.toString().replace('.', ',')) + ' uur · ' + ap.vermogen.toString().replace('.', ',') + ' kW';
+    const subStr = (ap.uren % 1 === 0 ? ap.uren : ap.uren.toString().replace('.', ',')) + ' uur · ' + ap.vermogen.toString().replace('.', ',') + ' kW';
     return `<div class="apparaat-row" draggable="true" data-naam="${ap.naam}"
               ondragstart="rowDragStart(event)" ondragover="rowDragOver(event)" ondrop="rowDrop(event)" ondragend="rowDragEnd(event)"
               style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:0.5px solid var(--border)">
@@ -47,8 +47,6 @@ function renderApparatenInstellingen() {
         <div style="font-size:10px;color:var(--muted)">${subStr}</div>
       </div>
       ${ap.grootverbruik ? '<span style="font-size:10px;color:var(--muted);background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;flex-shrink:0">groot</span>' : ''}
-      <button onclick="toggleFavoriet('${naamEsc}')" aria-label="Favoriet"
-        style="background:none;border:none;cursor:pointer;font-size:20px;padding:4px 6px;flex-shrink:0;line-height:1">${ap.favoriet ? '⭐' : '☆'}</button>
     </div>`;
   }).join('');
 }
@@ -84,17 +82,6 @@ function rowDrop(e) {
 }
 function rowDragEnd() {
   if (_draggedRow) { _draggedRow.style.opacity = ''; _draggedRow = null; }
-}
-
-function toggleFavoriet(naam) {
-  const ap = APPARATEN.find(a => a.naam === naam);
-  if (!ap) return;
-  const cfg = getApparaatConfig();
-  const huidigFav = cfg[naam]?.favoriet ?? ap.favoriet;
-  cfg[naam] = { ...(cfg[naam] || {}), favoriet: !huidigFav };
-  saveApparaatConfig(cfg);
-  renderApparatenInstellingen();
-  renderLaadadvies();
 }
 
 function berekenKostenVanaf(uren, vermogenKw, prijzenLijst, vanIdx, allowPartial = false) {
@@ -1017,16 +1004,8 @@ function renderLaadadvies() {
     });
   }
 
-  const sectionHdr = label => `<div class="section-title" style="grid-column:1/-1;margin-top:4px;margin-bottom:8px">${label}</div>`;
   const veiligRender = (ap, i) => { try { return renderApparaat(ap, i); } catch(e) { console.error(`[${ap.naam}]`, e); return `<div class="advies-card" style="color:#a32d2d;font-size:11px">${ap.icon} ${ap.naam}: ${e.message}</div>`; } };
-  const sorted        = getApparatenSorted();
-  const favKaarten    = sorted.filter(x => x.ap.favoriet).map(x => veiligRender(x.ap, x.originalIdx)).join('');
-  const overigKaarten = sorted.filter(x => !x.ap.favoriet).map(x => veiligRender(x.ap, x.originalIdx)).join('');
-  container.innerHTML = `<div class="advies-grid">
-    ${sectionHdr('Favorieten')}
-    ${favKaarten}
-    ${sectionHdr('Meer apparaten')}
-    ${overigKaarten}
-  </div>
+  const alleKaarten = getApparatenSorted().map(x => veiligRender(x.ap, x.originalIdx)).join('');
+  container.innerHTML = `<div class="advies-grid">${alleKaarten}</div>
 <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 16px">* Berekeningen zijn per apparaat afzonderlijk. Bij gelijktijdig gebruik is de zonne-energie dekking lager.</p>`;
 }
