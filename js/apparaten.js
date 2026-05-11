@@ -839,13 +839,15 @@ async function bevestigHomey() {
 }
 
 function renderLaadadvies() {
-  const container = document.getElementById('laadadviesContainer');
-  const isMorgenTab = activeDay === 1;
+  const container     = document.getElementById('laadadviesContainer');
+  const containerMeer = document.getElementById('meerApparatenContainer');
+  const isMorgenTab   = activeDay === 1;
 
   const titleEl = document.getElementById('laadadviesTitle');
   if (titleEl) titleEl.textContent = isMorgenTab ? 'Slim inplannen · morgen' : 'Slim inplannen · vandaag';
 
   if (isMorgenTab ? !cacheMorgen : !cacheVandaag) {
+    if (containerMeer) containerMeer.innerHTML = '';
     if (isMorgenTab) {
       const verwachtKwh = solarMorgen?.hourly?.length
         ? (solarMorgen.hourly.reduce((s, e) => s + e.watt, 0) / 1000).toFixed(1)
@@ -1041,7 +1043,10 @@ function renderLaadadvies() {
   }
 
   const veiligRender = (ap, i) => { try { return renderApparaat(ap, i); } catch(e) { console.error(`[${ap.naam}]`, e); return `<div class="advies-card" style="color:#a32d2d;font-size:11px">${ap.icon} ${ap.naam}: ${e.message}</div>`; } };
-  const alleKaarten = getApparatenSorted().map(x => veiligRender(x.ap, x.originalIdx)).join('');
-  container.innerHTML = `<div class="advies-grid">${alleKaarten}</div>
+  const sortedAll = getApparatenSorted();
+  const top4Html  = sortedAll.slice(0, 4).map(x => veiligRender(x.ap, x.originalIdx)).join('');
+  const meerHtml  = sortedAll.slice(4).map(x => veiligRender(x.ap, x.originalIdx)).join('');
+  container.innerHTML = `<div class="advies-grid">${top4Html}</div>`;
+  if (containerMeer) containerMeer.innerHTML = `<div class="advies-grid">${meerHtml}</div>
 <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 16px">* Berekeningen zijn per apparaat afzonderlijk. Bij gelijktijdig gebruik is de zonne-energie dekking lager.</p>`;
 }

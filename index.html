@@ -50,9 +50,14 @@
     </div>
   </div>
 
+  <div class="section" id="meerApparatenSection">
+    <div class="section-title">Meer apparaten</div>
+    <div id="meerApparatenContainer"></div>
+  </div>
+
   <div class="section">
-    <div class="section-title">Uuroverzicht</div>
-    <div class="hours-card" id="urenLijst">
+    <div class="section-title" id="uurOverzichtToggle" onclick="toggleUurOverzicht()" style="cursor:pointer;user-select:none">▼ Uuroverzicht</div>
+    <div class="hours-card" id="urenLijst" style="display:none">
       <div class="loading"><div class="spinner"></div>Prijzen ophalen...</div>
     </div>
   </div>

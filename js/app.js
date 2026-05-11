@@ -1,5 +1,6 @@
 let chart = null, activeDay = 0, cacheVandaag = null, cacheMorgen = null;
 let toonVerleden = false, geselecteerdStartTijd = null, rAFId = null;
+let uurOverzichtOpen = false;
 let solarVandaag = null, solarMorgen = null;
 let isZonTab = false, isInstTab = false, zonChart = null, voorspellingChart = null;
 let openMeteoVandaag = null, growattVandaag = null;
@@ -171,6 +172,14 @@ function renderInstellingen() {
   }
 }
 
+function toggleUurOverzicht() {
+  uurOverzichtOpen = !uurOverzichtOpen;
+  const lijst  = document.getElementById('urenLijst');
+  const toggle = document.getElementById('uurOverzichtToggle');
+  if (lijst)  lijst.style.display  = uurOverzichtOpen ? '' : 'none';
+  if (toggle) toggle.textContent   = uurOverzichtOpen ? '▲ Uuroverzicht verbergen' : '▼ Uuroverzicht';
+}
+
 async function testHomeyVerbinding() {
   try {
     const r = await fetch('/api/homey?test=true');
@@ -192,5 +201,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.49.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.49.1 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
