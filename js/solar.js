@@ -259,18 +259,27 @@ function toUurRanges(uren) {
   ).join(', ');
 }
 
+let _terugleverRendering = false;
 function renderTerugleverAdvies() {
   const el = document.getElementById('zonTerugleverContent');
   if (!el) return;
+  if (_terugleverRendering) return; // voorkom overlappende calls binnen dezelfde tick
+  _terugleverRendering = true;
+  el.innerHTML = ''; // expliciet leegmaken voordat we vullen — voorkomt residual content
 
   if (!cacheVandaag || !openMeteoVandaag?.hourly?.length) {
     el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Prijsdata of zonverwachting niet beschikbaar</div>';
+    _terugleverRendering = false;
     return;
   }
 
+  // Dedupliceer op uur (DST-overgang kan dubbele h=2 of h=3 entries opleveren)
+  const gezienUren = new Set();
   const zonnige = [];
   for (const p of cacheVandaag) {
     const h = p.tijd.getHours();
+    if (gezienUren.has(h)) continue;
+    gezienUren.add(h);
     const watt = openMeteoVandaag.hourly.find(e => e.hour === h)?.watt ?? 0;
     if (watt < 50) continue;
     const terug = p.terug ?? 0;
@@ -279,6 +288,7 @@ function renderTerugleverAdvies() {
 
   if (!zonnige.length) {
     el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Geen noemenswaardige zonproductie vandaag</div>';
+    _terugleverRendering = false;
     return;
   }
 
@@ -331,6 +341,7 @@ function renderTerugleverAdvies() {
   }).join('');
 
   el.innerHTML = html;
+  _terugleverRendering = false;
 }
 
 // Custom plugin: stippelrand voor bars met borderDash property
