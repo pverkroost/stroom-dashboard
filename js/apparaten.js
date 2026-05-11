@@ -839,13 +839,21 @@ async function bevestigHomey() {
 }
 
 function renderLaadadvies() {
-  const container = document.getElementById('laadadviesContainer');
-  const isMorgenTab = activeDay === 1;
+  const container     = document.getElementById('laadadviesContainer');
+  const containerMeer = document.getElementById('meerApparatenContainer');
+  const isMorgenTab   = activeDay === 1;
 
   const titleEl = document.getElementById('laadadviesTitle');
-  if (titleEl) titleEl.textContent = isMorgenTab ? 'Slim inplannen · morgen' : 'Slim inplannen · vandaag';
+  if (titleEl) {
+    if (geselecteerdStartTijd) {
+      titleEl.textContent = 'Slim inplannen · als je start om ' + hStr(geselecteerdStartTijd);
+    } else {
+      titleEl.textContent = isMorgenTab ? 'Slim inplannen · morgen' : 'Slim inplannen · beste moment';
+    }
+  }
 
   if (isMorgenTab ? !cacheMorgen : !cacheVandaag) {
+    if (containerMeer) containerMeer.innerHTML = '';
     if (isMorgenTab) {
       const verwachtKwh = solarMorgen?.hourly?.length
         ? (solarMorgen.hourly.reduce((s, e) => s + e.watt, 0) / 1000).toFixed(1)
@@ -922,12 +930,13 @@ function renderLaadadvies() {
 
     let vergelijkBadge = '';
     if (selEff !== null) {
-      if (selStartIdx === besteStartIdx) {
-        vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
+      const diff = selEff - besteEff;
+      if (Math.abs(diff) < 0.005) {
+        vergelijkBadge = `<div class="advies-badge groen">€ ${selEff.toFixed(2)} ✓</div>`;
+      } else if (diff < 0) {
+        vergelijkBadge = `<div class="advies-badge groen">€ ${selEff.toFixed(2)} (− € ${Math.abs(diff).toFixed(2)})</div>`;
       } else {
-        const diff = selEff - besteEff;
-        if (diff > 0.005) vergelijkBadge = `<div class="advies-badge rood">kost € ${diff.toFixed(2)} meer</div>`;
-        else              vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
+        vergelijkBadge = `<div class="advies-badge" style="background:#fef3c7;color:#92400e">€ ${selEff.toFixed(2)} (+ € ${diff.toFixed(2)})</div>`;
       }
     }
 
@@ -1041,7 +1050,12 @@ function renderLaadadvies() {
   }
 
   const veiligRender = (ap, i) => { try { return renderApparaat(ap, i); } catch(e) { console.error(`[${ap.naam}]`, e); return `<div class="advies-card" style="color:#a32d2d;font-size:11px">${ap.icon} ${ap.naam}: ${e.message}</div>`; } };
-  const alleKaarten = getApparatenSorted().map(x => veiligRender(x.ap, x.originalIdx)).join('');
-  container.innerHTML = `<div class="advies-grid">${alleKaarten}</div>
+  const sortedAll  = getApparatenSorted();
+  const top4       = sortedAll.slice(0, 4);
+  const meer       = sortedAll.slice(4);
+  const top4Html   = top4.map(x => veiligRender(x.ap, x.originalIdx)).join('');
+  const meerHtml   = meer.map(x => veiligRender(x.ap, x.originalIdx)).join('');
+  container.innerHTML = `<div class="advies-grid">${top4Html}</div>`;
+  if (containerMeer) containerMeer.innerHTML = `<div class="advies-grid">${meerHtml}</div>
 <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 16px">* Berekeningen zijn per apparaat afzonderlijk. Bij gelijktijdig gebruik is de zonne-energie dekking lager.</p>`;
 }

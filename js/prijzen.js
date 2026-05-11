@@ -11,14 +11,6 @@ async function fetchPrijzen(offset) {
 }
 
 function renderGeenData() {
-  document.getElementById('heroLabel').textContent = 'Morgen';
-  document.getElementById('huidigePrijs').textContent = '—';
-  document.getElementById('huidigUur').textContent = 'per kWh';
-  document.getElementById('prijsPill').style.display = 'none';
-  document.getElementById('laagstePrijs').textContent = '—';
-  document.getElementById('laagsteUur').textContent = 'Beschikbaar na 14:00';
-  document.getElementById('hoogstePrijs').textContent = '—';
-  document.getElementById('hoogsteUur').textContent = 'Beschikbaar na 14:00';
   document.getElementById('urenLijst').innerHTML = '<div class="no-data">Prijzen voor morgen zijn nog niet beschikbaar.<br>EPEX publiceert ze rond 14:00 uur.</div>';
   if (chart) { chart.destroy(); chart = null; }
 
@@ -89,35 +81,8 @@ function renderGeenData() {
   }
 }
 
-function renderHeroMetrics(prijzen, day, min, max, gem, laagste, hoogste, nowUur) {
-  document.getElementById('chartTitle').textContent = day === 0 ? 'Vandaag' : 'Morgen';
-  document.getElementById('laagstePrijs').textContent = '€ ' + min.toFixed(3);
-  document.getElementById('laagsteUur').textContent   = uurStr(laagste.tijd);
-  document.getElementById('hoogstePrijs').textContent = '€ ' + max.toFixed(3);
-  document.getElementById('hoogsteUur').textContent   = uurStr(hoogste.tijd);
-
-  const pill = document.getElementById('prijsPill');
-  pill.style.display = 'inline-block';
-
-  if (day === 0) {
-    const huidig = prijzen.find(p => p.tijd.getHours() === nowUur) || prijzen.at(-1);
-    document.getElementById('heroLabel').textContent    = 'Nu betaal je';
-    document.getElementById('huidigePrijs').textContent = '€ ' + huidig.totaal.toFixed(3);
-    document.getElementById('huidigUur').textContent    = uurStr(huidig.tijd) + '–' + String(huidig.tijd.getHours()+1).padStart(2,'0') + ':00 per kWh';
-    if (huidig.totaal <= min*1.05)      { pill.className='hero-pill pill-green'; pill.textContent='Goedkoop uur'; }
-    else if (huidig.totaal >= max*0.95) { pill.className='hero-pill pill-red';   pill.textContent='Duur uur'; }
-    else if (huidig.totaal < gem)       { pill.className='hero-pill pill-green'; pill.textContent='Onder gemiddelde'; }
-    else                                { pill.className='hero-pill pill-amber'; pill.textContent='Boven gemiddelde'; }
-  } else {
-    document.getElementById('heroLabel').textContent    = 'Goedkoopste morgen';
-    document.getElementById('huidigePrijs').textContent = '€ ' + min.toFixed(3);
-    document.getElementById('huidigUur').textContent    = 'om ' + uurStr(laagste.tijd) + ' per kWh';
-    pill.className   = 'hero-pill pill-gray';
-    pill.textContent = 'Gemiddeld € ' + gem.toFixed(3) + ' / kWh';
-  }
-}
-
 function renderGrafiek(prijzen, day, min, max, gem, nowUur) {
+  document.getElementById('chartTitle').textContent = day === 0 ? 'Vandaag' : 'Morgen';
   const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
 
   const barKleuren = prijzen.map(p => {
@@ -193,32 +158,31 @@ function renderGrafiek(prijzen, day, min, max, gem, nowUur) {
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
+      onClick(evt, elements) {
+        if (elements && elements.length) {
+          const el = elements.find(e => e.datasetIndex === 0) || elements[0];
+          if (typeof selecteerUur === 'function') selecteerUur(el.index);
+        }
+      },
       plugins: {
         legend: { display: false },
         tooltip: {
           enabled: false,
           external(context) {
             const { chart, tooltip: t } = context;
-            if (t.opacity === 0) {
-              tooltip.classList.remove('visible');
-              if (geselecteerdStartTijd !== null) { geselecteerdStartTijd = null; updateApparaatKaarten(); }
-              return;
-            }
+            if (t.opacity === 0) { tooltip.classList.remove('visible'); return; }
             const idx = t.dataPoints?.[0]?.dataIndex;
             if (idx == null) return;
             const p = prijzen[idx];
             const timeStr  = uurStr(p.tijd) + '–' + String(p.tijd.getHours()+1).padStart(2,'0') + ':00';
-            const terugStr = p.terug !== undefined
-              ? (p.terug < 0 ? ' · ↩ € ' + p.terug.toFixed(3) + ' ⚠️ kost geld' : ' · ↩ € ' + p.terug.toFixed(3) + ' / kWh bij teruglevering')
+            const terugStr = p.terug !== undefined && p.terug < 0
+              ? ' · ↩ € ' + p.terug.toFixed(3) + ' ⚠️ kost geld'
               : '';
-            tooltip.textContent = timeStr + ' · € ' + p.totaal.toFixed(3) + terugStr;
+            tooltip.textContent = timeStr + ' · € ' + p.totaal.toFixed(3) + '/kWh' + terugStr;
             const x = t.caretX, containerWidth = chart.canvas.parentElement.offsetWidth;
             let left = x; if (left < 60) left = 60; if (left > containerWidth - 60) left = containerWidth - 60;
             tooltip.style.left = left + 'px';
             tooltip.classList.add('visible');
-            if (!geselecteerdStartTijd || geselecteerdStartTijd.getTime() !== p.tijd.getTime()) {
-              geselecteerdStartTijd = p.tijd; updateApparaatKaarten();
-            }
           }
         }
       },
@@ -236,13 +200,13 @@ function renderUurOverzicht(prijzen, day, min, max, gem, nowUur) {
   const hasPast       = day === 0 && prijzen.some(p => p.tijd.getHours() < nowUur);
   const aantalVerleden = prijzen.filter(p => p.tijd.getHours() < nowUur).length;
 
-  const rows = prijzen.map(p => {
+  const rows = prijzen.map((p, idx) => {
     const isNu      = day === 0 && p.tijd.getHours() === nowUur;
     const isPast    = day === 0 && p.tijd.getHours() < nowUur;
     const isCheapest = p.totaal === min;
     const k = kleur(p.totaal, min, max, gem);
     const pct = max > min ? Math.round(((p.totaal-min)/(max-min))*100) : 50;
-    return `<div class="hour-row ${isPast ? 'past' : ''} ${isPast && !toonVerleden ? 'hidden' : ''}" data-past="${isPast}">
+    return `<div class="hour-row ${isPast ? 'past' : ''} ${isPast && !toonVerleden ? 'hidden' : ''}" data-past="${isPast}" onclick="selecteerUur(${idx})" style="cursor:pointer">
       <span class="hour-time">${uurStr(p.tijd)}</span>
       <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${isPast ? (isDark?'#555':'#bbb') : k.bar}"></div></div>
       <div class="hour-price-group">
@@ -266,9 +230,6 @@ function renderDashboard(prijzen, day) {
   const totalen = prijzen.map(p => p.totaal);
   const min     = Math.min(...totalen), max = Math.max(...totalen);
   const gem     = totalen.reduce((a,b) => a+b, 0) / totalen.length;
-  const laagste = prijzen.find(p => p.totaal === min);
-  const hoogste = prijzen.find(p => p.totaal === max);
-  renderHeroMetrics(prijzen, day, min, max, gem, laagste, hoogste, nowUur);
   renderGrafiek(prijzen, day, min, max, gem, nowUur);
   renderUurOverzicht(prijzen, day, min, max, gem, nowUur);
 }
