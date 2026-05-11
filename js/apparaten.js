@@ -528,16 +528,14 @@ function renderApDetail() {
     // 4. GESELECTEERDE STARTTIJD — time input + kwartier fine-tuning
     '<div class="section" style="padding-top:0;padding-bottom:4px">' +
       '<div class="section-title">Geselecteerde starttijd</div>' +
-      '<div style="margin-top:6px;overflow:hidden;width:100%;box-sizing:border-box">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:6px;overflow:hidden;width:100%;box-sizing:border-box">' +
+        '<button id="selStepperLeft" onclick="adjustApDetail(-15)"' + (!canGoBack ? ' disabled' : '') +
+          ' style="flex-shrink:0;min-width:72px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoBack ? ';opacity:0.35;cursor:default' : '') + '">← 15min</button>' +
         '<input type="time" id="selStartInput" value="' + selTimeValue + '"' +
           ' oninput="selTijdWijzig(this.value)"' +
-          ' style="display:block;width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
-      '</div>' +
-      '<div style="display:flex;gap:8px;margin-top:6px">' +
-        '<button id="selStepperLeft" onclick="adjustApDetail(-15)"' + (!canGoBack ? ' disabled' : '') +
-          ' style="flex:1;min-height:40px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoBack ? ';opacity:0.35;cursor:default' : '') + '">← 15min</button>' +
+          ' style="flex:1;min-width:0;height:42px;padding:0 9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box;text-align:center">' +
         '<button id="selStepperRight" onclick="adjustApDetail(15)"' + (!canGoFwd ? ' disabled' : '') +
-          ' style="flex:1;min-height:40px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoFwd ? ';opacity:0.35;cursor:default' : '') + '">15min →</button>' +
+          ' style="flex-shrink:0;min-width:72px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoFwd ? ';opacity:0.35;cursor:default' : '') + '">15min →</button>' +
       '</div>' +
       '<div id="selInfoDiv" style="font-size:12px;color:var(--muted);margin-top:5px;padding-left:2px">' + selInfoStr + '</div>' +
       vergelijkHtml +
