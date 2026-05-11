@@ -165,6 +165,20 @@ function adjustApDetail(delta) {
   if (_planningActief) planInladen(true);
 }
 
+function selTijdWijzig(val) {
+  if (!apDetailState || !val) return;
+  const [h, m] = val.split(':').map(Number);
+  const { planUren, maxIdx } = apDetailState;
+  let idx = planUren.findIndex(p => p.tijd.getHours() === h);
+  if (idx < 0) idx = 0;
+  const totalMinutes = Math.min(idx * 60 + m, maxIdx * 60);
+  apDetailState.currentStartIdx   = Math.floor(totalMinutes / 60);
+  apDetailState._minuteOffset     = totalMinutes % 60;
+  apDetailState._handmatigGekozen = true;
+  const berekendeUren = ((100 - (apDetailState._vpBatterij ?? 0)) / 100) * apDetailState.ap.uren;
+  updateKostenWeergave(berekendeUren);
+}
+
 function gebruikTijdDetail() {
   if (!apDetailState) return;
   const { apIdx, currentStartIdx, planUren } = apDetailState;
@@ -247,6 +261,9 @@ function renderApDetail() {
     : null;
   const selStartStr      = dagHStr(selStart);
   const selStartStrPlain = dagHMStrPlain(selStartActual);
+  const selTimeValue     = selStartActual
+    ? String(selStartActual.getHours()).padStart(2,'0') + ':' + String(selStartActual.getMinutes()).padStart(2,'0')
+    : '';
   const selEindStr       = hMStr(selEindActual);
   const selEff           = berekendeUren >= 0.25
     ? (effectieveKosten(berekendeUren, vermogen, planUren, currentStartIdx) ?? berekenKostenVanaf(berekendeUren, vermogen, planUren, currentStartIdx))
@@ -367,18 +384,22 @@ function renderApDetail() {
       '</div>'
     : '') +
 
-    // 4. GESELECTEERDE STARTTIJD — stepper per kwartier
+    // 4. GESELECTEERDE STARTTIJD — time input + kwartier fine-tuning
     '<div class="section" style="padding-top:0;padding-bottom:4px">' +
       '<div class="section-title" style="display:flex;justify-content:space-between;align-items:center">' +
         'Geselecteerde starttijd' +
         (heeftAutomatisering ? '<span style="font-size:10px;font-weight:500;color:var(--green);background:rgba(59,109,17,0.1);padding:2px 7px;border-radius:4px">wordt ingepland</span>' : '') +
       '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
+      '<div style="margin-top:6px;overflow:hidden;width:100%;box-sizing:border-box">' +
+        '<input type="time" id="selStartInput" value="' + selTimeValue + '"' +
+          ' oninput="selTijdWijzig(this.value)"' +
+          ' style="display:block;width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:6px">' +
         '<button id="selStepperLeft" onclick="adjustApDetail(-15)"' + (!canGoBack ? ' disabled' : '') +
-          ' style="min-width:44px;min-height:44px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center' + (!canGoBack ? ';opacity:0.35;cursor:default' : '') + '">←</button>' +
-        '<div id="selStepperDisplay" style="flex:1;text-align:center;font-size:16px;font-weight:600;padding:11px 8px;border-radius:8px;border:1px solid var(--border);background:var(--card);min-height:44px;display:flex;align-items:center;justify-content:center">' + selStartStrPlain + '</div>' +
+          ' style="flex:1;min-height:40px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoBack ? ';opacity:0.35;cursor:default' : '') + '">← 15min</button>' +
         '<button id="selStepperRight" onclick="adjustApDetail(15)"' + (!canGoFwd ? ' disabled' : '') +
-          ' style="min-width:44px;min-height:44px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center' + (!canGoFwd ? ';opacity:0.35;cursor:default' : '') + '">→</button>' +
+          ' style="flex:1;min-height:40px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoFwd ? ';opacity:0.35;cursor:default' : '') + '">15min →</button>' +
       '</div>' +
       '<div id="selInfoDiv" style="font-size:12px;color:var(--muted);margin-top:5px;padding-left:2px">' + selInfoStr + '</div>' +
       vergelijkHtml +
@@ -413,18 +434,19 @@ function updateKostenWeergave(berekendeUren) {
   if (!apDetailState._handmatigGekozen) {
     apDetailState.currentStartIdx = besteIdxBer;
     apDetailState._minuteOffset   = 0;
-    const dispEl  = document.getElementById('selStepperDisplay');
-    const leftEl  = document.getElementById('selStepperLeft');
-    const rightEl = document.getElementById('selStepperRight');
-    if (dispEl) {
+    const inputEl = document.getElementById('selStartInput');
+    if (inputEl) {
       const selStart = planUren[besteIdxBer]?.tijd;
-      dispEl.textContent = selStart ? dagHMStrPlain(selStart) : '—';
+      if (selStart) inputEl.value = String(selStart.getHours()).padStart(2,'0') + ':' + String(selStart.getMinutes()).padStart(2,'0');
     }
-    if (leftEl)  leftEl.disabled  = besteIdxBer === 0;
-    if (rightEl) rightEl.disabled = besteIdxBer >= apDetailState.maxIdx;
   }
 
   const currentStartIdx = apDetailState.currentStartIdx;
+  const minuteOffset    = apDetailState._minuteOffset ?? 0;
+  const leftEl  = document.getElementById('selStepperLeft');
+  const rightEl = document.getElementById('selStepperRight');
+  if (leftEl)  leftEl.disabled  = (currentStartIdx * 60 + minuteOffset) < 15;
+  if (rightEl) rightEl.disabled = (currentStartIdx * 60 + minuteOffset + 15) > apDetailState.maxIdx * 60;
 
   const besteEff    = berekendeUren >= 0.25
     ? (effectieveKosten(berekendeUren, vermogen, planUren, besteIdxBer) ?? berekenKostenVanaf(berekendeUren, vermogen, planUren, besteIdxBer))
@@ -441,7 +463,6 @@ function updateKostenWeergave(berekendeUren) {
     ? 'Batterij al vol 🎉'
     : dagHStr(besteStartBer) + '–' + hStr(besteEindBerDat) + ' · € ' + besteEff.toFixed(2) + (dekBestePct > 0 ? ' · ☀️ ' + dekBestePct + '%' : '');
 
-  const minuteOffset   = apDetailState._minuteOffset ?? 0;
   const selStartActual = planUren[currentStartIdx]?.tijd
     ? new Date(planUren[currentStartIdx].tijd.getTime() + minuteOffset * 60000)
     : null;
