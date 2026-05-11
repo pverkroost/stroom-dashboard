@@ -362,7 +362,7 @@ function renderApDetail() {
           '<div style="font-size:11px;color:var(--muted)">' + (vpOpen ? '▲ inklappen' : '▼ uitklappen') + '</div>' +
         '</div>' +
         (vpOpen ?
-          '<div class="tarief-card" style="padding:12px 14px;overflow:hidden">' +
+          '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
             '<div style="margin-bottom:10px">' +
               '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Huidig batterijniveau</label>' +
               '<div style="display:flex;align-items:center;gap:10px;min-width:0">' +
@@ -386,10 +386,7 @@ function renderApDetail() {
 
     // 4. GESELECTEERDE STARTTIJD — time input + kwartier fine-tuning
     '<div class="section" style="padding-top:0;padding-bottom:4px">' +
-      '<div class="section-title" style="display:flex;justify-content:space-between;align-items:center">' +
-        'Geselecteerde starttijd' +
-        (heeftAutomatisering ? '<span style="font-size:10px;font-weight:500;color:var(--green);background:rgba(59,109,17,0.1);padding:2px 7px;border-radius:4px">wordt ingepland</span>' : '') +
-      '</div>' +
+      '<div class="section-title">Geselecteerde starttijd</div>' +
       '<div style="margin-top:6px;overflow:hidden;width:100%;box-sizing:border-box">' +
         '<input type="time" id="selStartInput" value="' + selTimeValue + '"' +
           ' oninput="selTijdWijzig(this.value)"' +
