@@ -3,6 +3,100 @@ function updateApparaatKaarten() {
   rAFId = requestAnimationFrame(() => { rAFId = null; renderLaadadvies(); });
 }
 
+// ── Apparaten config (favoriet + volgorde) in localStorage ──────────────────
+function getApparaatConfig() {
+  try { return JSON.parse(localStorage.getItem('apparaten_config') || '{}'); }
+  catch { return {}; }
+}
+function saveApparaatConfig(cfg) {
+  localStorage.setItem('apparaten_config', JSON.stringify(cfg));
+}
+// Combineer APPARATEN defaults met localStorage overrides en sorteer op volgorde
+function getApparatenSorted() {
+  const cfg = getApparaatConfig();
+  return APPARATEN.map((ap, originalIdx) => {
+    const o = cfg[ap.naam] || {};
+    return {
+      ap: { ...ap, favoriet: o.favoriet ?? ap.favoriet },
+      volgorde:    o.volgorde ?? ap.volgorde ?? 99,
+      originalIdx,
+    };
+  }).sort((a, b) => a.volgorde - b.volgorde);
+}
+
+// ── Instellingen: dynamische apparaten lijst met drag&drop + favoriet toggle ─
+let _draggedRow = null;
+
+function renderApparatenInstellingen() {
+  const card = document.getElementById('apparatenLijst');
+  if (!card) return;
+  const sorted = getApparatenSorted();
+  card.innerHTML = sorted.map(({ ap }) => {
+    const iconHtml = (typeof ap.icon === 'string' && ap.icon.includes('<svg'))
+      ? '<span style="display:inline-block;width:28px;height:18px;flex-shrink:0">' + ap.icon + '</span>'
+      : '<span style="font-size:16px;flex-shrink:0">' + ap.icon + '</span>';
+    const naamEsc = ap.naam.replace(/'/g, "\\'");
+    const subStr  = (ap.uren % 1 === 0 ? ap.uren : ap.uren.toString().replace('.', ',')) + ' uur · ' + ap.vermogen.toString().replace('.', ',') + ' kW';
+    return `<div class="apparaat-row" draggable="true" data-naam="${ap.naam}"
+              ondragstart="rowDragStart(event)" ondragover="rowDragOver(event)" ondrop="rowDrop(event)" ondragend="rowDragEnd(event)"
+              style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:0.5px solid var(--border)">
+      <span style="cursor:grab;color:var(--muted);font-size:18px;user-select:none;flex-shrink:0;touch-action:none">☰</span>
+      ${iconHtml}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">${ap.naam}</div>
+        <div style="font-size:10px;color:var(--muted)">${subStr}</div>
+      </div>
+      ${ap.grootverbruik ? '<span style="font-size:10px;color:var(--muted);background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;flex-shrink:0">groot</span>' : ''}
+      <button onclick="toggleFavoriet('${naamEsc}')" aria-label="Favoriet"
+        style="background:none;border:none;cursor:pointer;font-size:20px;padding:4px 6px;flex-shrink:0;line-height:1">${ap.favoriet ? '⭐' : '☆'}</button>
+    </div>`;
+  }).join('');
+}
+
+function rowDragStart(e) {
+  _draggedRow = e.target.closest('.apparaat-row');
+  if (_draggedRow) {
+    e.dataTransfer.effectAllowed = 'move';
+    _draggedRow.style.opacity = '0.4';
+  }
+}
+function rowDragOver(e) {
+  e.preventDefault();
+  if (!_draggedRow) return;
+  const row = e.target.closest('.apparaat-row');
+  if (!row || row === _draggedRow) return;
+  const rect     = row.getBoundingClientRect();
+  const midpoint = rect.top + rect.height / 2;
+  row.parentNode.insertBefore(_draggedRow, e.clientY < midpoint ? row : row.nextSibling);
+}
+function rowDrop(e) {
+  e.preventDefault();
+  if (!_draggedRow) return;
+  _draggedRow.style.opacity = '';
+  _draggedRow = null;
+  const cfg = getApparaatConfig();
+  document.querySelectorAll('#apparatenLijst .apparaat-row').forEach((row, i) => {
+    const naam = row.dataset.naam;
+    cfg[naam] = { ...(cfg[naam] || {}), volgorde: i + 1 };
+  });
+  saveApparaatConfig(cfg);
+  renderLaadadvies();
+}
+function rowDragEnd() {
+  if (_draggedRow) { _draggedRow.style.opacity = ''; _draggedRow = null; }
+}
+
+function toggleFavoriet(naam) {
+  const ap = APPARATEN.find(a => a.naam === naam);
+  if (!ap) return;
+  const cfg = getApparaatConfig();
+  const huidigFav = cfg[naam]?.favoriet ?? ap.favoriet;
+  cfg[naam] = { ...(cfg[naam] || {}), favoriet: !huidigFav };
+  saveApparaatConfig(cfg);
+  renderApparatenInstellingen();
+  renderLaadadvies();
+}
+
 function berekenKostenVanaf(uren, vermogenKw, prijzenLijst, vanIdx, allowPartial = false) {
   if (vanIdx >= prijzenLijst.length) return null;
   const blokGrootte = Math.ceil(uren);
@@ -925,8 +1019,9 @@ function renderLaadadvies() {
 
   const sectionHdr = label => `<div class="section-title" style="grid-column:1/-1;margin-top:4px;margin-bottom:8px">${label}</div>`;
   const veiligRender = (ap, i) => { try { return renderApparaat(ap, i); } catch(e) { console.error(`[${ap.naam}]`, e); return `<div class="advies-card" style="color:#a32d2d;font-size:11px">${ap.icon} ${ap.naam}: ${e.message}</div>`; } };
-  const favKaarten    = APPARATEN.map((ap, i) => ({ ap, i })).filter(x => x.ap.favoriet).map(x => veiligRender(x.ap, x.i)).join('');
-  const overigKaarten = APPARATEN.map((ap, i) => ({ ap, i })).filter(x => !x.ap.favoriet).map(x => veiligRender(x.ap, x.i)).join('');
+  const sorted        = getApparatenSorted();
+  const favKaarten    = sorted.filter(x => x.ap.favoriet).map(x => veiligRender(x.ap, x.originalIdx)).join('');
+  const overigKaarten = sorted.filter(x => !x.ap.favoriet).map(x => veiligRender(x.ap, x.originalIdx)).join('');
   container.innerHTML = `<div class="advies-grid">
     ${sectionHdr('Favorieten')}
     ${favKaarten}

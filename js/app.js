@@ -161,6 +161,7 @@ function renderInstellingen() {
       </div>`;
     }).join('');
   }
+  if (typeof renderApparatenInstellingen === 'function') renderApparatenInstellingen();
   const versieEl = document.getElementById('instVersie');
   const updateEl = document.getElementById('instLaatsteUpdate');
   if (versieEl) versieEl.textContent = document.getElementById('versionStamp')?.textContent || '—';
@@ -191,5 +192,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.43.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.44.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
