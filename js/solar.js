@@ -131,8 +131,10 @@ function calcVerwachtKwh() {
 }
 
 function renderSolarKaartjes() {
+  const card = document.getElementById('solarNuCard');
+  if (!card) return; // solar-cards verwijderd uit mainContent (v2.49+); function blijft no-op
   const isMorgen = activeDay === 1;
-  document.getElementById('solarNuCard').style.display         = isMorgen ? 'none' : '';
+  card.style.display                                           = isMorgen ? 'none' : '';
   document.getElementById('solarSchatting').style.display      = 'none';
   document.getElementById('solarVandaagCard').style.gridColumn = isMorgen ? '1/-1' : '';
 
