@@ -42,7 +42,7 @@ const APPARATEN = [
   { naam: 'Wasmachine',              icon: '👕',       uren: 2, vermogen: 1.5, type: 'starten',     automatisering: false, comboMet: 'Droger' },
   { naam: 'Droger',                  icon: '🌀',       uren: 2, vermogen: 2.5, type: 'starten',     automatisering: false, naApparaat: 'Wasmachine' },
   // Klein verbruik
-  { naam: 'Vaatwasser',              icon: '🍽️',      uren: 3, vermogen: 1.8, type: 'starten',     automatisering: false },
+  { naam: 'Vaatwasser',              icon: '🍽️',      uren: 3.5, vermogen: 1.8, type: 'starten',     automatisering: false },
   { naam: 'E-bikes (2x)',            icon: '🚲',       uren: 4, vermogen: 0.2, type: 'laden',       automatisering: false },
   { naam: 'Boiler kantoor',          icon: '🚿',       uren: 1, vermogen: 2.5, type: 'inschakelen', automatisering: false },
   { naam: 'Airco',                   icon: '❄️',       uren: 3, vermogen: 2.0, type: 'inschakelen', automatisering: false },

@@ -119,19 +119,25 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
 function renderInstellingen() {
   const bronnen = [
     { naam: 'EPEX day-ahead',  sub: 'via EnergyZero', key: 'epex' },
-    { naam: 'SolarEdge API',   sub: null,              key: 'solar' },
-    { naam: 'Growatt OpenAPI', sub: null,              key: 'growatt' },
-    { naam: 'Open-Meteo',      sub: null,              key: 'openMeteo' },
+    { naam: 'SolarEdge API',   sub: null,             key: 'solar' },
+    { naam: 'Growatt OpenAPI', sub: null,             key: 'growatt' },
+    { naam: 'Open-Meteo',      sub: null,             key: 'openMeteo' },
+    { naam: 'Homey',           sub: null,             statisch: '✅ Verbonden' },
   ];
-  const card = document.getElementById('databronnenCard');
+  const card = document.getElementById('integratiesCard');
   if (card) {
     card.innerHTML = bronnen.map(b => {
-      const s = apiStatus[b.key];
-      const statusStr = !s        ? '⏳ Ophalen…'
-                      : s.ok      ? '✅ Actief'
-                      :             '❌ Niet bereikbaar';
-      const tijdStr   = s?.tijd   ? uurStr(s.tijd) : '';
-      const kleurStr  = !s ? 'color:var(--muted)' : s.ok ? '' : 'color:#a32d2d';
+      let statusStr, tijdStr = '', kleurStr = '';
+      if (b.statisch) {
+        statusStr = b.statisch;
+      } else {
+        const s = apiStatus[b.key];
+        statusStr = !s   ? '⏳ Ophalen…'
+                  : s.ok ? '✅ Actief'
+                  :        '❌ Niet bereikbaar';
+        tijdStr   = s?.tijd ? uurStr(s.tijd) : '';
+        kleurStr  = !s ? 'color:var(--muted)' : s.ok ? '' : 'color:#a32d2d';
+      }
       return `<div class="tarief-row" style="align-items:flex-start">
         <div>
           <div class="tarief-key">${b.naam}</div>
@@ -163,5 +169,5 @@ function renderInstellingen() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.40.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.41.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
