@@ -321,9 +321,8 @@ function renderApDetail() {
         '<div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>' +
       '</div>'
     : '<div class="section" style="padding-top:4px">' +
-        '<div class="section-title">Automatisch inplannen</div>' +
         '<div style="font-size:12px;color:var(--muted);padding:4px 0;line-height:1.6">' +
-          'Automatisch inplannen is nog niet beschikbaar voor dit apparaat.' +
+          '🔌 Automatisch inplannen nog niet beschikbaar voor dit apparaat.' +
         '</div>' +
       '</div>';
 
