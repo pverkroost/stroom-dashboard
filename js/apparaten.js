@@ -222,6 +222,7 @@ function renderApDetail() {
   const { ap, planUren, besteStartIdx, currentStartIdx, maxIdx } = apDetailState;
   const { uren, vermogen, naam, icon, type, opmerking } = ap;
   const blok = Math.ceil(uren);
+  const urenStr = (Number.isInteger(uren) ? uren : uren.toString().replace('.', ',')) + ' uur';
   const totaalKwh = (uren * vermogen).toFixed(1);
 
   const heeftAutomatisering = !!ap.automatisering;
@@ -334,7 +335,7 @@ function renderApDetail() {
       '<div style="flex-shrink:0">' + iconHtml + '</div>' +
       '<div style="min-width:0">' +
         '<div style="font-size:15px;font-weight:600;line-height:1.2">' + naam + '</div>' +
-        '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + blok + ' uur · ' + totaalKwh + ' kWh' + (opmerking ? ' · ' + opmerking : '') + '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + urenStr + ' · ' + totaalKwh + ' kWh' + (opmerking ? ' · ' + opmerking : '') + '</div>' +
       '</div>' +
     '</div>' +
 
