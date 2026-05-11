@@ -11,14 +11,17 @@ async function fetchPrijzen(offset) {
 }
 
 function renderGeenData() {
-  document.getElementById('heroLabel').textContent = 'Morgen';
-  document.getElementById('huidigePrijs').textContent = '—';
-  document.getElementById('huidigUur').textContent = 'per kWh';
-  document.getElementById('prijsPill').style.display = 'none';
-  document.getElementById('laagstePrijs').textContent = '—';
-  document.getElementById('laagsteUur').textContent = 'Beschikbaar na 14:00';
-  document.getElementById('hoogstePrijs').textContent = '—';
-  document.getElementById('hoogsteUur').textContent = 'Beschikbaar na 14:00';
+  // Hero + cards zijn uit Vandaag-tab verwijderd, maar functie blijft data updaten voor toekomstige weergave
+  if (document.getElementById('heroLabel')) {
+    document.getElementById('heroLabel').textContent = 'Morgen';
+    document.getElementById('huidigePrijs').textContent = '—';
+    document.getElementById('huidigUur').textContent = 'per kWh';
+    document.getElementById('prijsPill').style.display = 'none';
+    document.getElementById('laagstePrijs').textContent = '—';
+    document.getElementById('laagsteUur').textContent = 'Beschikbaar na 14:00';
+    document.getElementById('hoogstePrijs').textContent = '—';
+    document.getElementById('hoogsteUur').textContent = 'Beschikbaar na 14:00';
+  }
   document.getElementById('urenLijst').innerHTML = '<div class="no-data">Prijzen voor morgen zijn nog niet beschikbaar.<br>EPEX publiceert ze rond 14:00 uur.</div>';
   if (chart) { chart.destroy(); chart = null; }
 
@@ -91,6 +94,8 @@ function renderGeenData() {
 
 function renderHeroMetrics(prijzen, day, min, max, gem, laagste, hoogste, nowUur) {
   document.getElementById('chartTitle').textContent = day === 0 ? 'Vandaag' : 'Morgen';
+  // Hero + cards zijn uit Vandaag-tab verwijderd; functie blijft beschikbaar voor toekomstige weergave
+  if (!document.getElementById('heroLabel')) return;
   document.getElementById('laagstePrijs').textContent = '€ ' + min.toFixed(3);
   document.getElementById('laagsteUur').textContent   = uurStr(laagste.tijd);
   document.getElementById('hoogstePrijs').textContent = '€ ' + max.toFixed(3);

@@ -30,38 +30,9 @@
 </div>
 
 <div id="mainContent">
-  <div class="hero">
-    <div class="hero-label" id="heroLabel">Nu betaal je</div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <div class="hero-price" id="huidigePrijs">—</div>
-      <span class="hero-pill" id="prijsPill" style="display:none"></span>
-    </div>
-    <div class="hero-unit" id="huidigUur">per kWh</div>
-  </div>
-
-  <div class="cards">
-    <div class="card">
-      <div class="card-label">Goedkoopste</div>
-      <div class="card-val" id="laagstePrijs">—</div>
-      <div class="card-time" id="laagsteUur">—</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Duurste</div>
-      <div class="card-val" id="hoogstePrijs">—</div>
-      <div class="card-time" id="hoogsteUur">—</div>
-    </div>
-    <div class="card" id="solarNuCard">
-      <div class="card-label">☀️ Live</div>
-      <div class="card-val" id="solarNu">—</div>
-      <div class="card-time" id="solarNuEen">W</div>
-    </div>
-    <div class="card" id="solarVandaagCard">
-      <div class="card-label" id="solarVandaagLabel">☀️ Vandaag</div>
-      <div class="card-val" id="solarVandaagKwh">—</div>
-      <div id="solarVandaagTotaal" class="card-sub" style="display:none">—</div>
-      <div class="card-time" id="solarVandaagEen">kWh</div>
-      <div id="solarSchatting" style="display:none;font-size:9px;color:var(--muted);margin-top:2px">* schatting o.b.v. weersverwachting</div>
-    </div>
+  <div class="section" id="laadadviesSection">
+    <div class="section-title" id="laadadviesTitle">Slim inplannen · vandaag</div>
+    <div id="laadadviesContainer"></div>
   </div>
 
   <div class="section">
@@ -77,11 +48,6 @@
       <span><span style="display:inline-block;width:16px;height:2px;background:#f5c842;margin-right:4px;vertical-align:middle"></span>Zonne-opbrengst</span>
       <span><span style="display:inline-block;width:16px;height:2px;background:rgba(200,50,50,0.8);margin-right:4px;vertical-align:middle"></span>Terugleverprijs</span>
     </div>
-  </div>
-
-  <div class="section" id="laadadviesSection">
-    <div class="section-title" id="laadadviesTitle">Slim inplannen · vandaag</div>
-    <div id="laadadviesContainer"></div>
   </div>
 
   <div class="section">
