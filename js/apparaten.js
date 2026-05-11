@@ -269,7 +269,8 @@ function openApDetail(apIdx) {
     apIdx, ap, planUren, besteStartIdx,
     currentStartIdx: besteStartIdx,
     maxIdx: Math.max(0, planUren.length - Math.ceil(ap.uren)),
-    _aanpassenOpen: false,
+    _vertrekplannerOpen: false,
+    _handmatigOpen: false,
     _vpBatterij: 0,
     _vpVertrekTijd: '07:00',
     _vertrekAdviesIdx: null,
@@ -345,14 +346,14 @@ function getSelStartActual() {
   return new Date(p.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
 }
 
-function toggleAanpassen() {
+function toggleVertrekplanner() {
   if (!apDetailState) return;
-  apDetailState._aanpassenOpen = !apDetailState._aanpassenOpen;
+  apDetailState._vertrekplannerOpen = !apDetailState._vertrekplannerOpen;
   renderApDetail();
 }
-function openAanpassen() {
+function toggleHandmatig() {
   if (!apDetailState) return;
-  apDetailState._aanpassenOpen = true;
+  apDetailState._handmatigOpen = !apDetailState._handmatigOpen;
   renderApDetail();
 }
 
@@ -366,9 +367,10 @@ function renderApDetail() {
 
   const heeftAutomatisering = !!ap.automatisering;
   const apparaat           = apSleutel(naam);
-  const heeftVertrekPlanner = !!ap.automatisering;
   const heeftBatterij       = !!ap.batterij;
-  const aanpOpen           = !!apDetailState._aanpassenOpen;
+  const vpOpen             = !!apDetailState._vertrekplannerOpen;
+  const handmatigOpen      = !!apDetailState._handmatigOpen;
+  const besteLabel         = type === 'laden' ? 'Beste laadtijd' : 'Beste tijd';
   const vpBatterij         = apDetailState._vpBatterij  ?? 0;
   const vpTijd             = apDetailState._vpVertrekTijd ?? '07:00';
   const berekendeUren      = vpBatterij >= 100 ? 0 : ((100 - vpBatterij) / 100) * uren;
@@ -386,12 +388,9 @@ function renderApDetail() {
   const besteEff     = berekendeUren >= 0.25
     ? (effectieveKosten(berekendeUren, vermogen, planUren, besteIdxBer) ?? berekenKostenVanaf(berekendeUren, vermogen, planUren, besteIdxBer))
     : 0;
-  const dekBestePct  = berekendeUren >= 0.25
-    ? Math.round(gemSolarDekking(besteIdxBer, berekendeBlok, vermogen, planUren) * 100)
-    : 0;
-  const besteInfoStr = berekendeUren < 0.25
+  const besteSimpleStr = berekendeUren < 0.25
     ? 'Batterij al vol 🎉'
-    : besteStartStr + '–' + besteEindStr + ' · € ' + besteEff.toFixed(2) + (dekBestePct > 0 ? ' · ☀️ ' + dekBestePct + '%' : '');
+    : besteLabel + ': ' + besteStartStr + '–' + besteEindStr + ' · € ' + besteEff.toFixed(2);
 
   // Geselecteerde tijd (met minuut-offset) — kosten op basis van berekendeUren
   const minuteOffset     = apDetailState._minuteOffset ?? 0;
@@ -468,84 +467,74 @@ function renderApDetail() {
   document.getElementById('apDetailNaam').textContent = naam;
   document.getElementById('apDetailBody').innerHTML =
 
-    // 1. HEADER — naam + (batterij%) + slider op één regel, of klassiek met uren/kWh
-    (heeftBatterij
-      ? '<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:0.5px solid var(--border)">' +
-          '<div style="flex-shrink:0">' + iconHtml + '</div>' +
-          '<div style="font-size:14px;font-weight:600;line-height:1.2;flex-shrink:0;white-space:nowrap">' + naam + ' <span style="color:var(--muted);font-weight:500">· <span id="vpBatterijWaarde">' + vpBatterij + '%</span> 🔋</span></div>' +
-          '<input type="range" id="vpBatterij" min="0" max="100" value="' + vpBatterij + '"' +
-            ' oninput="apDetailState._vpBatterij=+this.value;document.getElementById(\'vpBatterijWaarde\').textContent=this.value+\'%\';herbereken()"' +
-            ' style="flex:1;min-width:60px;accent-color:var(--green)">' +
-        '</div>'
-      : '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:0.5px solid var(--border)">' +
-          '<div style="flex-shrink:0">' + iconHtml + '</div>' +
-          '<div style="min-width:0">' +
-            '<div style="font-size:15px;font-weight:600;line-height:1.2">' + naam + '</div>' +
-            '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + urenStr + ' · ' + totaalKwh + ' kWh' + (opmerking ? ' · ' + opmerking : '') + '</div>' +
-          '</div>' +
-        '</div>') +
+    // 1. BATTERIJ compact — eerste element, alleen bij heeftBatterij
+    (heeftBatterij ?
+      '<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:0.5px solid var(--border)">' +
+        '<span style="font-size:16px;flex-shrink:0">🔋</span>' +
+        '<span id="vpBatterijWaarde" style="font-size:13px;font-weight:600;min-width:38px;flex-shrink:0">' + vpBatterij + '%</span>' +
+        '<input type="range" id="vpBatterij" min="0" max="100" value="' + vpBatterij + '"' +
+          ' oninput="apDetailState._vpBatterij=+this.value;document.getElementById(\'vpBatterijWaarde\').textContent=this.value+\'%\';herbereken()"' +
+          ' style="flex:1;min-width:0;accent-color:var(--green)">' +
+      '</div>'
+    : '') +
 
-    // 2. BESTE TIJD — prominent, klik op kaart opent Aanpassen
-    '<div class="section" style="padding-top:10px;padding-bottom:4px">' +
-      '<div onclick="openAanpassen()" class="tarief-card" style="padding:12px 14px;background:rgba(59,109,17,0.08);border:1.5px solid rgba(59,109,17,0.35);cursor:pointer">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
-          '<div style="flex:1;min-width:0">' +
-            '<div style="font-size:14px;font-weight:600;color:#27500a">⭐ <span id="besteTijdInfoDiv">' + besteInfoStr + '</span></div>' +
-            terugWaarschuwing +
-          '</div>' +
-          (isBeste
-            ? '<div style="font-size:11px;color:#27500a;font-weight:600;flex-shrink:0;padding:5px 9px;border-radius:6px;background:rgba(59,109,17,0.12)">✓ geselecteerd</div>'
-            : '<button onclick="event.stopPropagation();overneemSuggestie(' + besteIdxBer + ')" style="flex-shrink:0;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>') +
-        '</div>' +
-      '</div>' +
+    // 2. BESTE TIJD — gewone tekstregel, geen kaart, geen ster
+    '<div style="padding:14px 16px 8px;font-size:14px;font-weight:500;color:var(--text)">' +
+      '<span id="besteTijdInfoDiv">' + besteSimpleStr + '</span>' +
     '</div>' +
 
     // 3. PLAN DIT IN — direct onder beste tijd, alleen bij automatisering
     (heeftAutomatisering
-      ? '<div class="section" style="padding-top:4px;padding-bottom:4px">' +
+      ? '<div class="section" style="padding-top:0;padding-bottom:4px">' +
           '<button class="ap-cta-btn ap-cta-groen" onclick="planInladen()" id="planInladenBtn">📅 Plan dit in op ' + selStartStrPlain + '</button>' +
           '<div id="planningStatusEl" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(59,109,17,0.08);font-size:12px;color:#27500a;text-align:center"></div>' +
         '</div>'
       : '') +
 
-    // 4. AANPASSEN — inklapbaar (standaard dicht); bevat Vertrek om + geselecteerde tijd
-    '<div class="section" style="padding-top:0;padding-bottom:4px;max-width:100%;overflow:hidden">' +
-      '<div onclick="toggleAanpassen()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 0;user-select:none">' +
-        '<div style="font-size:12px;font-weight:600;color:var(--text)">⚙️ Aanpassen</div>' +
-        '<div style="font-size:11px;color:var(--muted)">' + (aanpOpen ? '▲ inklappen' : '▼ uitklappen') + '</div>' +
-      '</div>' +
-      (aanpOpen ?
-        '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
-          (heeftVertrekPlanner ?
-            '<div style="margin-bottom:10px;overflow:hidden;width:100%;box-sizing:border-box">' +
-              '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Vertrek om</label>' +
-              '<input type="time" id="vpVertrekTijd" value="' + vpTijd + '"' +
-                ' oninput="apDetailState._vpVertrekTijd=this.value;herbereken()"' +
-                ' style="display:block;width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
-              '<div id="vpResultaat"></div>' +
-            '</div>'
-          : '') +
-          '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Geselecteerde starttijd</label>' +
-          '<div style="display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box">' +
-            '<button id="selStepperLeft" onclick="adjustApDetail(-15)"' + (!canGoBack ? ' disabled' : '') +
-              ' style="flex-shrink:0;min-width:72px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoBack ? ';opacity:0.35;cursor:default' : '') + '">← 15min</button>' +
-            '<input type="time" id="selStartInput" value="' + selTimeValue + '"' +
-              ' oninput="selTijdWijzig(this.value)"' +
-              ' style="flex:1;min-width:0;height:42px;padding:0 9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box;text-align:center">' +
-            '<button id="selStepperRight" onclick="adjustApDetail(15)"' + (!canGoFwd ? ' disabled' : '') +
-              ' style="flex-shrink:0;min-width:72px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoFwd ? ';opacity:0.35;cursor:default' : '') + '">15min →</button>' +
-          '</div>' +
-          '<div id="selInfoDiv" style="font-size:12px;color:var(--muted);margin-top:6px;padding-left:2px">' + selInfoStr + '</div>' +
-          vergelijkHtml +
-        '</div>'
-      : '') +
+    // 4. TOGGLE KNOPPEN — Vertrekplanner + Handmatig wijzigen
+    '<div style="display:flex;gap:8px;padding:6px 16px 4px">' +
+      '<button onclick="toggleVertrekplanner()" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid ' + (vpOpen ? '#639922' : 'var(--border)') + ';background:' + (vpOpen ? 'rgba(59,109,17,0.06)' : 'transparent') + ';color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px">🕐 Vertrekplanner ' + (vpOpen ? '▲' : '▼') + '</button>' +
+      '<button onclick="toggleHandmatig()" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid ' + (handmatigOpen ? '#639922' : 'var(--border)') + ';background:' + (handmatigOpen ? 'rgba(59,109,17,0.06)' : 'transparent') + ';color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px">✏️ Handmatig wijzigen ' + (handmatigOpen ? '▲' : '▼') + '</button>' +
     '</div>' +
 
-    // 5. DIRECT STARTEN / STOPPEN — onderaan, geen sectielabel
+    // 4a. VERTREKPLANNER content
+    (vpOpen
+      ? '<div class="section" style="padding-top:4px;padding-bottom:4px;max-width:100%;overflow:hidden">' +
+          '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
+            '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Vertrek om</label>' +
+            '<input type="time" id="vpVertrekTijd" value="' + vpTijd + '"' +
+              ' oninput="apDetailState._vpVertrekTijd=this.value;herbereken()"' +
+              ' style="display:block;width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
+            '<div id="vpResultaat"></div>' +
+          '</div>' +
+        '</div>'
+      : '') +
+
+    // 4b. HANDMATIG WIJZIGEN content
+    (handmatigOpen
+      ? '<div class="section" style="padding-top:4px;padding-bottom:4px;max-width:100%;overflow:hidden">' +
+          '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
+            '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Geselecteerde starttijd</label>' +
+            '<div style="display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box">' +
+              '<button id="selStepperLeft" onclick="adjustApDetail(-15)"' + (!canGoBack ? ' disabled' : '') +
+                ' style="flex-shrink:0;min-width:72px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoBack ? ';opacity:0.35;cursor:default' : '') + '">← 15min</button>' +
+              '<input type="time" id="selStartInput" value="' + selTimeValue + '"' +
+                ' oninput="selTijdWijzig(this.value)"' +
+                ' style="flex:1;min-width:0;height:42px;padding:0 9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box;text-align:center">' +
+              '<button id="selStepperRight" onclick="adjustApDetail(15)"' + (!canGoFwd ? ' disabled' : '') +
+                ' style="flex-shrink:0;min-width:72px;height:42px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center' + (!canGoFwd ? ';opacity:0.35;cursor:default' : '') + '">15min →</button>' +
+            '</div>' +
+            '<div id="selInfoDiv" style="font-size:12px;color:var(--muted);margin-top:6px;padding-left:2px">' + selInfoStr + '</div>' +
+            vergelijkHtml +
+          '</div>' +
+        '</div>'
+      : '') +
+
+    // 5. DIRECT STARTEN / STOPPEN
     automatiseringSectie +
     '<div style="padding-bottom:40px"></div>';
 
-  if (heeftVertrekPlanner && aanpOpen) herbereken();
+  if (vpOpen) herbereken();
   if (heeftAutomatisering) laadPlanningStatus(apparaat);
 }
 
@@ -579,17 +568,15 @@ function updateKostenWeergave(berekendeUren) {
   const besteEff    = berekendeUren >= 0.25
     ? (effectieveKosten(berekendeUren, vermogen, planUren, besteIdxBer) ?? berekenKostenVanaf(berekendeUren, vermogen, planUren, besteIdxBer))
     : 0;
-  const dekBestePct = berekendeUren >= 0.25
-    ? Math.round(gemSolarDekking(besteIdxBer, berekendeBlok, vermogen, planUren) * 100)
-    : 0;
   const besteStartBer   = planUren[besteIdxBer]?.tijd;
   const besteEindBerDat = besteStartBer ? new Date(besteStartBer) : null;
   if (besteEindBerDat) besteEindBerDat.setHours(besteEindBerDat.getHours() + berekendeBlok);
+  const besteLabel = ap.type === 'laden' ? 'Beste laadtijd' : 'Beste tijd';
 
   const besteTijdInfoEl = document.getElementById('besteTijdInfoDiv');
   if (besteTijdInfoEl) besteTijdInfoEl.innerHTML = berekendeUren < 0.25
     ? 'Batterij al vol 🎉'
-    : dagHStr(besteStartBer) + '–' + hStr(besteEindBerDat) + ' · € ' + besteEff.toFixed(2) + (dekBestePct > 0 ? ' · ☀️ ' + dekBestePct + '%' : '');
+    : besteLabel + ': ' + dagHStr(besteStartBer) + '–' + hStr(besteEindBerDat) + ' · € ' + besteEff.toFixed(2);
 
   const selStartActual = planUren[currentStartIdx]?.tijd
     ? new Date(planUren[currentStartIdx].tijd.getTime() + minuteOffset * 60000)
