@@ -54,7 +54,11 @@ function renderGrafiek(prijzen, min, max, gem) {
     return null;
   };
 
-  const solarData = prijzen.map((p, i) => solarPerUur(p, i));
+  // Clip negatieve waarden naar 0 zodat de lijn nooit onder de x-as kan duiken.
+  const solarData = prijzen.map((p, i) => {
+    const v = solarPerUur(p, i);
+    return v === null ? null : Math.max(0, v);
+  });
   const hasSolar  = solarData.some(x => x !== null && x > 0);
 
   const terugLijn = {
@@ -67,7 +71,7 @@ function renderGrafiek(prijzen, min, max, gem) {
   const solarDatasets = hasSolar ? [{
     type: 'line', data: solarData,
     borderColor: 'rgba(255,200,50,0.85)', backgroundColor: 'rgba(255,200,50,0.12)',
-    fill: true, cubicInterpolationMode: 'monotone', pointRadius: 0, borderWidth: 1.5, yAxisID: 'ySolar'
+    fill: true, tension: 0, pointRadius: 0, borderWidth: 1.5, yAxisID: 'ySolar'
   }] : [];
 
   if (chart) chart.destroy();
@@ -163,7 +167,7 @@ function renderGrafiek(prijzen, min, max, gem) {
       scales: {
         x:      { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, autoSkip:true, maxTicksLimit:8, maxRotation:0 }, grid:{display:false} },
         y:      { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, callback: v => '€'+v.toFixed(2) }, grid:{ color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)' } },
-        ySolar: { display: false, beginAtZero: true, min: 0, position: 'right' }
+        ySolar: { display: false, beginAtZero: true, min: 0, clip: true, position: 'right' }
       }
     }
   });
