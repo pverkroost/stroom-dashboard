@@ -57,7 +57,7 @@ function renderGrafiek(prijzen, min, max, gem) {
   // Clip negatieve waarden naar 0 zodat de lijn nooit onder de x-as kan duiken.
   const solarData = prijzen.map((p, i) => {
     const v = solarPerUur(p, i);
-    return v === null ? null : Math.max(0, v);
+    return v === null ? null : Math.max(0, v || 0);
   });
   const hasSolar  = solarData.some(x => x !== null && x > 0);
 
@@ -70,7 +70,7 @@ function renderGrafiek(prijzen, min, max, gem) {
 
   const solarDatasets = hasSolar ? [{
     type: 'line',
-    data: solarData.map(v => Math.max(0, v ?? 0)),
+    data: solarData.map(v => Math.max(0, v || 0)),
     tension: 0,
     cubicInterpolationMode: 'default',
     borderColor: '#f5c842',

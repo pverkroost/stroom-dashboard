@@ -3,11 +3,12 @@ function aggregateToHourly(values) {
   for (const v of values) {
     const h = new Date(v.date).getHours();
     if (!byHour[h]) byHour[h] = [];
-    byHour[h].push(v.value);
+    // SolarEdge /power kan null/negatieve waarden teruggeven (idle inverter, ruis).
+    byHour[h].push(Math.max(0, v.value || 0));
   }
   return Object.entries(byHour).map(([h, vals]) => ({
     hour: parseInt(h),
-    watt: vals.reduce((s, v) => s + v, 0) / vals.length
+    watt: Math.max(0, vals.reduce((s, v) => s + v, 0) / vals.length)
   }));
 }
 
@@ -32,9 +33,9 @@ async function fetchSolarEdge() {
     return null;
   }
 
-  const currentWatt = overviewData?.overview?.currentPower?.power ?? 0;
-  const todayKwh    = (overviewData?.overview?.lastDayData?.energy ?? 0) / 1000;
-  const maandKwh    = (overviewData?.overview?.lastMonthData?.energy ?? 0) / 1000;
+  const currentWatt = Math.max(0, overviewData?.overview?.currentPower?.power || 0);
+  const todayKwh    = Math.max(0, (overviewData?.overview?.lastDayData?.energy  || 0) / 1000);
+  const maandKwh    = Math.max(0, (overviewData?.overview?.lastMonthData?.energy || 0) / 1000);
   console.log('[SolarEdge] overview OK — currentWatt:', currentWatt, 'todayKwh:', todayKwh, 'maandKwh:', maandKwh);
 
   let hourly = [], piekWatt = 0, piekUur = null;
@@ -43,7 +44,7 @@ async function fetchSolarEdge() {
     if (powerData && !powerData.error) {
       hourly = aggregateToHourly(powerData?.power?.values || []);
       const piekEntry = hourly.length ? hourly.reduce((b, e) => e.watt > b.watt ? e : b) : null;
-      piekWatt = piekEntry?.watt ?? 0;
+      piekWatt = Math.max(0, piekEntry?.watt || 0);
       piekUur  = piekEntry?.hour ?? null;
     } else {
       console.warn('[SolarEdge] power response leeg of fout', powerData);
@@ -56,7 +57,7 @@ async function fetchSolarEdge() {
   if (gisterenRes?.ok) {
     const gisterenData = await gisterenRes.json().catch(() => null);
     const gisterenWh   = gisterenData?.energy?.values?.[0]?.value ?? null;
-    if (gisterenWh !== null) gisterenKwh = gisterenWh / 1000;
+    if (gisterenWh !== null) gisterenKwh = Math.max(0, gisterenWh / 1000);
   }
 
   return { hourly, currentWatt, todayKwh, maandKwh, gisterenKwh, piekWatt, piekUur };
@@ -68,10 +69,10 @@ async function fetchGrowatt() {
   const data = await res.json().catch(() => null);
   if (!data || data.error) return null;
   return {
-    currentWatt: data.currentPower ?? 0,
-    totalEnergy: data.totalEnergy  ?? 0,
-    peakPower:   data.peakPower    ?? 0,
-    status:      data.status       ?? 0
+    currentWatt: Math.max(0, data.currentPower || 0),
+    totalEnergy: Math.max(0, data.totalEnergy  || 0),
+    peakPower:   Math.max(0, data.peakPower    || 0),
+    status:      data.status ?? 0
   };
 }
 
@@ -96,7 +97,7 @@ async function fetchOpenMeteo() {
   const vandaag = [], morgenArr = [];
   times.forEach((t, i) => {
     const d = new Date(t); d.setHours(0,0,0,0);
-    const watt  = Math.round((direct[i] || 0) * TOTAL_PEAK_KW * PANEL_EFFICIENCY);
+    const watt  = Math.max(0, Math.round((direct[i] || 0) * TOTAL_PEAK_KW * PANEL_EFFICIENCY));
     const entry = { hour: parseInt(t.slice(11, 13)), watt };
     if (d.getTime() === today.getTime())  vandaag.push(entry);
     if (d.getTime() === morgen.getTime()) morgenArr.push(entry);
@@ -107,7 +108,7 @@ async function fetchOpenMeteo() {
 function getSolarForIdx(solarData, hour) {
   if (!solarData?.hourly) return 0;
   const entry = solarData.hourly.find(e => e.hour === hour);
-  return entry ? entry.watt : 0;
+  return entry ? Math.max(0, entry.watt || 0) : 0;
 }
 
 function calcLiveKw() {
