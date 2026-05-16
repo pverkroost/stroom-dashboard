@@ -1,7 +1,7 @@
-const OPSLAG              = 0.03194; // € per kWh excl. btw
-const EB                  = 0.08930; // energiebelasting € per kWh excl. btw
+const OPSLAG              = 0.03073; // inkoopvergoeding € per kWh excl. btw
+const EB                  = 0.09161; // energiebelasting € per kWh excl. btw
 const BTW                 = 1.21;
-const VASTE_KOSTEN_PER_DAG = 0.32819; // € per dag
+const VASTE_KOSTEN_PER_DAG = 1.35;    // leveringskosten + netbeheer € per dag excl. btw
 const LAT = 52.3647;
 const LON = 6.4598;
 const SOLAREDGE_PEAK_KW     = 3.2;
