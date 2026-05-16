@@ -448,8 +448,8 @@ function renderApDetail() {
           '<div style="display:flex;gap:8px;align-items:center">' +
             '<input type="password" id="homeyPinInput" placeholder="Pincode" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off"' +
               ' style="flex:1;padding:16px;border-radius:10px;border:1.5px solid var(--border);font-size:22px;font-family:inherit;background:var(--card);color:var(--text);text-align:center;box-sizing:border-box"' +
-              ' onkeydown="if(event.key===\'Enter\')bevestigHomey()" onfocus="this.scrollIntoView({behavior:\'smooth\',block:\'center\'})">' +
-            '<button id="homeyOkBtn" onclick="bevestigHomey()" style="width:56px;height:56px;border-radius:10px;border:none;background:var(--green);color:white;font-size:24px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">✓</button>' +
+              ' onkeydown="if(event.key===\'Enter\')bevestigPincode()" onfocus="this.scrollIntoView({behavior:\'smooth\',block:\'center\'})">' +
+            '<button id="homeyOkBtn" onclick="bevestigPincode()" style="width:56px;height:56px;border-radius:10px;border:none;background:var(--green);color:white;font-size:24px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">✓</button>' +
           '</div>' +
         '</div>' +
         '<div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>' +
@@ -720,7 +720,9 @@ async function planInladen(stilUpdate = false) {
   const btn      = document.getElementById('planInladenBtn');
   const apparaat = apSleutel(apDetailState.ap.naam);
 
-  if (_planningActief) {
+  // Actieve planning aanpassen via een expliciete klik: eerst annuleren, daarna laat de gebruiker
+  // opnieuw "Plan dit in" klikken om nieuwe planning te starten (met pincode).
+  if (_planningActief && !stilUpdate) {
     await annuleerPlanning(apparaat);
     if (btn) {
       const t = getSelStartActual();
@@ -729,31 +731,49 @@ async function planInladen(stilUpdate = false) {
     return;
   }
 
+  // Stille update vanuit slider/overneem-knop: alleen mogelijk als pincode al gecached is
+  // in deze detail-paneel-sessie. Anders silent abort — gebruiker moet expliciet opnieuw inplannen.
+  if (stilUpdate && !apDetailState._cachedPlanPin) return;
+
   const { planUren, currentStartIdx, ap } = apDetailState;
   const startP = planUren[currentStartIdx];
   if (!startP) return;
   const startTijd = new Date(startP.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
   const stopTijd  = new Date(startTijd.getTime() + ap.uren * 3600000);
 
-  if (!stilUpdate && btn) { btn.disabled = true; btn.textContent = '⏳ Inplannen…'; }
-
-  try {
-    const r = await fetch('/api/planLaden', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ startTijd: startTijd.toISOString(), stopTijd: stopTijd.toISOString(), apparaat })
-    });
-    const data = await r.json();
-    if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
-    _planningActief = true;
-    if (!stilUpdate && btn) btn.textContent = '✓ Ingepland — wijzig';
-    await laadPlanningStatus(apparaat);
-  } catch(e) {
-    const statusEl = document.getElementById('planningStatusEl');
-    if (statusEl) { statusEl.style.display = 'block'; statusEl.style.background = 'rgba(163,45,45,0.08)'; statusEl.style.color = '#a32d2d'; statusEl.textContent = '✗ ' + e.message; }
-  } finally {
-    if (!stilUpdate && btn) btn.disabled = false;
+  if (stilUpdate) {
+    try {
+      const r = await fetch('/api/planLaden', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ startTijd: startTijd.toISOString(), stopTijd: stopTijd.toISOString(), apparaat, pin: apDetailState._cachedPlanPin })
+      });
+      const data = await r.json();
+      if (r.status === 401) {
+        apDetailState._cachedPlanPin = null;
+        const statusEl = document.getElementById('planningStatusEl');
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = '#a32d2d'; statusEl.textContent = 'Pincode niet meer geldig — plan opnieuw in'; }
+        return;
+      }
+      if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
+      _planningActief = true;
+      await laadPlanningStatus(apparaat);
+    } catch(e) {
+      console.warn('[planInladen stilUpdate]', e.message);
+    }
+    return;
   }
+
+  // Initiale planning: vraag pincode via dezelfde sectie die ook 'Nu starten/stoppen' gebruikt.
+  _homeyPendingAction = 'plan';
+  const section  = document.getElementById('homeyPincodeSection');
+  const input    = document.getElementById('homeyPinInput');
+  const okBtn    = document.getElementById('homeyOkBtn');
+  const statusEl = document.getElementById('homeyStatus');
+  if (section)  { section.style.display = 'block'; section.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  if (input)    { input.disabled = false; input.value = ''; input.focus(); }
+  if (okBtn)    { okBtn.disabled = false; okBtn.textContent = '✓'; }
+  if (statusEl) { statusEl.textContent = 'Voer pincode in om de planning op te slaan'; statusEl.style.color = 'var(--muted)'; }
 }
 
 async function annuleerPlanning(apparaat) {
@@ -797,7 +817,7 @@ function homeyActie(action) {
   if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--muted)'; }
 }
 
-async function bevestigHomey() {
+async function bevestigPincode() {
   const input    = document.getElementById('homeyPinInput');
   const okBtn    = document.getElementById('homeyOkBtn');
   const pin      = input?.value?.trim();
@@ -811,10 +831,37 @@ async function bevestigHomey() {
   if (statusEl) statusEl.textContent = '';
 
   try {
+    if (action === 'plan') {
+      if (!apDetailState) throw new Error('Geen apparaat actief');
+      const apparaat = apSleutel(apDetailState.ap.naam);
+      const { planUren, currentStartIdx, ap } = apDetailState;
+      const startP = planUren[currentStartIdx];
+      if (!startP) throw new Error('Ongeldige starttijd');
+      const startTijd = new Date(startP.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
+      const stopTijd  = new Date(startTijd.getTime() + ap.uren * 3600000);
+
+      const r = await fetch('/api/planLaden', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ startTijd: startTijd.toISOString(), stopTijd: stopTijd.toISOString(), apparaat, pin })
+      });
+      const data = await r.json();
+      if (r.status === 401) throw new Error('Ongeldige pincode');
+      if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
+
+      apDetailState._cachedPlanPin = pin; // herbruikbaar voor stille slider-updates in deze sessie
+      _planningActief = true;
+      if (section)  section.style.display = 'none';
+      if (statusEl) { statusEl.textContent = '✓ Planning opgeslagen'; statusEl.style.color = 'var(--green)'; }
+      await laadPlanningStatus(apparaat);
+      return;
+    }
+
+    // 'start' of 'stop' — Homey webhook direct
     const r = await fetch('/api/homey', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, action })
+      body:    JSON.stringify({ pin, action })
     });
     const data = await r.json();
     if (r.status === 401) throw new Error('Ongeldige pincode');
@@ -825,10 +872,7 @@ async function bevestigHomey() {
       statusEl.style.color = 'var(--green)';
     }
   } catch (e) {
-    if (statusEl) {
-      statusEl.textContent = `✗ ${e.message}`;
-      statusEl.style.color = '#a32d2d';
-    }
+    if (statusEl) { statusEl.textContent = `✗ ${e.message}`; statusEl.style.color = '#a32d2d'; }
     if (input) { input.disabled = false; input.value = ''; input.focus(); }
     if (okBtn) { okBtn.disabled = false; okBtn.textContent = '✓'; }
   }

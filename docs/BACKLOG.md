@@ -7,7 +7,6 @@ Gedistilleerd uit `docs/chat001.md` + `docs/chat002.md`. Werk dat al af is staat
 ## Features (geprioriteerd in chat)
 
 - [ ] **#10 Tijdnavigatie vereenvoudigen** — één doorlopende 24u tijdlijn, "Morgen"-tab verwijderen. EPEX day-ahead komt rond 12:00–14:00 binnen, max 48u beschikbaar.
-- [ ] **#11 Pincode op "Plan dit in"** — planning via QStash heeft óók pincode-beveiliging nodig (nu alleen bij Nu starten/stoppen). Genoemd als beveiligingsrisico.
 - [ ] **#12 Laadstatus uit Homey** — daadwerkelijke status slimme stekker tonen (laadt de auto echt?).
 - [ ] **#13 "Vandaag bespaard / te besparen"** — widget die besparing t.o.v. gemiddelde dagprijs toont. Vereist meting (zie #17).
 - [ ] **#14 Goedkoopste blok visueel highlighten in grafiek**.
@@ -81,6 +80,7 @@ Onboarding opties:
 - Bug: solar-tegels consistent tussen Vandaag/Zon tab
 - Bug: `renderTeruglevering` geen dubbele rijen meer
 - Bug: grafiek-legenda alleen onder
+- #11 Pincode op "Plan dit in" (v2.51.0) — POST /api/planLaden vereist pin; gecached in detail-paneel-sessie voor stille slider-updates
 
 ### Afgerond in chats of v2.49.x
 

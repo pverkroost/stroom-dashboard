@@ -50,7 +50,8 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === 'POST') {
-    const { startTijd, stopTijd, apparaat: apBody } = req.body || {};
+    const { startTijd, stopTijd, apparaat: apBody, pin } = req.body || {};
+    if (pin !== process.env.APP_PINCODE) return res.status(401).json({ error: 'Ongeldige pincode' });
     const ap = apBody || apparaat;
     if (!startTijd || !stopTijd) return res.status(400).json({ error: 'startTijd en stopTijd verplicht' });
 
