@@ -38,10 +38,10 @@ Alle in Settings → Environment Variables van het Vercel-project:
 | Variable                      | Waarde / omschrijving                                    |
 |-------------------------------|----------------------------------------------------------|
 | `GROWATT_API_TOKEN`           | Growatt OpenAPI token                                    |
-| `GROWATT_DEVICE_SN`           | `CUE294500F` — inverter device serial                    |
-| `GROWATT_PLANT_ID`            | Growatt plant ID (legacy ShinePhone API)                 |
-| `GROWATT_USERNAME`            | Growatt account e-mail (legacy ShinePhone API)           |
-| `GROWATT_PASSWORD`            | Growatt account wachtwoord (legacy ShinePhone API)       |
+| `GROWATT_DEVICE_SN`           | Inverter device serial (alleen ingesteld, nog niet gebruikt in `api/growatt.js`) |
+| `GROWATT_PLANT_ID`            | Growatt plant ID (alleen `netlify/functions/growatt.js`) |
+| `GROWATT_USERNAME`            | Growatt account e-mail (legacy ShinePhone API, ongebruikt) |
+| `GROWATT_PASSWORD`            | Growatt account wachtwoord (legacy ShinePhone API, ongebruikt) |
 | `SOLAREDGE_API_KEY`           | SolarEdge Monitoring API key                             |
 | `SOLAREDGE_SITE_ID`           | SolarEdge site ID                                        |
 | `HOMEY_CLOUD_ID`              | Homey cloud-id voor `<cloud-id>.connect.athom.com`       |
@@ -54,7 +54,6 @@ Alle in Settings → Environment Variables van het Vercel-project:
 Client-side constanten staan in `js/config.js` (niet als env var):
 - `LAT` / `LON` — locatie voor Open-Meteo
 - `GROWATT_PEAK_KW` / `SOLAREDGE_PEAK_KW` — piekvermogens panelen
-- `GROWATT_DEVICE_SN` / `GROWATT_DATALOGGER_SN` — referentie SNs
 - `APPARATEN` — lijst van apparaten (auto, wasmachine, etc.) met vermogen en draaiuren
 
 ## Tarieven (Sepa Green, excl. btw)
