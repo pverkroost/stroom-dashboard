@@ -81,6 +81,7 @@ Onboarding opties:
 - Bug: `renderTeruglevering` geen dubbele rijen meer
 - Bug: grafiek-legenda alleen onder
 - #11 Pincode op "Plan dit in" (v2.51.0) — POST /api/planLaden vereist pin; gecached in detail-paneel-sessie voor stille slider-updates
+- Bug: zonne-opbrengst lijn dipte onder nul (v2.50.1 monotone + v2.51.1 radicaal clip met Math.max(0, v) en tension:0)
 
 ### Afgerond in chats of v2.49.x
 
