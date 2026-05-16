@@ -20,7 +20,46 @@ Gedistilleerd uit `docs/chat001.md` + `docs/chat002.md`. Werk dat al af is staat
 - [ ] **#21 Push-notificaties** — bv. "Goedkoopste uur start over 20 min."
 - [ ] **#25 Prijsdetail uit sectietitels/badges** — minder druk, alleen tonen bij klik op kaart.
 - [ ] **#26 Teruglevering-blok op Zon-tab vereenvoudigen** — actietaal: "Zet tussen 09:00–14:00 je apparaten aan — gratis zon."
-- [ ] **API-status check in instellingen** — per databron live status (✓ Actief, laatste update) i.p.v. hardcoded.
+- [ ] **#27 Multi-user support — eerste extra gebruiker** — app multi-tenant maken zodat een tweede persoon Energie IQ kan gebruiken voor zijn/haar situatie. Vereist nogal wat. Onder te verdelen in:
+
+  **A. Identiteit & toegang**
+  - Hoe weet de app welke gebruiker dit is? Opties: (i) login + sessie, (ii) per-user URL (energieiq.nl/u/pverk), (iii) URL-parameter, (iv) gewoon aparte Vercel-deploy per user.
+  - Eigen pincode per user (nu globaal `APP_PINCODE`).
+  - Eerste-keer-setup wizard om profiel in te vullen.
+
+  **B. Per-user configuratie (nu hardcoded in `js/config.js`)**
+  - Tarieven (OPSLAG, EB, BTW, vaste kosten, terugleveropslag — leveranciersafhankelijk)
+  - LAT/LON voor Open-Meteo
+  - Zonnepanelen: welke merken, aantal panelen per inverter, piekvermogen, efficiency
+  - `APPARATEN` lijst (een ander huishouden heeft geen Volvo PHEV, wel misschien een EV-laadpaal)
+  - `SOLAR_SOURCES` (alleen SolarEdge, alleen Growatt, beide, of geen)
+
+  **C. Per-user secrets (nu globale Vercel env vars)**
+  - SolarEdge API key + site ID
+  - Growatt API token + device SN
+  - Homey cloud ID + flow-namen voor laden start/stop
+  - QStash + Redis blijven gedeeld; planning-keys moeten user-prefix krijgen (`laadplanning_<user>_<apparaat>`)
+  - Niet realistisch om voor elke user nieuwe Vercel env vars handmatig in te stellen → secrets in Upstash Redis per user (of een aparte secrets-store).
+
+  **D. Backend wijzigingen**
+  - API endpoints moeten user-context kennen: route-param (`/api/u/<user>/solaredge`) of session/header.
+  - `api/homey.js`, `api/planLaden.js`, `api/cronLaden.js`, `api/growatt.js`, `api/solaredge.js` — alle vijf zoeken nu in `process.env`; moeten naar user-lookup.
+  - QStash callbacks moeten user-id meekrijgen in de body.
+
+  **E. UX**
+  - "Wie ben ik?" indicator in header (naam + avatar, of subtieler).
+  - Setup-wizard voor nieuwe gebruiker (tarieven invoeren, API-keys koppelen, apparaten toevoegen).
+  - Mogelijk een "demo-modus" voor mensen die het willen proberen zonder real-time API's.
+
+  **F. Operationeel**
+  - Hoe komt een nieuwe gebruiker erin: self-serve registratie of jij voegt handmatig toe?
+  - Documentatie voor anderen om API-keys te vinden (SolarEdge dashboard, Growatt portal, Homey OAuth, etc.).
+  - Privacy: alle user-data zit straks in Upstash Redis — dat moet versleuteld of in elk geval per-user gescheiden.
+
+  **Open te bespreken:**
+  - Doel = 1 specifieke extra persoon (snel + hands-on) of breed beschikbaar maken (uitgebreider)?
+  - Account-systeem (echte auth) of light-weight (gedeelde URL met user-code)?
+  - Multi-tenant op één deploy, of aparte deploy per user (simpel, schaalt niet)?
 
 ## Ideeën / nice-to-haves
 
