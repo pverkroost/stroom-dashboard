@@ -132,22 +132,7 @@ function calcVerwachtKwh() {
 
 function renderSolarKaartjes() {
   const card = document.getElementById('solarNuCard');
-  if (!card) return; // Solar-cards verwijderd uit Vandaag-tab; functie blijft beschikbaar voor toekomstige weergave
-  const isMorgen = activeDay === 1;
-  card.style.display                                           = isMorgen ? 'none' : '';
-  document.getElementById('solarSchatting').style.display      = 'none';
-  document.getElementById('solarVandaagCard').style.gridColumn = isMorgen ? '1/-1' : '';
-
-  if (isMorgen) {
-    const hourly   = solarMorgen?.hourly || [];
-    const verwacht = (hourly.reduce((s, e) => s + e.watt, 0) / 1000).toFixed(2);
-    const sm = 'font-size:13px;color:var(--muted);font-weight:400';
-    document.getElementById('solarVandaagLabel').textContent    = '☀️ Verwacht morgen';
-    document.getElementById('solarVandaagKwh').innerHTML        = solarMorgen ? `${verwacht} <small style="${sm}">kWh (schatting o.b.v. Open-Meteo)</small>` : '—';
-    document.getElementById('solarVandaagEen').style.display    = 'none';
-    document.getElementById('solarVandaagTotaal').style.display = 'none';
-    return;
-  }
+  if (!card) return; // Solar-cards verwijderd uit hoofdtab; functie blijft beschikbaar voor toekomstige weergave
 
   document.getElementById('solarVandaagLabel').textContent = '☀️ Vandaag';
   const totaalEl = document.getElementById('solarVandaagTotaal');

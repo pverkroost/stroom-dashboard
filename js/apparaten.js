@@ -251,11 +251,7 @@ function apSleutel(naam) {
 }
 
 function getPlanUren() {
-  const isMorgenTab = activeDay === 1;
-  if (isMorgenTab) return cacheMorgen || [];
-  if (!cacheVandaag) return [];
-  const nowUur = new Date().getHours();
-  return [...cacheVandaag.filter(p => p.tijd.getHours() >= nowUur), ...(cacheMorgen || [])];
+  return getPrijzenVooruit();
 }
 
 function openApDetail(apIdx) {
@@ -841,44 +837,26 @@ async function bevestigHomey() {
 function renderLaadadvies() {
   const container     = document.getElementById('laadadviesContainer');
   const containerMeer = document.getElementById('meerApparatenContainer');
-  const isMorgenTab   = activeDay === 1;
 
   const titleEl = document.getElementById('laadadviesTitle');
-  if (titleEl) titleEl.textContent = isMorgenTab ? 'Slim inplannen · morgen' : 'Slim inplannen · vandaag';
+  if (titleEl) titleEl.textContent = 'Slim inplannen';
 
-  if (isMorgenTab ? !cacheMorgen : !cacheVandaag) {
+  if (!cacheVandaag) {
     if (containerMeer) containerMeer.innerHTML = '';
-    if (isMorgenTab) {
-      const verwachtKwh = solarMorgen?.hourly?.length
-        ? (solarMorgen.hourly.reduce((s, e) => s + e.watt, 0) / 1000).toFixed(1)
-        : null;
-      const solarRij = verwachtKwh !== null
-        ? `<div class="av-rij" style="margin-top:2px"><span class="av-label">☀️ Verwachte opbrengst morgen</span><span class="av-prijs">${verwachtKwh} kWh</span></div>`
-        : '';
-      container.innerHTML = `<div class="advies-grid">
-        <div class="advies-card" style="grid-column:1/-1">
-          <div class="advies-device-icon">⏰</div>
-          <div class="advies-device-naam">Prijzen beschikbaar vanaf ~14:00</div>
-          <div class="advies-vergelijk">
-            <div class="av-rij"><span class="av-label">EPEX day-ahead</span><span class="av-prijs" style="color:var(--muted)">nog niet gepubliceerd</span></div>
-            ${solarRij}
-          </div>
-          <div class="advies-status later">Kom terug na 14:00 voor slim inplannen</div>
+    container.innerHTML = `<div class="advies-grid">
+      <div class="advies-card" style="grid-column:1/-1">
+        <div class="advies-device-icon">⏰</div>
+        <div class="advies-device-naam">Prijzen niet beschikbaar</div>
+        <div class="advies-vergelijk">
+          <div class="av-rij"><span class="av-label">EPEX day-ahead</span><span class="av-prijs" style="color:var(--muted)">kon API niet bereiken</span></div>
         </div>
-      </div>`;
-    } else {
-      container.innerHTML = '';
-    }
+        <div class="advies-status later">Probeer te verversen</div>
+      </div>
+    </div>`;
     return;
   }
 
-  const now = new Date();
-  const nowUur = now.getHours();
-
-  const planUren = isMorgenTab
-    ? (cacheMorgen || [])
-    : [...cacheVandaag.filter(p => p.tijd.getHours() >= nowUur), ...(cacheMorgen || [])];
-  const isBesteMorgenGemist = !isMorgenTab && !cacheMorgen;
+  const planUren = getPlanUren();
 
   let geselecteerdIdx = 0, heeftSelectie = false;
   if (geselecteerdStartTijd) {
@@ -886,7 +864,8 @@ function renderLaadadvies() {
     if (gevonden >= 0) { geselecteerdIdx = gevonden; heeftSelectie = true; }
   }
 
-  console.log('[Slim inplannen] tab:', isMorgenTab ? 'morgen' : 'vandaag',
+  console.log('[Slim inplannen]',
+    '| planUren:', planUren.length,
     '| solarVandaag:', !!solarVandaag,
     '| openMeteoVandaag:', openMeteoVandaag?.hourly?.length ?? 0, 'uur',
     '| solarMorgen:', solarMorgen?.hourly?.length ?? 0, 'uur',
@@ -897,8 +876,12 @@ function renderLaadadvies() {
   const wasdroogRes   = wasApparaat && droogApparaat
     ? berekenComboBlok(wasApparaat.uren, wasApparaat.vermogen, droogApparaat.uren, droogApparaat.vermogen, planUren)
     : null;
-  const leegKaart = (icon, naam) =>
-    `<div class="advies-card"><div class="advies-device-icon">${icon}</div><div class="advies-device-naam">${naam}</div><div class="advies-row">Onvoldoende data</div></div>`;
+  // Past niet binnen huidige planUren én morgen-prijzen zijn nog niet binnen → subtiele wachtboodschap i.p.v. "Onvoldoende data".
+  const leegKaart = (icon, naam, uren = 0) => {
+    const wachtOpMorgen = !cacheMorgen && uren > planUren.length;
+    const tekst = wachtOpMorgen ? 'Wacht op morgen-prijzen (rond 14:00)' : 'Onvoldoende data';
+    return `<div class="advies-card"><div class="advies-device-icon">${icon}</div><div class="advies-device-naam">${naam}</div><div class="advies-row" style="color:var(--muted)">${tekst}</div></div>`;
+  };
 
   function maakKaart({ apId, icon, naam, uren, kw,
                         type = 'starten', opmerking = null,
@@ -944,13 +927,11 @@ function renderLaadadvies() {
 
     const ctaMap = { laden: ['Nu laden!', 'Laden'], starten: ['Nu starten!', 'Starten'], inschakelen: ['Nu inschakelen!', 'Inschakelen'] };
     const [nuTekst, laterVerb] = ctaMap[type] ?? ['Nu starten!', 'Starten'];
-    const statusStr = isMorgenTab
-      ? `<div class="advies-status later">Morgen · ${besteStartStr}</div>`
-      : besteStartIdx === 0
-        ? `<div class="advies-status nu">✓ ${nuTekst}</div>`
-        : besteStartIdx <= 2
-          ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
-          : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
+    const statusStr = besteStartIdx === 0
+      ? `<div class="advies-status nu">✓ ${nuTekst}</div>`
+      : besteStartIdx <= 2
+        ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
+        : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
 
     function blokRijen(sectieLabel, tijdStr, netstroom, heeftZonHier, dekking, isGedeeltelijk = false) {
       const priceStr = netstroom == null ? '—' : `€ ${netstroom.toFixed(2)}`;
@@ -983,11 +964,11 @@ function renderLaadadvies() {
     </div>`;
   }
 
-  const selLabel = heeftSelectie ? 'Keuze' : (isMorgenTab ? 'Vroegst' : 'Nu');
+  const selLabel = heeftSelectie ? 'Keuze' : 'Nu';
 
   function renderApparaat(ap, apIdx) {
     if (ap.comboMet) {
-      if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
+      if (!wasdroogRes) return leegKaart(ap.icon, ap.naam, Math.ceil(ap.uren + (droogApparaat?.uren ?? 0)));
       return maakKaart({
         apId: apIdx,
         icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
@@ -1005,7 +986,7 @@ function renderLaadadvies() {
       });
     }
     if (ap.naApparaat) {
-      if (!wasdroogRes) return leegKaart(ap.icon, ap.naam);
+      if (!wasdroogRes) return leegKaart(ap.icon, ap.naam, Math.ceil((wasApparaat?.uren ?? 0) + ap.uren));
       const droogIdx = geselecteerdIdx + wasApparaat.uren;
       return maakKaart({
         apId: apIdx,
@@ -1024,7 +1005,7 @@ function renderLaadadvies() {
       });
     }
     const res = berekenGoedkoopsteBlok(ap.uren, ap.vermogen, planUren);
-    if (!res) return leegKaart(ap.icon, ap.naam);
+    if (!res) return leegKaart(ap.icon, ap.naam, Math.ceil(ap.uren));
     return maakKaart({
       apId: apIdx,
       icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,

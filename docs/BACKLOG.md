@@ -4,16 +4,6 @@ Gedistilleerd uit `docs/chat001.md` + `docs/chat002.md`. Werk dat al af is staat
 
 ---
 
-## Bugs / fixes
-
-- [ ] **"Kost € X meer" inconsistent** — berekening verschilt tussen apparaatkaart en detailscherm. Moet overal `Math.abs(kostenKeuze − kostenBeste)` zijn.
-- [ ] **iPhone pincode-invoer** — toetsenbord valt over het veld. Veld bovenaan detailscherm, `inputmode="numeric"`, `scrollIntoView` op focus.
-- [ ] **Pincode-state reset** — bij switchen tussen "Nu starten" en "Nu stoppen" blijft oude state staan (drie groene puntjes blijven hangen).
-- [ ] **"Morgen prijzen nog niet beschikbaar" dubbel** — meldingsregel verschijnt twee keer in Auto-PHEV kaart.
-- [ ] **Solar-tegels inconsistent tussen Vandaag/Zon tab** — Live + Vandaag-waardes lopen niet 1-op-1. Oorzaak waarschijnlijk dubbele API-calls; cachen via `window.solarData`.
-- [ ] **`renderTeruglevering` dubbele rijen** — container niet leeggemaakt vóór render in de Zon-tab.
-- [ ] **Grafiek-legenda** — soms zowel boven als onder. Alleen onder, met 3 items (verbruiksprijs, zonne-opbrengst, terugleverprijs).
-
 ## Features (geprioriteerd in chat)
 
 - [ ] **#10 Tijdnavigatie vereenvoudigen** — één doorlopende 24u tijdlijn, "Morgen"-tab verwijderen. EPEX day-ahead komt rond 12:00–14:00 binnen, max 48u beschikbaar.
@@ -51,7 +41,17 @@ Gedistilleerd uit `docs/chat001.md` + `docs/chat002.md`. Werk dat al af is staat
 - API Client (OAuth2) in Homey is aangemaakt maar ongebruikt — weggooien of bewaren?
 - `HOMEY_TOKEN` env var: nog gebruikt of dood? (`api/homey.js` werkt via cloud-webhook zonder token)
 
-## Done (afgerond in chats of in v2.49.4)
+## Done
+
+- Bug: "Kost € X meer" consistent tussen kaart en detailscherm
+- Bug: iPhone pincode-veld niet meer onder toetsenbord
+- Bug: pincode-state reset bij Start ↔ Stop switch
+- Bug: "Morgen prijzen nog niet beschikbaar" niet meer dubbel
+- Bug: solar-tegels consistent tussen Vandaag/Zon tab
+- Bug: `renderTeruglevering` geen dubbele rijen meer
+- Bug: grafiek-legenda alleen onder
+
+### Afgerond in chats of v2.49.x
 
 - Refactor naar modules (`js/config.js`, `solar.js`, `prijzen.js`, `apparaten.js`, `app.js`, `css/stijl.css`, `index.html`)
 - Legacy `stroom-dashboard.html` verwijderd

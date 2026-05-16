@@ -1,10 +1,17 @@
-let chart = null, activeDay = 0, cacheVandaag = null, cacheMorgen = null;
+let chart = null, cacheVandaag = null, cacheMorgen = null;
 let toonVerleden = false, geselecteerdStartTijd = null, rAFId = null;
 let uurOverzichtOpen = false;
 let solarVandaag = null, solarMorgen = null;
 let isZonTab = false, isInstTab = false, zonChart = null, voorspellingChart = null;
 let openMeteoVandaag = null, growattVandaag = null;
 let apiStatus = { epex: null, solar: null, growatt: null, openMeteo: null, homey: null };
+
+// Eén doorlopende tijdlijn vanaf nu: resterende uren vandaag + heel morgen (zodra beschikbaar).
+function getPrijzenVooruit() {
+  if (!cacheVandaag) return [];
+  const nowUur = new Date().getHours();
+  return [...cacheVandaag.filter(p => p.tijd.getHours() >= nowUur), ...(cacheMorgen || [])];
+}
 
 function resetZonCanvassen() {
   if (zonChart)          { zonChart.destroy(); zonChart = null; }
@@ -57,17 +64,15 @@ function switchTab(newTab) {
   } else {
     isZonTab = false; isInstTab = false;
     if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
-    activeDay = newTab;
     toonVerleden = false;
     geselecteerdStartTijd = null;
     hideAll();
     document.getElementById('mainContent').style.display         = '';
     document.getElementById('laadadviesSection').style.display   = '';
     document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
-    const tabEl = document.getElementById('tab-' + newTab);
-    if (tabEl) tabEl.classList.add('active');
-    const prijzen = newTab === 0 ? cacheVandaag : cacheMorgen;
-    if (prijzen) renderDashboard(prijzen, newTab);
+    document.getElementById('tab-0').classList.add('active');
+    const prijzen = getPrijzenVooruit();
+    if (prijzen.length) renderDashboard(prijzen);
     else renderGeenData();
     renderSolarKaartjes();
     renderLaadadvies();
@@ -100,8 +105,8 @@ async function laadPrijzen() {
       renderInstellingen();
     } else {
       if (chart) { chart.destroy(); chart = null; }
-      const prijzen = activeDay === 0 ? cacheVandaag : cacheMorgen;
-      if (prijzen) renderDashboard(prijzen, activeDay);
+      const prijzen = getPrijzenVooruit();
+      if (prijzen.length) renderDashboard(prijzen);
       else renderGeenData();
       renderLaadadvies();
     }
@@ -201,5 +206,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.49.3 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.50.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
