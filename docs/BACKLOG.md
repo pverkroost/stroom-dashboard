@@ -124,7 +124,9 @@ Logica "Klaar om":
 - Zoekt goedkoopste blok dat eindigt vóór klaar-tijd
 - Toont advies: "Start om 05:30 — klaar om 08:00 — € 0,42"
 
-### #32 — Tijdlijn-slider op apparaatscherm
+### #32 — Tijdlijn-slider op apparaatscherm ✅
+**Afgerond in v2.52.2.**
+
 Op het apparaat-detailscherm een tijdlijn/slider toevoegen waarmee de
 gebruiker visueel door de uren kan scrubben en direct de impact ziet
 op kosten en timing.

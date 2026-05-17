@@ -353,6 +353,65 @@ function getSelStartActual() {
   return new Date(p.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
 }
 
+// Tijdlijn-slider met prijs-mini-bars over alle planUren.
+// Bars tonen relatieve prijs per uur (kleur via kleur()); range-slider laat
+// de gebruiker een geldig startuur kiezen (0..maxIdx).
+function bouwTijdlijnHtml(planUren, currentStartIdx, besteIdx, berekendeBlok, maxIdx) {
+  const totalen = planUren.map(p => p.totaal);
+  const pMin = Math.min(...totalen);
+  const pMax = Math.max(...totalen);
+  const pGem = totalen.reduce((a, b) => a + b, 0) / (totalen.length || 1);
+  const span = (pMax - pMin) || 1;
+
+  const bars = planUren.map((p, i) => {
+    const k = kleur(p.totaal, pMin, pMax, pGem);
+    const h = Math.max(6, Math.round(((p.totaal - pMin) / span) * 26) + 6);
+    const inSel  = i >= currentStartIdx && i < currentStartIdx + berekendeBlok;
+    const inBest = i >= besteIdx        && i < besteIdx        + berekendeBlok;
+    const op     = inSel ? 1 : (inBest ? 0.8 : 0.4);
+    return '<div data-i="' + i + '" data-best="' + (inBest ? 1 : 0) + '"' +
+           ' style="flex:1;min-width:0;height:' + h + 'px;background:' + k.bar + ';opacity:' + op +
+           ';border-radius:2px 2px 0 0;transition:opacity 0.12s"></div>';
+  }).join('');
+
+  return '<div style="padding:2px 16px 6px">' +
+    '<div id="tijdlijnBars" style="display:flex;align-items:flex-end;gap:1px;height:34px">' + bars + '</div>' +
+    '<input type="range" id="tijdlijnSlider" min="0" max="' + Math.max(0, maxIdx) + '" step="1" value="' + currentStartIdx + '"' +
+      ' oninput="tijdlijnSelect(+this.value)"' +
+      ' style="display:block;width:100%;margin-top:0;accent-color:var(--green);height:20px">' +
+  '</div>';
+}
+
+function tijdlijnSelect(idx) {
+  if (!apDetailState) return;
+  const { ap, maxIdx } = apDetailState;
+  apDetailState.currentStartIdx   = Math.max(0, Math.min(maxIdx, idx | 0));
+  apDetailState._minuteOffset     = 0;
+  apDetailState._handmatigGekozen = true;
+  const berekendeUren = ((100 - (apDetailState._vpBatterij ?? 0)) / 100) * ap.uren;
+  updateKostenWeergave(berekendeUren);
+  if (_planningActief) planInladen(true);
+}
+
+function updateTijdlijnHighlights() {
+  if (!apDetailState) return;
+  const { ap, currentStartIdx } = apDetailState;
+  const berekendeUren = ((100 - (apDetailState._vpBatterij ?? 0)) / 100) * ap.uren;
+  const berekendeBlok = berekendeUren > 0 ? Math.ceil(berekendeUren) : 0;
+  const besteIdx      = apDetailState._besteIdxBer ?? apDetailState.besteStartIdx;
+  const wrap = document.getElementById('tijdlijnBars');
+  if (wrap) {
+    Array.from(wrap.children).forEach((bar, i) => {
+      const inSel  = i >= currentStartIdx && i < currentStartIdx + berekendeBlok;
+      const inBest = i >= besteIdx        && i < besteIdx        + berekendeBlok;
+      bar.style.opacity = inSel ? 1 : (inBest ? 0.8 : 0.4);
+      bar.dataset.best  = inBest ? '1' : '0';
+    });
+  }
+  const sliderEl = document.getElementById('tijdlijnSlider');
+  if (sliderEl && +sliderEl.value !== currentStartIdx) sliderEl.value = currentStartIdx;
+}
+
 function toggleVertrekplanner() {
   if (!apDetailState) return;
   apDetailState._vertrekplannerOpen = !apDetailState._vertrekplannerOpen;
@@ -486,9 +545,12 @@ function renderApDetail() {
     : '') +
 
     // 2. BESTE TIJD — gewone tekstregel, geen kaart, geen ster
-    '<div style="padding:14px 16px 8px;font-size:14px;font-weight:500;color:var(--text)">' +
+    '<div style="padding:14px 16px 4px;font-size:14px;font-weight:500;color:var(--text)">' +
       '<span id="besteTijdInfoDiv">' + besteSimpleStr + '</span>' +
     '</div>' +
+
+    // 2a. TIJDLIJN SLIDER — visuele scrubber over alle uren met prijs-mini-bars
+    (berekendeUren >= 0.25 ? bouwTijdlijnHtml(planUren, currentStartIdx, besteIdxBer, berekendeBlok, maxIdx) : '') +
 
     // 3. PLAN DIT IN — direct onder beste tijd, alleen bij automatisering
     (heeftAutomatisering
@@ -622,6 +684,8 @@ function updateKostenWeergave(berekendeUren) {
     const t = selStartActual;
     btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
   }
+
+  updateTijdlijnHighlights();
 }
 
 function herbereken() {
