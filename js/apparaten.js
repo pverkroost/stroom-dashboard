@@ -254,7 +254,7 @@ function getPlanUren() {
   return getPrijzenVooruit();
 }
 
-// Default "klaar om" tijd voor niet-auto apparaten:
+// Default "klaar om" tijd voor het Inplannen-veld:
 // - huidige tijd + benodigde uren + 1 buffer-uur (altijd haalbaar)
 // - of de volgende ochtend 08:00 als het nu 18:00 of later is
 function defaultKlaarOmHHMM(uren) {
@@ -263,11 +263,6 @@ function defaultKlaarOmHHMM(uren) {
   const target = new Date(now);
   target.setHours(now.getHours() + Math.ceil(uren) + 1, 0, 0, 0);
   return String(target.getHours()).padStart(2, '0') + ':00';
-}
-
-// "Klaar-om" voor alle apparaten behalve auto (auto heeft batterij + vertrek-logica).
-function isKlaarOmModus(ap) {
-  return !ap?.batterij;
 }
 
 function openApDetail(apIdx) {
@@ -284,7 +279,7 @@ function openApDetail(apIdx) {
     _vertrekplannerOpen: false,
     _handmatigOpen: false,
     _vpBatterij: 0,
-    _vpVertrekTijd: isKlaarOmModus(ap) ? defaultKlaarOmHHMM(ap.uren) : '07:00',
+    _vpVertrekTijd: defaultKlaarOmHHMM(ap.uren),
     _vertrekAdviesIdx: null,
     _minuteOffset: 0,
     _handmatigGekozen: false,
@@ -503,29 +498,24 @@ function renderApDetail() {
         '</div>'
       : '') +
 
-    // 4. TOGGLE KNOPPEN — Vertrekplanner (auto) / Klaar om (overig) + Handmatig wijzigen
-    (function() {
-      const klaarOm = isKlaarOmModus(ap);
-      const togLabel = klaarOm ? '🕐 Klaar om' : '🕐 Vertrekplanner';
-      const togHint  = klaarOm ? 'Wanneer moet het klaar zijn?' : 'Vertrek om';
-      return '<div style="display:flex;gap:8px;padding:6px 16px 4px">' +
-        '<button onclick="toggleVertrekplanner()" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid ' + (vpOpen ? '#639922' : 'var(--border)') + ';background:' + (vpOpen ? 'rgba(59,109,17,0.06)' : 'transparent') + ';color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px">' + togLabel + ' ' + (vpOpen ? '▲' : '▼') + '</button>' +
-        '<button onclick="toggleHandmatig()" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid ' + (handmatigOpen ? '#639922' : 'var(--border)') + ';background:' + (handmatigOpen ? 'rgba(59,109,17,0.06)' : 'transparent') + ';color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px">✏️ Handmatig wijzigen ' + (handmatigOpen ? '▲' : '▼') + '</button>' +
-      '</div>' +
+    // 4. TOGGLE KNOPPEN — generieke "Inplannen" sectie + Handmatig wijzigen
+    '<div style="display:flex;gap:8px;padding:6px 16px 4px">' +
+      '<button onclick="toggleVertrekplanner()" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid ' + (vpOpen ? '#639922' : 'var(--border)') + ';background:' + (vpOpen ? 'rgba(59,109,17,0.06)' : 'transparent') + ';color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px">🕐 Inplannen ' + (vpOpen ? '▲' : '▼') + '</button>' +
+      '<button onclick="toggleHandmatig()" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid ' + (handmatigOpen ? '#639922' : 'var(--border)') + ';background:' + (handmatigOpen ? 'rgba(59,109,17,0.06)' : 'transparent') + ';color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px">✏️ Handmatig wijzigen ' + (handmatigOpen ? '▲' : '▼') + '</button>' +
+    '</div>' +
 
-      // 4a. VERTREKPLANNER / KLAAR-OM content
-      (vpOpen
-        ? '<div class="section" style="padding-top:4px;padding-bottom:4px;max-width:100%;overflow:hidden">' +
-            '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
-              '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">' + togHint + '</label>' +
-              '<input type="time" id="vpVertrekTijd" value="' + vpTijd + '"' +
-                ' oninput="apDetailState._vpVertrekTijd=this.value;herbereken()"' +
-                ' style="display:block;width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
-              '<div id="vpResultaat"></div>' +
-            '</div>' +
-          '</div>'
-        : '');
-    })() +
+    // 4a. INPLANNEN content — label uit ap.klaarOmTekst
+    (vpOpen
+      ? '<div class="section" style="padding-top:4px;padding-bottom:4px;max-width:100%;overflow:hidden">' +
+          '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
+            '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">' + (ap.klaarOmTekst || 'Klaar om') + '</label>' +
+            '<input type="time" id="vpVertrekTijd" value="' + vpTijd + '"' +
+              ' oninput="apDetailState._vpVertrekTijd=this.value;herbereken()"' +
+              ' style="display:block;width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
+            '<div id="vpResultaat"></div>' +
+          '</div>' +
+        '</div>'
+      : '') +
 
     // 4b. HANDMATIG WIJZIGEN content
     (handmatigOpen
@@ -668,23 +658,15 @@ function herbereken() {
     if (eind <= vertrekDatum) lastValidIdx = i;
   });
 
-  const klaarOm = isKlaarOmModus(ap);
-
   if (lastValidIdx < 0 || lastValidIdx + aantalBlok > planUren.length) {
-    const geenLabel = klaarOm
-      ? '⚠️ Geen geschikt moment beschikbaar vóór ' + tijdEl.value
-      : '⚠️ Geen laadmoment beschikbaar vóór ' + tijdEl.value;
-    resultEl.innerHTML = '<div class="advies-status later" style="margin-top:0">' + geenLabel + '</div>';
+    resultEl.innerHTML = '<div class="advies-status later" style="margin-top:0">⚠️ Geen geschikt moment beschikbaar vóór ' + tijdEl.value + '</div>';
     return;
   }
 
   const gefilterd = planUren.slice(0, lastValidIdx + aantalBlok);
   const res = berekenGoedkoopsteBlok(berekendeUren, ap.vermogen, gefilterd);
   if (!res) {
-    const geenRes = klaarOm
-      ? '⚠️ Geen geschikt moment gevonden'
-      : '⚠️ Geen geschikt laadmoment gevonden';
-    resultEl.innerHTML = '<div class="advies-status later" style="margin-top:0">' + geenRes + '</div>';
+    resultEl.innerHTML = '<div class="advies-status later" style="margin-top:0">⚠️ Geen geschikt moment gevonden</div>';
     return;
   }
 
@@ -703,18 +685,14 @@ function herbereken() {
     diffVP < 0 ? '<div style="font-size:11px;color:#27500a;margin-top:4px">↕️ € ' + Math.abs(diffVP).toFixed(2) + ' goedkoper dan beste tijd</div>' :
     '<div style="font-size:11px;color:#92400e;margin-top:4px">↕️ € ' + diffVP.toFixed(2) + ' duurder dan beste tijd</div>';
 
-  // Klaar-om: "Start om HH:MM — klaar om HH:MM — € X.XX"
-  // Vertrekplanner: "DH-HM · € X.XX" (zoals voorheen)
-  const adviesTitel = klaarOm ? '🔌 Klaar-om advies' : '🔌 Vertrekplanner advies';
-  const adviesRegel = klaarOm
-    ? 'Start om ' + hStr(res.startTijd) + ' — klaar om ' + hStr(eindDat) + ' — € ' + effVP.toFixed(2) + (dekVPPct > 0 ? ' · ☀️ ' + dekVPPct + '%' : '')
-    : dagHStrPlain(res.startTijd) + '–' + hStr(eindDat) + ' · € ' + effVP.toFixed(2) + (dekVPPct > 0 ? ' · ☀️ ' + dekVPPct + '%' : '');
+  // Generiek format: "Start om HH:MM — klaar om HH:MM — € X.XX"
+  const adviesRegel = 'Start om ' + hStr(res.startTijd) + ' — klaar om ' + hStr(eindDat) + ' — € ' + effVP.toFixed(2) + (dekVPPct > 0 ? ' · ☀️ ' + dekVPPct + '%' : '');
 
   resultEl.innerHTML =
     '<div style="padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);margin-top:8px">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
         '<div>' +
-          '<div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">' + adviesTitel + '</div>' +
+          '<div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">🔌 Inplannen advies</div>' +
           '<div style="font-size:12px;color:var(--muted)">' + adviesRegel + '</div>' +
         '</div>' +
         '<button onclick="overneemSuggestie(' + res.startIndex + ', true)" style="flex-shrink:0;padding:7px 11px;border-radius:7px;border:1.5px solid #639922;background:none;color:#27500a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">↑ Overnemen</button>' +
