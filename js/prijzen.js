@@ -79,7 +79,7 @@ function renderGrafiek(prijzen, min, max, gem) {
     pointRadius: 0,
     borderWidth: 1.5,
     yAxisID: 'ySolar',
-    clip: false,
+    clip: true,
     spanGaps: true
   }] : [];
 
@@ -176,7 +176,23 @@ function renderGrafiek(prijzen, min, max, gem) {
       scales: {
         x:      { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, autoSkip:true, maxTicksLimit:8, maxRotation:0 }, grid:{display:false} },
         y:      { ticks:{ color:isDark?'#888':'#888780', font:{size:10}, callback: v => '€'+v.toFixed(2) }, grid:{ color:isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)' } },
-        ySolar: { display: false, position: 'right', min: 0, suggestedMin: 0, grace: 0 }
+        ySolar: {
+          display: false, position: 'right', grace: 0,
+          // Lijn ySolar=0 visueel uit met y=0 van de linker as. Als de
+          // linker y-as negatief uitloopt (negatieve teruglevering) zou
+          // ySolar.min:0 anders aan de bodem van het chart-gebied komen,
+          // ónder de y=0 gridline — wat eruitziet als "lijn onder 0".
+          afterDataLimits(scale) {
+            const yLeft = scale.chart.scales.y;
+            const sMax  = scale.max > 0 ? scale.max : 1;
+            if (yLeft && yLeft.min < 0 && yLeft.max > 0) {
+              const negFraction = -yLeft.min / (yLeft.max - yLeft.min);
+              scale.min = -negFraction * sMax / (1 - negFraction);
+            } else {
+              scale.min = 0;
+            }
+          }
+        }
       }
     }
   });
