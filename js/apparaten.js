@@ -368,10 +368,11 @@ function bouwTijdlijnHtml(planUren, currentStartIdx, besteIdx, berekendeBlok, ma
     const h = Math.max(6, Math.round(((p.totaal - pMin) / span) * 26) + 6);
     const inSel  = i >= currentStartIdx && i < currentStartIdx + berekendeBlok;
     const inBest = i >= besteIdx        && i < besteIdx        + berekendeBlok;
-    const op     = inSel ? 1 : (inBest ? 0.8 : 0.4);
-    return '<div data-i="' + i + '" data-best="' + (inBest ? 1 : 0) + '"' +
+    const op     = inSel ? 1 : (inBest ? 0.85 : 0.35);
+    const sel    = inSel ? 'box-shadow:inset 0 0 0 1.5px rgba(39,80,10,0.95);' : '';
+    return '<div data-i="' + i + '" data-best="' + (inBest ? 1 : 0) + '" data-sel="' + (inSel ? 1 : 0) + '"' +
            ' style="flex:1;min-width:0;height:' + h + 'px;background:' + k.bar + ';opacity:' + op +
-           ';border-radius:2px 2px 0 0;transition:opacity 0.12s"></div>';
+           ';border-radius:2px 2px 0 0;transition:opacity 0.12s,box-shadow 0.12s;' + sel + '"></div>';
   }).join('');
 
   return '<div style="padding:2px 16px 6px">' +
@@ -379,6 +380,7 @@ function bouwTijdlijnHtml(planUren, currentStartIdx, besteIdx, berekendeBlok, ma
     '<input type="range" id="tijdlijnSlider" min="0" max="' + Math.max(0, maxIdx) + '" step="1" value="' + currentStartIdx + '"' +
       ' oninput="tijdlijnSelect(+this.value)"' +
       ' style="display:block;width:100%;margin-top:0;accent-color:var(--green);height:20px">' +
+    '<div id="tijdlijnTooltip" style="font-size:11px;text-align:center;margin-top:2px;min-height:14px;color:var(--muted)"></div>' +
   '</div>';
 }
 
@@ -395,21 +397,46 @@ function tijdlijnSelect(idx) {
 
 function updateTijdlijnHighlights() {
   if (!apDetailState) return;
-  const { ap, currentStartIdx } = apDetailState;
+  const { ap, planUren, currentStartIdx } = apDetailState;
   const berekendeUren = ((100 - (apDetailState._vpBatterij ?? 0)) / 100) * ap.uren;
   const berekendeBlok = berekendeUren > 0 ? Math.ceil(berekendeUren) : 0;
   const besteIdx      = apDetailState._besteIdxBer ?? apDetailState.besteStartIdx;
+
   const wrap = document.getElementById('tijdlijnBars');
   if (wrap) {
     Array.from(wrap.children).forEach((bar, i) => {
       const inSel  = i >= currentStartIdx && i < currentStartIdx + berekendeBlok;
       const inBest = i >= besteIdx        && i < besteIdx        + berekendeBlok;
-      bar.style.opacity = inSel ? 1 : (inBest ? 0.8 : 0.4);
-      bar.dataset.best  = inBest ? '1' : '0';
+      bar.style.opacity   = inSel ? 1 : (inBest ? 0.85 : 0.35);
+      bar.style.boxShadow = inSel ? 'inset 0 0 0 1.5px rgba(39,80,10,0.95)' : 'none';
+      bar.dataset.best    = inBest ? '1' : '0';
+      bar.dataset.sel     = inSel ? '1' : '0';
     });
   }
+
   const sliderEl = document.getElementById('tijdlijnSlider');
   if (sliderEl && +sliderEl.value !== currentStartIdx) sliderEl.value = currentStartIdx;
+
+  // Live tooltip-regel onder de slider met tijd · kosten · zon% · vergelijking
+  const tip = document.getElementById('tijdlijnTooltip');
+  if (!tip) return;
+  if (berekendeUren < 0.25) { tip.textContent = ''; return; }
+  const selStart = planUren[currentStartIdx]?.tijd;
+  if (!selStart) { tip.textContent = ''; return; }
+  const eindDat  = new Date(selStart); eindDat.setHours(eindDat.getHours() + berekendeBlok);
+  const eff      = effectieveKosten(berekendeUren, ap.vermogen, planUren, currentStartIdx)
+                ?? berekenKostenVanaf(berekendeUren, ap.vermogen, planUren, currentStartIdx);
+  const dekPct   = Math.round(gemSolarDekking(currentStartIdx, berekendeBlok, ap.vermogen, planUren) * 100);
+  const besteEff = effectieveKosten(berekendeUren, ap.vermogen, planUren, besteIdx)
+                ?? berekenKostenVanaf(berekendeUren, ap.vermogen, planUren, besteIdx);
+  const diff     = (eff != null && besteEff != null) ? eff - besteEff : null;
+  const solStr   = dekPct > 0 ? ' · ☀️ ' + dekPct + '%' : '';
+  const vergStr  = diff === null ? '' :
+    Math.abs(diff) < 0.005 ? ' · ✓ beste tijd' :
+    diff < 0 ? ' · ✓ € ' + Math.abs(diff).toFixed(2) + ' goedkoper' :
+    ' · ⚠️ € ' + diff.toFixed(2) + ' duurder dan beste tijd';
+  tip.textContent = dagHStrPlain(selStart) + '–' + hStr(eindDat) + ' · € ' + (eff ?? 0).toFixed(2) + solStr + vergStr;
+  tip.style.color = (diff === null || diff < 0.005) ? '#27500a' : '#92400e';
 }
 
 function toggleVertrekplanner() {
