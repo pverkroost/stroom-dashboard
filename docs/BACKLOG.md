@@ -163,6 +163,21 @@ Prijs: € 0,99/maand of € 11,95/jaar (P1 Meter + Energy Socket).
 - Homey-automatisering
 - Actiegericht i.p.v. alleen inzicht
 
+### #34 — UX review apparaatscherm tijdkeuze
+Er zijn nu meerdere manieren om de tijd in te stellen op het
+apparaatscherm:
+- Tijdlijn slider
+- "Klaar om / Gereed zijn om" time input
+- "Handmatig wijzigen" dropdown
+- Beste tijd overnemen knop
+
+Dit is mogelijk verwarrend voor de gebruiker. Review nodig:
+- Welke methode is primair?
+- Zijn alle methodes nodig of kunnen er weg?
+- Zijn ze visueel duidelijk genoeg onderscheiden?
+- Werken ze consistent samen (één geselecteerde tijd als waarheid)?
+- Mockup maken van vereenvoudigde versie
+
 ## Done
 
 - Bug: "Kost € X meer" consistent tussen kaart en detailscherm
