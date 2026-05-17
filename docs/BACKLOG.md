@@ -71,6 +71,94 @@ Onboarding opties:
 - Handmatig door beheerder
 - Zelfbediening met setup-wizard
 
+## Nieuwe items
+
+### #30 — Onboarding uitleg: hoe kom je aan API keys en contractdata
+Voeg in de instellingen-pagina uitleg toe hoe gebruikers hun eigen API keys
+en contractdata kunnen ophalen voor alle koppelingen. Doel: nieuwe gebruikers
+kunnen zelfstandig onboarden zonder hulp van de ontwikkelaar.
+
+**SolarEdge**
+- Ga naar monitoring.solaredge.com → Admin → Site Access → API Access
+- Kopieer de API key en Site ID
+
+**Growatt**
+- Ga naar openapi.growatt.com → registreer voor API token
+- Plant ID vind je in de Growatt app of portal
+
+**EnergyZero**
+- Geen API key nodig — publieke EPEX data
+
+**Sepagreen contractdata** (Mijn Sepagreen → Mijn contract → Tariefoverzicht)
+- Inkoopvergoeding (€/kWh) — staat op je contract of Mijn Sepagreen
+- Energiebelasting (€/kWh) — staat op je contract
+- BTW percentage — standaard 21%
+- Vaste kosten (€/dag) — staat op je contract
+- Terugleververgoeding (€/kWh) — staat op je contract.
+  Let op: Sepagreen rekent een bedrag IN bij teruglevering (kost geld).
+
+**HomeWizard P1 Meter**
+- Lokaal netwerk: `http://[ip-adres]/api/v1/data`
+- IP adres vinden via: router DHCP-tabel of HomeWizard app →
+  apparaat → tandwiel → IP adres
+- Geen authenticatie nodig op lokaal netwerk
+
+**Homey**
+- Cloud ID via: my.homey.app → jouw Homey → instellingen
+- Webhook key instellen in Homey-flows
+
+### #31 — Vertrekplanner hernoemd + "Klaar om"-functie per apparaat
+De "Vertrekplanner" is nu auto-specifiek maar verschijnt ook bij andere
+apparaten. Aanpassen:
+
+- **Auto 🚗**: blijft "Vertrekplanner" — wanneer moet je weg?
+- **Alle andere apparaten**: hernoemen naar "Klaar om" — wanneer moet
+  het apparaat klaar zijn? Bijv. vaatwasser: "Klaar om 08:00" → app
+  berekent wanneer te starten.
+
+Logica "Klaar om":
+- Gebruiker vult in: klaar om [tijd]
+- App berekent: starttijd = klaar-tijd minus duur apparaat
+- Zoekt goedkoopste blok dat eindigt vóór klaar-tijd
+- Toont advies: "Start om 05:30 — klaar om 08:00 — € 0,42"
+
+### #32 — Tijdlijn-slider op apparaatscherm
+Op het apparaat-detailscherm een tijdlijn/slider toevoegen waarmee de
+gebruiker visueel door de uren kan scrubben en direct de impact ziet
+op kosten en timing.
+
+Werkt samen met de geselecteerde starttijd:
+- Slider toont alle beschikbare uren
+- Goedkoopste blok gemarkeerd
+- Gebruiker sleept naar gewenst uur
+- Kosten en vergelijking updaten live
+
+### #33 — Concurrentieanalyse: HomeWizard Energy+
+Prijs: € 0,99/maand of € 11,95/jaar (P1 Meter + Energy Socket).
+
+**Wat zij doen**
+- Schakelen apparaat op goedkoopste uren (simpele timer/drempelwaarde)
+- Schakelen op zonne-energie surplus
+- Realtime verbruik via P1 meter
+- Sluipverbruik detecteren
+- Inzicht en grafieken
+- Omvormers koppelen (SolarEdge, Growatt, SMA, etc.)
+
+**Wat zij NIET doen**
+- Kostenvergelijking per apparaat vooraf
+- Vertrekplanner / klaar-om-logica per apparaat
+- Combinatie zonne-opbrengst + prijsadvies + apparaatplanning
+- EPEX prijsgrafiek komende 24+ uur
+- EV-laadplanning met batterijdelta-berekening
+- Koppeling met Homey-flows voor automatisering
+
+**Onderscheid Energie IQ**
+- Planningsintelligentie per apparaat
+- Kostentransparantie vooraf (exacte bedragen)
+- EV-specifieke laadlogica
+- Homey-automatisering
+- Actiegericht i.p.v. alleen inzicht
+
 ## Done
 
 - Bug: "Kost € X meer" consistent tussen kaart en detailscherm
