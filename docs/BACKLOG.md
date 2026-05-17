@@ -107,7 +107,9 @@ kunnen zelfstandig onboarden zonder hulp van de ontwikkelaar.
 - Cloud ID via: my.homey.app → jouw Homey → instellingen
 - Webhook key instellen in Homey-flows
 
-### #31 — Vertrekplanner hernoemd + "Klaar om"-functie per apparaat
+### #31 — Vertrekplanner hernoemd + "Klaar om"-functie per apparaat ✅
+**Afgerond in v2.52.0.**
+
 De "Vertrekplanner" is nu auto-specifiek maar verschijnt ook bij andere
 apparaten. Aanpassen:
 
