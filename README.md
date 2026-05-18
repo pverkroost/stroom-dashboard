@@ -87,6 +87,15 @@ Client-side constanten in `js/config.js`:
 - IP adres vinden via router DHCP tabel of HomeWizard app → apparaat → tandwiel
 - Lokale API: `http://[ip-adres]/api/v1/data` (geen authenticatie nodig)
 
+### Kenteken lookup (RDW + EV database)
+- Geen API key nodig — publieke RDW Open Data
+- Endpoints gebruikt door `api/kenteken.js`:
+  - `opendata.rdw.nl/resource/m9d7-ebf2.json` (basisdata: merk, handelsbenaming, eerste toelating)
+  - `opendata.rdw.nl/resource/8ys7-d773.json` (brandstofdata: PHEV/BEV-detectie)
+- EV database: `ev-database.json` in projectroot bevat `batterijKwh`, `bruikbaarKwh` en `laadVermogenAcKw` voor ~50 populaire PHEV/EV modellen in Nederland
+- Match-volgorde: merk + bouwjaar-range → `rdwHandelsbenaming` exacte match → substring match → `model` substring
+- Toevoegen aan database: nieuw object in de array van `ev-database.json` met `merk`, `model`, `rdwHandelsbenaming`, `bouwjaarVanaf`, `bouwjaarTot`, `type` (PHEV/BEV), `batterijKwh`, `bruikbaarKwh`, `laadVermogenAcKw`
+
 ## Prijsformule
 ```
 verbruiksprijs = (epex + OPSLAG + EB) × BTW

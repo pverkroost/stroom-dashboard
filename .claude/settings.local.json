@@ -27,7 +27,9 @@
       "Bash(node --check api/planLaden.js)",
       "Bash(node --check api/cronLaden.js)",
       "Bash(grep -rEho 'process\\\\.env\\\\[`[A-Z_]+_\\\\$\\\\{[a-zA-Z]+\\\\}`\\\\]' api/ --include=\"*.js\")",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(node --check api/kenteken.js)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('ev-database.json','utf8'\\)\\)\")"
     ]
   }
 }

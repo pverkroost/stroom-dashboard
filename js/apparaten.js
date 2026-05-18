@@ -37,12 +37,27 @@ function instIconHtml(icon) {
   return '<span class="ap-icon" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:24px;flex-shrink:0;font-size:20px;line-height:1">' + icon + '</span>';
 }
 
+function _formatUrenVermogen(uren, vermogen) {
+  if (uren == null || vermogen == null) return 'specs onbekend';
+  const u = (uren % 1 === 0) ? uren.toString() : uren.toString().replace('.', ',');
+  const v = vermogen.toString().replace('.', ',');
+  return u + ' uur · ' + v + ' kW';
+}
+
 function renderApparatenInstellingen() {
   const card = document.getElementById('apparatenLijst');
   if (!card) return;
   const sorted = getApparatenSorted();
   card.innerHTML = sorted.map(({ ap }) => {
-    const subStr = (ap.uren % 1 === 0 ? ap.uren : ap.uren.toString().replace('.', ',')) + ' uur · ' + ap.vermogen.toString().replace('.', ',') + ' kW';
+    const subStr = _formatUrenVermogen(ap.uren, ap.vermogen);
+    const isAuto = ap.batterij === true;
+    const info   = ap.autoInfo || {};
+    const autoSub = isAuto && info.merk && info.merk !== 'onbekend'
+      ? `<div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${info.merk} ${info.model || ''}${info.bouwjaar ? ' · ' + info.bouwjaar : ''}${info.kenteken ? ' · ' + info.kenteken : ''}</div>`
+      : '';
+    const knop = isAuto
+      ? `<button onclick="event.stopPropagation();toonKentekenDialog()" style="flex-shrink:0;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-family:inherit;cursor:pointer">${info.kenteken ? 'Wijzigen' : 'Kenteken'}</button>`
+      : '';
     return `<div class="apparaat-row" draggable="true" data-naam="${ap.naam}"
               style="display:flex;align-items:center;gap:12px;padding:8px 4px;border-bottom:0.5px solid var(--border)">
       <span class="drag-handle" style="cursor:grab;color:var(--muted);font-size:18px;user-select:none;flex-shrink:0;width:24px;text-align:center;touch-action:none;padding:8px 0">☰</span>
@@ -50,7 +65,9 @@ function renderApparatenInstellingen() {
       <div style="flex:1;overflow:hidden;min-width:0">
         <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ap.naam}</div>
         <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subStr}</div>
+        ${autoSub}
       </div>
+      ${knop}
     </div>`;
   }).join('');
   setupApparaatDrag();
@@ -559,6 +576,9 @@ function renderApDetail() {
 
   document.getElementById('apDetailNaam').textContent = naam;
   document.getElementById('apDetailBody').innerHTML =
+
+    // 0. AUTO DETAILS — bovenaan, alleen bij apparaten met batterij:true
+    (heeftBatterij ? bouwAutoDetailsHtml(ap) : '') +
 
     // 1. BATTERIJ compact — eerste element, alleen bij heeftBatterij
     (heeftBatterij ?
@@ -1193,4 +1213,183 @@ function renderLaadadvies() {
   } else {
     console.warn('[Slim inplannen] #meerApparatenContainer niet gevonden in DOM');
   }
+}
+
+// ============================================================
+// Kenteken-flow: RDW lookup + EV-database match voor apparaten
+// met batterij:true. Resultaat in localStorage.autoConfig_<userId>.
+// ============================================================
+
+function _normaliseerKenteken(k) {
+  return (k || '').toString().replace(/[\s-]/g, '').toUpperCase();
+}
+
+function bouwAutoDetailsHtml(ap) {
+  const info = ap.autoInfo || {};
+  const hasKenteken = !!info.kenteken;
+  if (hasKenteken && info.merk && info.merk !== 'onbekend') {
+    // Volledige details + Wijzigen-knop
+    const typeBadge = info.type ? ' · ' + info.type : '';
+    const jaarStr   = info.bouwjaar ? ' · ' + info.bouwjaar : '';
+    const kwh       = info.bruikbaarKwh ?? info.batterijKwh;
+    const acKw      = info.laadVermogenAcKw;
+    const laadDuur  = (kwh && acKw) ? '~' + Math.round(kwh / acKw) + 'u laadtijd' : null;
+    const rij2parts = [];
+    if (kwh)     rij2parts.push('🔋 ' + kwh.toString().replace('.', ',') + ' kWh');
+    if (acKw)    rij2parts.push(acKw.toString().replace('.', ',') + ' kW');
+    if (laadDuur) rij2parts.push(laadDuur);
+    return `
+      <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);background:var(--bg)">
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;line-height:1.4">🚗 ${info.merk} ${info.model || ''}${jaarStr}${typeBadge}</div>
+            ${rij2parts.length ? `<div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px">${rij2parts.join(' · ')}</div>` : ''}
+            ${info.kenteken ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${info.kenteken}</div>` : ''}
+          </div>
+          <button onclick="toonKentekenDialog()" style="flex-shrink:0;padding:6px 11px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit">Wijzigen</button>
+        </div>
+      </div>`;
+  }
+  // Onboarding-blok: kenteken invoer direct beschikbaar
+  return `
+    <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);background:var(--bg)">
+      <div style="font-size:13px;font-weight:600;margin-bottom:2px">🚗 Auto specs onbekend</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Voer kenteken in voor nauwkeurige berekeningen</div>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="apKentekenInput" placeholder="AA-BB-00" maxlength="8" autocomplete="off"
+          oninput="this.value=this.value.toUpperCase()"
+          onkeydown="if(event.key==='Enter')zoekKentekenInPanel()"
+          style="flex:1;min-width:0;padding:8px;border-radius:6px;border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--card);color:var(--text);text-transform:uppercase">
+        <button onclick="zoekKentekenInPanel()" style="flex-shrink:0;padding:8px 12px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit">Opzoeken</button>
+      </div>
+      <div id="apKentekenResultaat" style="margin-top:8px"></div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px">Of stel handmatig in via instellingen →</div>
+    </div>`;
+}
+
+async function _doeKentekenLookup(kenteken) {
+  const k = _normaliseerKenteken(kenteken);
+  if (!k) return { error: 'Voer een kenteken in' };
+  try {
+    const r    = await fetch(apiUrl('/api/kenteken?kenteken=' + encodeURIComponent(k)));
+    const data = await r.json();
+    if (!r.ok) return { error: data?.error || 'Lookup mislukt' };
+    if (data.gevonden === false) return { error: 'Kenteken niet gevonden' };
+    return { data };
+  } catch (e) {
+    return { error: 'Netwerkfout: ' + e.message };
+  }
+}
+
+function _resultaatHtml(d, contextId) {
+  const titel = `${d.merk} ${d.model || ''}${d.bouwjaar ? ' ' + d.bouwjaar : ''}${d.type ? ' · ' + d.type : ''}`;
+  if (d.inDatabase) {
+    const kwh  = d.bruikbaarKwh ?? d.batterijKwh;
+    const acKw = d.laadVermogenAcKw;
+    const specs = `${kwh ? '🔋 ' + kwh.toString().replace('.', ',') + ' kWh' : ''}${kwh && acKw ? ' · ' : ''}${acKw ? acKw.toString().replace('.', ',') + ' kW' : ''}`;
+    return `
+      <div style="padding:10px;border-radius:7px;background:var(--card);border:1px solid var(--border);font-size:12px">
+        <div style="font-weight:600;margin-bottom:2px">${titel}</div>
+        ${specs ? `<div style="color:var(--muted);margin-bottom:8px">${specs}</div>` : ''}
+        <button onclick='gebruikKentekenResultaat(${JSON.stringify(d).replace(/'/g,"&#39;")})' style="width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>
+      </div>`;
+  }
+  // Wel in RDW, niet in EV-database — handmatige velden + bevestigknop
+  return `
+    <div style="padding:10px;border-radius:7px;background:var(--card);border:1px solid var(--border);font-size:12px">
+      <div style="font-weight:600;margin-bottom:2px">Auto gevonden: ${d.merk} ${d.model || ''}</div>
+      <div style="color:var(--muted);margin-bottom:8px;font-size:11px">Laadgegevens niet bekend — vul handmatig in</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input type="number" id="${contextId}_kwh" placeholder="Bruikbaar kWh" min="0" step="0.1" style="flex:1;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
+        <input type="number" id="${contextId}_ac" placeholder="Laad kW" min="0" step="0.1" style="flex:1;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
+      </div>
+      <button onclick='bevestigKentekenHandmatig(${JSON.stringify(d).replace(/'/g,"&#39;")}, "${contextId}")' style="width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>
+    </div>`;
+}
+
+async function zoekKentekenInPanel() {
+  const input = document.getElementById('apKentekenInput');
+  const res   = document.getElementById('apKentekenResultaat');
+  if (!input || !res) return;
+  res.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:6px 0">Opzoeken…</div>';
+  const { data, error } = await _doeKentekenLookup(input.value);
+  if (error) {
+    res.innerHTML = `<div style="font-size:11px;color:#a32d2d;padding:6px 0">${error}</div>`;
+    return;
+  }
+  res.innerHTML = _resultaatHtml(data, 'apPanel');
+}
+
+function gebruikKentekenResultaat(data) {
+  if (typeof bewaarAutoConfig === 'function') bewaarAutoConfig(data);
+  // Herlaad data zodat alle berekeningen direct met nieuwe uren/vermogen werken
+  if (typeof laadPrijzen === 'function') laadPrijzen();
+  // Re-render het apparaat-detail panel met de bijgewerkte ap
+  if (apDetailState) {
+    const idx = APPARATEN.findIndex(a => a === apDetailState.ap || a.naam === apDetailState.ap.naam);
+    if (idx >= 0) openApDetail(idx);
+  }
+  if (isInstTab && typeof renderInstellingen === 'function') renderInstellingen();
+}
+
+function bevestigKentekenHandmatig(data, contextId) {
+  const kwhEl = document.getElementById(contextId + '_kwh');
+  const acEl  = document.getElementById(contextId + '_ac');
+  const kwh   = parseFloat(kwhEl?.value);
+  const acKw  = parseFloat(acEl?.value);
+  if (!(kwh > 0) || !(acKw > 0)) {
+    alert('Vul beide velden met een positief getal in.');
+    return;
+  }
+  gebruikKentekenResultaat({ ...data, bruikbaarKwh: kwh, batterijKwh: kwh, laadVermogenAcKw: acKw, inDatabase: false });
+}
+
+// Modale dialog voor de instellingen-tab Wijzigen-knop
+function toonKentekenDialog() {
+  // Sluit bestaand overlay element indien aanwezig
+  const bestaand = document.getElementById('kentekenOverlay');
+  if (bestaand) bestaand.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'kentekenOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--card);border-radius:14px;padding:18px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:15px;font-weight:600">Kenteken invoeren</div>
+        <button onclick="document.getElementById('kentekenOverlay').remove()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;padding:0">×</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <input type="text" id="dialogKentekenInput" placeholder="AA-BB-00" maxlength="8" autocomplete="off"
+          oninput="this.value=this.value.toUpperCase()"
+          onkeydown="if(event.key==='Enter')zoekKentekenInDialog()"
+          style="flex:1;min-width:0;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:14px;font-family:inherit;background:var(--bg);color:var(--text);text-transform:uppercase">
+        <button onclick="zoekKentekenInDialog()" style="flex-shrink:0;padding:10px 14px;border-radius:8px;border:none;background:var(--green);color:white;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">Opzoeken</button>
+      </div>
+      <div id="dialogKentekenResultaat"></div>
+    </div>`;
+  // Klik buiten dialoog = sluiten
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('dialogKentekenInput')?.focus(), 50);
+}
+
+async function zoekKentekenInDialog() {
+  const input = document.getElementById('dialogKentekenInput');
+  const res   = document.getElementById('dialogKentekenResultaat');
+  if (!input || !res) return;
+  res.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:6px 0">Opzoeken…</div>';
+  const { data, error } = await _doeKentekenLookup(input.value);
+  if (error) {
+    res.innerHTML = `<div style="font-size:12px;color:#a32d2d;padding:6px 0">${error}</div>`;
+    return;
+  }
+  res.innerHTML = _resultaatHtml(data, 'apDialog');
+  // Wikkel gebruikKentekenResultaat zodat dialog ook sluit na bevestigen
+  const origineel = window.gebruikKentekenResultaat;
+  window.gebruikKentekenResultaat = function(d) {
+    document.getElementById('kentekenOverlay')?.remove();
+    window.gebruikKentekenResultaat = origineel;
+    origineel(d);
+  };
 }
