@@ -16,7 +16,7 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
 
 ## Architectuur
 - **Frontend**: vanilla JS + Chart.js, geserveerd vanuit de repo-root (`index.html`, `css/`, `js/`)
-- **Backend**: serverless functies in `api/` (Vercel) en `netlify/functions/` (Netlify, alleen solar)
+- **Backend**: serverless functies in `api/` (Vercel)
   - `api/growatt.js` — Growatt OpenAPI plant data
   - `api/solaredge.js` — SolarEdge Monitoring API (overview/power/energy)
   - `api/homey.js` — Homey cloud webhook proxy + connectivity check
@@ -38,10 +38,6 @@ Alle in Settings → Environment Variables van het Vercel-project:
 | Variable                      | Waarde / omschrijving                                    |
 |-------------------------------|----------------------------------------------------------|
 | `GROWATT_API_TOKEN`           | Growatt OpenAPI token                                    |
-| `GROWATT_DEVICE_SN`           | Inverter device serial (alleen ingesteld, nog niet gebruikt in `api/growatt.js`) |
-| `GROWATT_PLANT_ID`            | Growatt plant ID (alleen `netlify/functions/growatt.js`) |
-| `GROWATT_USERNAME`            | Growatt account e-mail (legacy ShinePhone API, ongebruikt) |
-| `GROWATT_PASSWORD`            | Growatt account wachtwoord (legacy ShinePhone API, ongebruikt) |
 | `SOLAREDGE_API_KEY`           | SolarEdge Monitoring API key                             |
 | `SOLAREDGE_SITE_ID`           | SolarEdge site ID                                        |
 | `HOMEY_CLOUD_ID`              | Homey cloud-id voor `<cloud-id>.connect.athom.com`       |
@@ -50,6 +46,8 @@ Alle in Settings → Environment Variables van het Vercel-project:
 | `QSTASH_TOKEN`                | Upstash QStash publish token                             |
 | `UPSTASH_REDIS_REST_URL`      | Upstash Redis REST endpoint                              |
 | `UPSTASH_REDIS_REST_TOKEN`    | Upstash Redis REST token                                 |
+| `QSTASH_CURRENT_SIGNING_KEY`  | Huidige QStash signing key (signature verificatie cronLaden) |
+| `QSTASH_NEXT_SIGNING_KEY`     | Volgende QStash signing key (key rotation)               |
 
 Client-side constanten staan in `js/config.js` (niet als env var):
 - `LAT` / `LON` — locatie voor Open-Meteo
