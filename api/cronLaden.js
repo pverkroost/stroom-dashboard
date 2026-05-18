@@ -1,4 +1,5 @@
 const { Redis } = require('@upstash/redis');
+const { Receiver } = require('@upstash/qstash');
 const fetch = require('node-fetch');
 
 const redis = new Redis({
@@ -15,10 +16,45 @@ function sleutel(apparaat) {
   return 'laadplanning_' + (apparaat || 'default');
 }
 
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { actie, apparaat } = req.body || {};
+  const currentKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
+  const nextKey    = process.env.QSTASH_NEXT_SIGNING_KEY;
+  if (!currentKey || !nextKey) {
+    return res.status(500).json({ error: 'QStash signing keys niet geconfigureerd' });
+  }
+
+  const signature = req.headers['upstash-signature'];
+  if (!signature) return res.status(401).json({ error: 'Missing signature' });
+
+  const rawBody = await readRawBody(req);
+
+  const receiver = new Receiver({ currentSigningKey: currentKey, nextSigningKey: nextKey });
+  try {
+    const isValid = await receiver.verify({ signature, body: rawBody });
+    if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
+  } catch {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  let body;
+  try {
+    body = rawBody ? JSON.parse(rawBody) : {};
+  } catch {
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
+
+  const { actie, apparaat } = body;
   if (!actie || !apparaat) return res.status(400).json({ error: 'actie en apparaat verplicht' });
 
   const webhooks = WEBHOOKS[apparaat];
@@ -43,3 +79,7 @@ module.exports = async (req, res) => {
 
   res.status(400).json({ error: 'Onbekende actie: ' + actie });
 };
+
+// Schakel automatische body-parsing uit — Receiver.verify() heeft de raw body nodig
+// om de SHA256 hash in de upstash-signature JWT te kunnen valideren.
+module.exports.config = { api: { bodyParser: false } };
