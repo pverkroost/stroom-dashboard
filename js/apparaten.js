@@ -52,8 +52,8 @@ function renderApparatenInstellingen() {
     const subStr = _formatUrenVermogen(ap.uren, ap.vermogen);
     const isAuto = ap.batterij === true;
     const info   = ap.autoInfo || {};
-    const autoSub = isAuto && info.merk && info.merk !== 'onbekend'
-      ? `<div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${info.merk} ${info.model || ''}${info.bouwjaar ? ' · ' + info.bouwjaar : ''}${info.kenteken ? ' · ' + info.kenteken : ''}</div>`
+    const autoSub = isAuto && info.kenteken
+      ? `<div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${info.kenteken}${info.bouwjaar ? ' · ' + info.bouwjaar : ''}${info.laadtypeLabel ? ' · ' + info.laadtypeLabel.split('(')[0].trim() : ''}</div>`
       : '';
     const knop = isAuto
       ? `<button onclick="event.stopPropagation();toonKentekenDialog()" style="flex-shrink:0;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-family:inherit;cursor:pointer">${info.kenteken ? 'Wijzigen' : 'Kenteken'}</button>`
@@ -63,7 +63,7 @@ function renderApparatenInstellingen() {
       <span class="drag-handle" style="cursor:grab;color:var(--muted);font-size:18px;user-select:none;flex-shrink:0;width:24px;text-align:center;touch-action:none;padding:8px 0">☰</span>
       ${instIconHtml(ap.icon)}
       <div style="flex:1;overflow:hidden;min-width:0">
-        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ap.naam}</div>
+        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${displayNaam(ap)}</div>
         <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subStr}</div>
         ${autoSub}
       </div>
@@ -574,7 +574,7 @@ function renderApDetail() {
         '</div>' +
       '</div>';
 
-  document.getElementById('apDetailNaam').textContent = naam;
+  document.getElementById('apDetailNaam').textContent = displayNaam(ap);
   document.getElementById('apDetailBody').innerHTML =
 
     // 0. AUTO DETAILS — bovenaan, alleen bij apparaten met batterij:true
@@ -1143,11 +1143,20 @@ function renderLaadadvies() {
   const selLabel = heeftSelectie ? 'Keuze' : 'Nu';
 
   function renderApparaat(ap, apIdx) {
+    // Auto zonder kenteken/specs → vriendelijke call-to-action ipv crashende berekeningen
+    if (ap.batterij === true && (!ap.uren || !ap.vermogen || !ap.autoInfo?.kenteken)) {
+      return `<div class="advies-card" onclick="openApDetail(${apIdx})" style="cursor:pointer">
+        <div class="advies-device-icon">🚗</div>
+        <div class="advies-device-naam">Auto</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.4">Voeg je auto toe voor slimme laadplanning</div>
+        <button onclick="event.stopPropagation();openApDetail(${apIdx})" style="margin-top:8px;width:100%;padding:8px;border-radius:6px;border:none;background:var(--green);color:white;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">+ Auto toevoegen</button>
+      </div>`;
+    }
     if (ap.comboMet) {
       if (!wasdroogRes) return leegKaart(ap.icon, ap.naam, Math.ceil(ap.uren + (droogApparaat?.uren ?? 0)));
       return maakKaart({
         apId: apIdx,
-        icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
+        icon: ap.icon, naam: displayNaam(ap), uren: ap.uren, kw: ap.vermogen,
         type: ap.type, opmerking: ap.opmerking,
         besteStartIdx:  wasdroogRes.startIndex,
         besteStartStr:  dagHStr(wasdroogRes.was.startTijd),
@@ -1166,7 +1175,7 @@ function renderLaadadvies() {
       const droogIdx = geselecteerdIdx + wasApparaat.uren;
       return maakKaart({
         apId: apIdx,
-        icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
+        icon: ap.icon, naam: displayNaam(ap), uren: ap.uren, kw: ap.vermogen,
         type: ap.type, opmerking: ap.opmerking,
         besteStartIdx:  wasdroogRes.startIndex + wasApparaat.uren,
         besteStartStr:  dagHStr(wasdroogRes.droog.startTijd),
@@ -1184,7 +1193,7 @@ function renderLaadadvies() {
     if (!res) return leegKaart(ap.icon, ap.naam, Math.ceil(ap.uren));
     return maakKaart({
       apId: apIdx,
-      icon: ap.icon, naam: ap.naam, uren: ap.uren, kw: ap.vermogen,
+      icon: ap.icon, naam: displayNaam(ap), uren: ap.uren, kw: ap.vermogen,
       type: ap.type, opmerking: ap.opmerking,
       besteStartIdx:  res.startIndex,
       besteStartStr:  dagHStr(res.startTijd),
@@ -1216,55 +1225,100 @@ function renderLaadadvies() {
 }
 
 // ============================================================
-// Kenteken-flow: RDW lookup + EV-database match voor apparaten
-// met batterij:true. Resultaat in localStorage.autoConfig_<userId>.
+// Kenteken-flow: RDW lookup + EV-database match + laadtype-keuze
+// voor apparaten met batterij:true. Resultaat in localStorage
+// autoConfig_<userId> (zie js/app.js pasAutoConfigToe).
 // ============================================================
+
+const LAADTYPES = [
+  { id: 'schuko', label: 'Gewone stekker (Schuko thuis)',     kw: 2.3 },
+  { id: '1fase',  label: 'Laadpaal 1-fase (thuis of werk)',   kw: 3.7 },
+  { id: '3fase',  label: 'Laadpaal 3-fase (snelladen thuis)', kw: 7.4 },
+  { id: 'anders', label: 'Anders (zelf invoeren)',            kw: null },
+];
+
+function displayNaam(ap) {
+  if (ap && ap.batterij === true) {
+    const info = ap.autoInfo || {};
+    if (info.merk && info.merk !== 'onbekend' && info.model) return info.merk + ' ' + info.model;
+    return 'Auto';
+  }
+  return ap?.naam || '';
+}
 
 function _normaliseerKenteken(k) {
   return (k || '').toString().replace(/[\s-]/g, '').toUpperCase();
 }
 
-function bouwAutoDetailsHtml(ap) {
-  const info = ap.autoInfo || {};
-  const hasKenteken = !!info.kenteken;
-  if (hasKenteken && info.merk && info.merk !== 'onbekend') {
-    // Volledige details + Wijzigen-knop
-    const typeBadge = info.type ? ' · ' + info.type : '';
-    const jaarStr   = info.bouwjaar ? ' · ' + info.bouwjaar : '';
-    const kwh       = info.bruikbaarKwh ?? info.batterijKwh;
-    const acKw      = info.laadVermogenAcKw;
-    const laadDuur  = (kwh && acKw) ? '~' + Math.round(kwh / acKw) + 'u laadtijd' : null;
-    const rij2parts = [];
-    if (kwh)     rij2parts.push('🔋 ' + kwh.toString().replace('.', ',') + ' kWh');
-    if (acKw)    rij2parts.push(acKw.toString().replace('.', ',') + ' kW');
-    if (laadDuur) rij2parts.push(laadDuur);
-    return `
-      <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);background:var(--bg)">
-        <div style="display:flex;align-items:flex-start;gap:8px">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;line-height:1.4">🚗 ${info.merk} ${info.model || ''}${jaarStr}${typeBadge}</div>
-            ${rij2parts.length ? `<div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px">${rij2parts.join(' · ')}</div>` : ''}
-            ${info.kenteken ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${info.kenteken}</div>` : ''}
-          </div>
-          <button onclick="toonKentekenDialog()" style="flex-shrink:0;padding:6px 11px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit">Wijzigen</button>
-        </div>
-      </div>`;
+function _formatKw(n) { return n == null ? '' : n.toString().replace('.', ',') + ' kW'; }
+function _formatKwh(n) { return n == null ? '' : n.toString().replace('.', ',') + ' kWh'; }
+
+function bouwKentekenplaatHtml(inputId, value, klein = false) {
+  const padY = klein ? '4px' : '6px';
+  const padX = klein ? '8px' : '10px';
+  const fs   = klein ? '14px' : '17px';
+  return `<div style="display:inline-flex;background:#FFC800;border:2px solid #000;border-radius:6px;overflow:hidden;width:100%;max-width:240px">
+    <div style="background:#003399;color:#FFD700;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px 5px;font-weight:bold;line-height:1">
+      <span style="font-size:8px">★ ★</span>
+      <span style="font-size:10px;margin-top:2px">NL</span>
+      <span style="font-size:8px;margin-top:1px">★ ★</span>
+    </div>
+    <input type="text" id="${inputId}" maxlength="8" autocomplete="off" placeholder="HG-K17-D"
+      value="${value || ''}"
+      oninput="this.value=this.value.replace(/[\\s-]/g,'').toUpperCase()"
+      style="flex:1;min-width:0;background:transparent;border:none;outline:none;padding:${padY} ${padX};font-family:'Arial Black',Arial,sans-serif;font-size:${fs};font-weight:bold;letter-spacing:2px;color:#000">
+  </div>`;
+}
+
+// Laadtype-keuze + werkelijk-vermogen preview. Selected = id van laadtype.
+function bouwLaadtypeHtml(contextId, autoMaxKw, selected = '1fase', andersKw = '') {
+  const radios = LAADTYPES.map(t => {
+    const labelKw = t.kw != null ? ' — ' + _formatKw(t.kw) : '';
+    const checked = t.id === selected ? 'checked' : '';
+    return `<label style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px;cursor:pointer">
+      <input type="radio" name="${contextId}_laadtype" value="${t.id}" ${checked}
+        onchange="updateWerkelijkVermogen('${contextId}', ${autoMaxKw ?? 'null'})"
+        style="accent-color:var(--green)">
+      <span>${t.label}${labelKw}</span>
+    </label>`;
+  }).join('');
+  return `<div style="margin-top:10px">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Hoe laad je?</div>
+    ${radios}
+    <div id="${contextId}_andersWrap" style="display:${selected === 'anders' ? 'flex' : 'none'};gap:6px;align-items:center;padding-left:22px;margin-top:2px">
+      <input type="number" id="${contextId}_andersKw" min="0" step="0.1" placeholder="kW" value="${andersKw}"
+        oninput="updateWerkelijkVermogen('${contextId}', ${autoMaxKw ?? 'null'})"
+        style="width:90px;padding:5px 8px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
+      <span style="font-size:11px;color:var(--muted)">kW</span>
+    </div>
+    <div id="${contextId}_werkelijk" style="margin-top:8px;font-size:12px;font-weight:500;color:var(--color-text-success,#27500a);background:var(--color-background-success,#c0dd97);padding:7px 10px;border-radius:6px"></div>
+  </div>`;
+}
+
+// Live: leest geselecteerd laadtype + bruikbaarKwh (uit hidden state) en toont werkelijk + laadduur
+function updateWerkelijkVermogen(contextId, autoMaxKw) {
+  const wrap = document.getElementById(contextId + '_andersWrap');
+  const selected = document.querySelector(`input[name="${contextId}_laadtype"]:checked`)?.value;
+  if (wrap) wrap.style.display = selected === 'anders' ? 'flex' : 'none';
+  const laadtypeKw = selected === 'anders'
+    ? parseFloat(document.getElementById(contextId + '_andersKw')?.value) || 0
+    : (LAADTYPES.find(t => t.id === selected)?.kw || 0);
+  const max = parseFloat(autoMaxKw) || 0;
+  const werkelijk = (max > 0 && laadtypeKw > 0) ? Math.min(max, laadtypeKw) : (max || laadtypeKw);
+  const kwhEl = document.getElementById(contextId + '_kwh');
+  const kwh = kwhEl ? parseFloat(kwhEl.value) || null : window[contextId + '_pendingKwh'] || null;
+  const duurStr = (kwh > 0 && werkelijk > 0)
+    ? '~' + (Math.round((kwh / werkelijk) * 10) / 10).toString().replace('.', ',') + 'u laadtijd vol'
+    : '';
+  const out = document.getElementById(contextId + '_werkelijk');
+  if (out) {
+    if (werkelijk > 0) {
+      out.style.display = '';
+      out.textContent = 'Werkelijk: ' + _formatKw(werkelijk) + (duurStr ? ' · ' + duurStr : '');
+    } else {
+      out.style.display = 'none';
+    }
   }
-  // Onboarding-blok: kenteken invoer direct beschikbaar
-  return `
-    <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);background:var(--bg)">
-      <div style="font-size:13px;font-weight:600;margin-bottom:2px">🚗 Auto specs onbekend</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Voer kenteken in voor nauwkeurige berekeningen</div>
-      <div style="display:flex;gap:6px">
-        <input type="text" id="apKentekenInput" placeholder="AA-BB-00" maxlength="8" autocomplete="off"
-          oninput="this.value=this.value.toUpperCase()"
-          onkeydown="if(event.key==='Enter')zoekKentekenInPanel()"
-          style="flex:1;min-width:0;padding:8px;border-radius:6px;border:1px solid var(--border);font-size:13px;font-family:inherit;background:var(--card);color:var(--text);text-transform:uppercase">
-        <button onclick="zoekKentekenInPanel()" style="flex-shrink:0;padding:8px 12px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit">Opzoeken</button>
-      </div>
-      <div id="apKentekenResultaat" style="margin-top:8px"></div>
-      <div style="font-size:10px;color:var(--muted);margin-top:6px">Of stel handmatig in via instellingen →</div>
-    </div>`;
 }
 
 async function _doeKentekenLookup(kenteken) {
@@ -1281,30 +1335,132 @@ async function _doeKentekenLookup(kenteken) {
   }
 }
 
-function _resultaatHtml(d, contextId) {
-  const titel = `${d.merk} ${d.model || ''}${d.bouwjaar ? ' ' + d.bouwjaar : ''}${d.type ? ' · ' + d.type : ''}`;
-  if (d.inDatabase) {
-    const kwh  = d.bruikbaarKwh ?? d.batterijKwh;
-    const acKw = d.laadVermogenAcKw;
-    const specs = `${kwh ? '🔋 ' + kwh.toString().replace('.', ',') + ' kWh' : ''}${kwh && acKw ? ' · ' : ''}${acKw ? acKw.toString().replace('.', ',') + ' kW' : ''}`;
-    return `
-      <div style="padding:10px;border-radius:7px;background:var(--card);border:1px solid var(--border);font-size:12px">
-        <div style="font-weight:600;margin-bottom:2px">${titel}</div>
-        ${specs ? `<div style="color:var(--muted);margin-bottom:8px">${specs}</div>` : ''}
-        <button onclick='gebruikKentekenResultaat(${JSON.stringify(d).replace(/'/g,"&#39;")})' style="width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>
-      </div>`;
-  }
-  // Wel in RDW, niet in EV-database — handmatige velden + bevestigknop
+// Toont auto-details (al-bekend uit RDW/EV-DB) + handmatige velden (indien niet in EV-DB) +
+// laadtype-keuze + Bevestig-knop. d kan ook {handmatig: true} zijn voor de pure-handmatige route.
+function bouwAutoConfigHtml(d, contextId) {
+  const inDb       = d.inDatabase === true;
+  const handmatig  = d.handmatig === true;
+  const titel      = handmatig
+    ? 'Auto handmatig invoeren'
+    : `${d.merk || ''} ${d.model || ''}${d.bouwjaar ? ' · ' + d.bouwjaar : ''}`.trim();
+  const autoMaxKw  = d.laadVermogenAcKw ?? null;
+  const kwh        = d.bruikbaarKwh ?? d.batterijKwh ?? null;
+  // Pre-cache kwh voor updateWerkelijkVermogen wanneer er geen kwh-input-veld is
+  if (kwh) window[contextId + '_pendingKwh'] = kwh;
+
+  const specsRegel = (kwh || autoMaxKw)
+    ? `<div style="font-size:11px;color:var(--muted);margin-bottom:6px">${kwh ? '🔋 ' + _formatKwh(kwh) : ''}${kwh && autoMaxKw ? ' · ' : ''}${autoMaxKw ? 'Max. laadvermogen auto: ' + _formatKw(autoMaxKw) : ''}</div>`
+    : '';
+
+  const handmatigeVelden = (!inDb || handmatig)
+    ? `<div style="display:flex;gap:6px;margin-bottom:6px">
+        <input type="number" id="${contextId}_kwh" placeholder="Bruikbaar kWh" min="0" step="0.1" value="${kwh ?? ''}"
+          oninput="updateWerkelijkVermogen('${contextId}', document.getElementById('${contextId}_autoMax')?.value || null)"
+          style="flex:1;min-width:0;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
+        <input type="number" id="${contextId}_autoMax" placeholder="Auto max kW" min="0" step="0.1" value="${autoMaxKw ?? ''}"
+          oninput="updateWerkelijkVermogen('${contextId}', this.value)"
+          style="flex:1;min-width:0;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
+      </div>`
+    : '';
+
+  // Encode data voor passing naar bevestig-handler (JSON in HTML-attribute)
+  const dataAttr = JSON.stringify(d).replace(/"/g, '&quot;');
+
   return `
     <div style="padding:10px;border-radius:7px;background:var(--card);border:1px solid var(--border);font-size:12px">
-      <div style="font-weight:600;margin-bottom:2px">Auto gevonden: ${d.merk} ${d.model || ''}</div>
-      <div style="color:var(--muted);margin-bottom:8px;font-size:11px">Laadgegevens niet bekend — vul handmatig in</div>
-      <div style="display:flex;gap:6px;margin-bottom:6px">
-        <input type="number" id="${contextId}_kwh" placeholder="Bruikbaar kWh" min="0" step="0.1" style="flex:1;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
-        <input type="number" id="${contextId}_ac" placeholder="Laad kW" min="0" step="0.1" style="flex:1;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
+      <div style="font-weight:600;margin-bottom:2px">${titel}</div>
+      ${!inDb && !handmatig ? `<div style="color:var(--muted);margin-bottom:6px;font-size:11px">Laadgegevens niet bekend — vul handmatig in</div>` : ''}
+      ${specsRegel}
+      ${handmatigeVelden}
+      ${bouwLaadtypeHtml(contextId, autoMaxKw)}
+      <button onclick='bevestigAutoConfig(${dataAttr.replace(/'/g,"&#39;")}, "${contextId}")' style="margin-top:10px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>
+    </div>
+    <script>setTimeout(function(){ updateWerkelijkVermogen('${contextId}', ${autoMaxKw ?? 'null'}); }, 0)<\/script>`;
+}
+
+function bevestigAutoConfig(data, contextId) {
+  // Lees handmatige velden indien aanwezig
+  const kwhEl     = document.getElementById(contextId + '_kwh');
+  const autoMaxEl = document.getElementById(contextId + '_autoMax');
+  let kwh         = kwhEl ? parseFloat(kwhEl.value) : (data.bruikbaarKwh ?? data.batterijKwh);
+  let autoMaxKw   = autoMaxEl ? parseFloat(autoMaxEl.value) : (data.laadVermogenAcKw ?? null);
+  if (!(kwh > 0))       { alert('Vul een geldige bruikbare accucapaciteit (kWh) in.'); return; }
+  if (!(autoMaxKw > 0)) { alert('Vul een geldig auto-laadvermogen (kW) in.'); return; }
+
+  // Lees laadtype
+  const selected = document.querySelector(`input[name="${contextId}_laadtype"]:checked`)?.value;
+  const laadtype = LAADTYPES.find(t => t.id === selected);
+  let laadtypeKw = laadtype?.kw;
+  if (selected === 'anders') {
+    laadtypeKw = parseFloat(document.getElementById(contextId + '_andersKw')?.value);
+    if (!(laadtypeKw > 0)) { alert('Vul een geldig kW-getal in bij "Anders".'); return; }
+  }
+
+  const werkelijk = Math.min(autoMaxKw, laadtypeKw);
+  const config = {
+    kenteken:     data.kenteken     || null,
+    merk:         data.merk         || null,
+    model:        data.model        || null,
+    bouwjaar:     data.bouwjaar     || null,
+    type:         data.type         || null,
+    batterijKwh:  data.batterijKwh  ?? kwh,
+    bruikbaarKwh: kwh,
+    autoMaxKw,
+    laadtypeKw,
+    werkelijkKw:  werkelijk,
+    laadtypeLabel: laadtype?.label || null,
+  };
+  if (typeof bewaarAutoConfig === 'function') bewaarAutoConfig(config);
+  if (typeof laadPrijzen === 'function') laadPrijzen();
+  if (apDetailState) {
+    const idx = APPARATEN.findIndex(a => a === apDetailState.ap || a.naam === apDetailState.ap.naam);
+    if (idx >= 0) openApDetail(idx);
+  }
+  if (isInstTab && typeof renderInstellingen === 'function') renderInstellingen();
+  document.getElementById('kentekenOverlay')?.remove();
+}
+
+function bouwAutoDetailsHtml(ap) {
+  const info        = ap.autoInfo || {};
+  const hasKenteken = !!info.kenteken && info.merk && info.merk !== 'onbekend';
+
+  if (hasKenteken && info.bruikbaarKwh) {
+    // Auto bekend → compacte weergave + Wijzigen-knop
+    const jaarStr  = info.bouwjaar ? ' · ' + info.bouwjaar : '';
+    const werkelijk = info.werkelijkKw ?? info.laadVermogenAcKw;
+    const kwh       = info.bruikbaarKwh;
+    const duur      = (kwh && werkelijk) ? ' · ~' + (Math.round((kwh / werkelijk) * 10) / 10).toString().replace('.', ',') + 'u laadtijd' : '';
+    const ltLabel   = info.laadtypeLabel ? ' (' + info.laadtypeLabel.split('(')[0].trim() + ')' : '';
+    return `
+      <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);background:var(--bg)">
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;line-height:1.4">🚗 ${info.merk} ${info.model || ''}${jaarStr}</div>
+            <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px">🔋 ${_formatKwh(kwh)} · ⚡ ${_formatKw(werkelijk)}${ltLabel}${duur}</div>
+            ${info.kenteken ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${info.kenteken}</div>` : ''}
+          </div>
+          <button onclick="toonKentekenDialog()" style="flex-shrink:0;padding:6px 11px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit">Wijzigen</button>
+        </div>
+      </div>`;
+  }
+  // Onboarding-blok met kentekenplaat-styling
+  return `
+    <div style="padding:14px 16px;border-bottom:0.5px solid var(--border);background:var(--bg)">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">🚗 Auto specs onbekend</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Voer kenteken in voor nauwkeurige berekeningen</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px">
+        ${bouwKentekenplaatHtml('apKentekenInput')}
+        <button onclick="zoekKentekenInPanel()" style="padding:8px 14px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit">Opzoeken</button>
+        <button onclick="toonHandmatigeInvoer('apPanel')" style="padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-family:inherit;cursor:pointer">Handmatig</button>
       </div>
-      <button onclick='bevestigKentekenHandmatig(${JSON.stringify(d).replace(/'/g,"&#39;")}, "${contextId}")' style="width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>
+      <div id="apKentekenResultaat" style="margin-top:8px"></div>
     </div>`;
+}
+
+function toonHandmatigeInvoer(contextId) {
+  const target = document.getElementById(contextId === 'apPanel' ? 'apKentekenResultaat' : 'dialogKentekenResultaat');
+  if (!target) return;
+  target.innerHTML = bouwAutoConfigHtml({ handmatig: true }, contextId);
 }
 
 async function zoekKentekenInPanel() {
@@ -1317,58 +1473,30 @@ async function zoekKentekenInPanel() {
     res.innerHTML = `<div style="font-size:11px;color:#a32d2d;padding:6px 0">${error}</div>`;
     return;
   }
-  res.innerHTML = _resultaatHtml(data, 'apPanel');
-}
-
-function gebruikKentekenResultaat(data) {
-  if (typeof bewaarAutoConfig === 'function') bewaarAutoConfig(data);
-  // Herlaad data zodat alle berekeningen direct met nieuwe uren/vermogen werken
-  if (typeof laadPrijzen === 'function') laadPrijzen();
-  // Re-render het apparaat-detail panel met de bijgewerkte ap
-  if (apDetailState) {
-    const idx = APPARATEN.findIndex(a => a === apDetailState.ap || a.naam === apDetailState.ap.naam);
-    if (idx >= 0) openApDetail(idx);
-  }
-  if (isInstTab && typeof renderInstellingen === 'function') renderInstellingen();
-}
-
-function bevestigKentekenHandmatig(data, contextId) {
-  const kwhEl = document.getElementById(contextId + '_kwh');
-  const acEl  = document.getElementById(contextId + '_ac');
-  const kwh   = parseFloat(kwhEl?.value);
-  const acKw  = parseFloat(acEl?.value);
-  if (!(kwh > 0) || !(acKw > 0)) {
-    alert('Vul beide velden met een positief getal in.');
-    return;
-  }
-  gebruikKentekenResultaat({ ...data, bruikbaarKwh: kwh, batterijKwh: kwh, laadVermogenAcKw: acKw, inDatabase: false });
+  res.innerHTML = bouwAutoConfigHtml(data, 'apPanel');
 }
 
 // Modale dialog voor de instellingen-tab Wijzigen-knop
 function toonKentekenDialog() {
-  // Sluit bestaand overlay element indien aanwezig
   const bestaand = document.getElementById('kentekenOverlay');
   if (bestaand) bestaand.remove();
 
   const overlay = document.createElement('div');
   overlay.id = 'kentekenOverlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
   overlay.innerHTML = `
-    <div style="background:var(--card);border-radius:14px;padding:18px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+    <div style="background:var(--card);border-radius:14px;padding:18px;max-width:420px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);max-height:90vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-size:15px;font-weight:600">Kenteken invoeren</div>
         <button onclick="document.getElementById('kentekenOverlay').remove()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;padding:0">×</button>
       </div>
-      <div style="display:flex;gap:6px;margin-bottom:10px">
-        <input type="text" id="dialogKentekenInput" placeholder="AA-BB-00" maxlength="8" autocomplete="off"
-          oninput="this.value=this.value.toUpperCase()"
-          onkeydown="if(event.key==='Enter')zoekKentekenInDialog()"
-          style="flex:1;min-width:0;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:14px;font-family:inherit;background:var(--bg);color:var(--text);text-transform:uppercase">
-        <button onclick="zoekKentekenInDialog()" style="flex-shrink:0;padding:10px 14px;border-radius:8px;border:none;background:var(--green);color:white;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">Opzoeken</button>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+        ${bouwKentekenplaatHtml('dialogKentekenInput')}
+        <button onclick="zoekKentekenInDialog()" style="padding:10px 14px;border-radius:8px;border:none;background:var(--green);color:white;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">Opzoeken</button>
+        <button onclick="toonHandmatigeInvoer('apDialog')" style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12px;font-family:inherit;cursor:pointer">Handmatig</button>
       </div>
       <div id="dialogKentekenResultaat"></div>
     </div>`;
-  // Klik buiten dialoog = sluiten
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
   setTimeout(() => document.getElementById('dialogKentekenInput')?.focus(), 50);
@@ -1384,12 +1512,5 @@ async function zoekKentekenInDialog() {
     res.innerHTML = `<div style="font-size:12px;color:#a32d2d;padding:6px 0">${error}</div>`;
     return;
   }
-  res.innerHTML = _resultaatHtml(data, 'apDialog');
-  // Wikkel gebruikKentekenResultaat zodat dialog ook sluit na bevestigen
-  const origineel = window.gebruikKentekenResultaat;
-  window.gebruikKentekenResultaat = function(d) {
-    document.getElementById('kentekenOverlay')?.remove();
-    window.gebruikKentekenResultaat = origineel;
-    origineel(d);
-  };
+  res.innerHTML = bouwAutoConfigHtml(data, 'apDialog');
 }

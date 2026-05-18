@@ -142,12 +142,17 @@ function pasAutoConfigToe(config) {
   if (!config) return false;
   const auto = _vindAutoApparaat();
   if (!auto) return false;
-  const acKw = parseFloat(config.laadVermogenAcKw);
-  const kwh  = parseFloat(config.bruikbaarKwh ?? config.batterijKwh);
-  if (acKw > 0 && kwh > 0) {
-    auto.vermogen = acKw;
+  const autoMaxKw  = parseFloat(config.autoMaxKw ?? config.laadVermogenAcKw);
+  const laadtypeKw = parseFloat(config.laadtypeKw);
+  // werkelijk = min(auto-boordlader, gekozen laadtype); fallback auto-max alleen
+  const werkelijk  = (autoMaxKw > 0 && laadtypeKw > 0)
+    ? Math.min(autoMaxKw, laadtypeKw)
+    : (autoMaxKw > 0 ? autoMaxKw : null);
+  const kwh = parseFloat(config.bruikbaarKwh ?? config.batterijKwh);
+  if (werkelijk > 0 && kwh > 0) {
+    auto.vermogen = werkelijk;
     // Afgerond op 1 decimaal — past in de berekeningen (Math.ceil voor blok)
-    auto.uren     = Math.round((kwh / acKw) * 10) / 10;
+    auto.uren     = Math.round((kwh / werkelijk) * 10) / 10;
   }
   auto.autoInfo = {
     kenteken:         config.kenteken         ?? null,
@@ -157,7 +162,12 @@ function pasAutoConfigToe(config) {
     type:             config.type             ?? null,
     batterijKwh:      config.batterijKwh      ?? null,
     bruikbaarKwh:     config.bruikbaarKwh     ?? null,
-    laadVermogenAcKw: config.laadVermogenAcKw ?? null,
+    autoMaxKw:        autoMaxKw > 0 ? autoMaxKw : null,
+    laadtypeKw:       laadtypeKw > 0 ? laadtypeKw : null,
+    werkelijkKw:      werkelijk,
+    laadtypeLabel:    config.laadtypeLabel    ?? null,
+    // Legacy veld behouden voor backward-compat met oudere localStorage entries
+    laadVermogenAcKw: autoMaxKw > 0 ? autoMaxKw : null,
   };
   return true;
 }
@@ -367,5 +377,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.57.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.58.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
