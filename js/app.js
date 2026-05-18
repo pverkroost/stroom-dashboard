@@ -121,9 +121,10 @@ async function laadPrijzen() {
 }
 
 // Overschrijf SolarEdge piekKw met de waarde uit /details (single source of
-// truth = SolarEdge zelf). Eerst synchroon uit sessionStorage zodat de eerste
+// truth = SolarEdge zelf). Eerst synchroon uit localStorage zodat de eerste
 // render direct goed is; dan async vers ophalen en bij verandering opnieuw
-// rerenderen. Bij API-uitval blijft de config-waarde gewoon staan.
+// rerenderen. Cache persisteert over tabs/sessies heen — minder dubbele fetches.
+// Bij API-uitval blijft de config-waarde gewoon staan.
 function _seCacheKey() { return 'seDetails_' + window.CONFIG.userId; }
 
 function pasOmvormerCapaciteitToe(peakPower) {
@@ -146,7 +147,7 @@ async function refreshOmvormerCapaciteit() {
     const data = await r.json();
     if (!data || data.beschikbaar === false || !data.peakPower) return false;
     const veranderd = pasOmvormerCapaciteitToe(data.peakPower);
-    try { sessionStorage.setItem(_seCacheKey(), String(parseFloat(data.peakPower))); } catch {}
+    try { localStorage.setItem(_seCacheKey(), String(parseFloat(data.peakPower))); } catch {}
     return veranderd;
   } catch {
     return false;
@@ -155,7 +156,7 @@ async function refreshOmvormerCapaciteit() {
 
 // Bootstrap: gebruik cache zodat eerste render meteen klopt
 try {
-  const cached = sessionStorage.getItem(_seCacheKey());
+  const cached = localStorage.getItem(_seCacheKey());
   if (cached && heeftIntegratie('solarEdge')) pasOmvormerCapaciteitToe(cached);
 } catch {}
 
@@ -215,8 +216,12 @@ function renderInstellingen() {
     const gr  = p.growatt   || {};
     const fmt = n => Number.isInteger(n) ? n.toString() : (n ?? 0).toString().replace('.', ',');
     const rows = [];
-    if (heeftIntegratie('solarEdge') && (se.panelen || se.piekKw)) {
-      rows.push(`<div class="tarief-row"><span class="tarief-key">SolarEdge</span><span>${fmt(se.panelen)} panelen · ${fmt(se.piekKw)} kW · ${se.locatie || '—'}</span></div>`);
+    if (heeftIntegratie('solarEdge')) {
+      if (se.piekKw > 0) {
+        rows.push(`<div class="tarief-row"><span class="tarief-key">SolarEdge</span><span>${fmt(se.panelen)} panelen · ${fmt(se.piekKw)} kW · ${se.locatie || '—'}</span></div>`);
+      } else {
+        rows.push(`<div class="tarief-row"><span class="tarief-key">SolarEdge</span><span style="color:var(--muted);font-size:11px">Wordt opgehaald…</span></div>`);
+      }
     }
     if (heeftIntegratie('growatt') && (gr.panelen || gr.piekKw)) {
       rows.push(`<div class="tarief-row"><span class="tarief-key">Growatt</span><span>${fmt(gr.panelen)} panelen · ${fmt(gr.piekKw)} kW · ${gr.locatie || '—'}</span></div>`);
@@ -271,5 +276,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.56.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.56.1 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();

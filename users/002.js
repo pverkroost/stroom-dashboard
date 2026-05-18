@@ -18,13 +18,13 @@
     panelen: {
       lat:           52.3667, // standaard Nijverdal — aanpassen bij onboarding
       lon:           6.4667,
-      totaalPiekKw:  4.0,
+      totaalPiekKw:  16, // placeholder DC-piek (zelfde als solarEdge.piekKw, geen growatt)
       rendement:     0.8,
-      // solarEdge.piekKw=0 → app overschrijft dit runtime met de echte waarde
-      // uit /api/solaredge?type=details (gecached in sessionStorage per sessie).
-      // Tot SOLAREDGE_API_KEY_002/SITE_ID_002 in Vercel staan, blijft het 0.
-      solarEdge: { piekKw: 0, panelen: 10, locatie: 'dak' },
-      growatt:   { piekKw: 0,   panelen: 0,  locatie: '—' },
+      // Placeholder waarden — app overschrijft solarEdge.piekKw runtime met de
+      // echte waarde uit /api/solaredge?type=details (gecached in localStorage).
+      // 40 panelen visueel geteld; piekKw 16 = geschat DC-piek; AC nominaal omvormer ≈ 13,1 kW.
+      solarEdge: { piekKw: 16, panelen: 40, locatie: 'dak' },
+      growatt:   { piekKw: 0,  panelen: 0,  locatie: '—' },
     },
     apparaten: [
       { naam: 'Auto (PHEV)',             icon: '🚗',       uren: 6,   vermogen: 2.3, type: 'laden',       automatisering: false, batterij: true,  volgorde: 1, grootverbruik: false, klaarOmTekst: 'Auto moet opgeladen zijn om',       korteTekst: '🔋 Opgeladen zijn om' },
