@@ -178,8 +178,11 @@ function bewaarAutoConfig(config) {
   pasAutoConfigToe(config);
 }
 
-// EV-database count voor Integraties-rij — eenmaal fetchen, daarna cache
-let _aantalEvModellen = null;
+// EV-database counts voor Integraties-rij — eenmaal fetchen, daarna cache.
+// Onze curated DB (ev-database.json) is klein, prima om volledig te laden.
+// KilowattApp data is 1.5MB; we lezen alleen de losse meta-file voor het count.
+let _aantalEvModellen      = null;
+let _aantalKilowattModellen = null;
 async function laadEvDbCount() {
   if (_aantalEvModellen !== null) return _aantalEvModellen;
   try {
@@ -190,6 +193,17 @@ async function laadEvDbCount() {
     _aantalEvModellen = 0;
   }
   return _aantalEvModellen;
+}
+async function laadKilowattCount() {
+  if (_aantalKilowattModellen !== null) return _aantalKilowattModellen;
+  try {
+    const r    = await fetch('/kilowatt-meta.json');
+    const data = await r.json();
+    _aantalKilowattModellen = data?.count ?? 0;
+  } catch {
+    _aantalKilowattModellen = 0;
+  }
+  return _aantalKilowattModellen;
 }
 
 // Apply auto-config uit localStorage zodat eerste render direct correcte
@@ -297,16 +311,31 @@ function renderInstellingen() {
       `<div class="tarief-row" style="align-items:flex-start">
         <div>
           <div class="tarief-key">EV Database</div>
-          <div style="font-size:10px;color:var(--muted)">modeldata</div>
+          <div style="font-size:10px;color:var(--muted)">curated NL-modellen</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div><span style="color:var(--green)">●</span> <span id="evDbCount">${_aantalEvModellen != null ? _aantalEvModellen + ' modellen' : 'laden…'}</span></div>
         </div>
+      </div>` +
+      `<div class="tarief-row" style="align-items:flex-start">
+        <div>
+          <div class="tarief-key">Open EV Data</div>
+          <div style="font-size:10px;color:var(--muted)">KilowattApp · fallback</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div><span style="color:var(--green)">●</span> <span id="kilowattCount">${_aantalKilowattModellen != null ? _aantalKilowattModellen + ' modellen' : 'laden…'}</span></div>
+        </div>
       </div>`;
-    // Lazy-fetch EV-db count en update de span zonder hele tab opnieuw te renderen
+    // Lazy-fetch counts; update de spans zonder hele tab opnieuw te renderen
     if (_aantalEvModellen === null) {
       laadEvDbCount().then(n => {
         const el = document.getElementById('evDbCount');
+        if (el) el.textContent = n + ' modellen';
+      });
+    }
+    if (_aantalKilowattModellen === null) {
+      laadKilowattCount().then(n => {
+        const el = document.getElementById('kilowattCount');
         if (el) el.textContent = n + ' modellen';
       });
     }
@@ -378,5 +407,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.59.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.60.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();

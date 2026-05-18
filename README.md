@@ -88,13 +88,38 @@ Client-side constanten in `js/config.js`:
 - Lokale API: `http://[ip-adres]/api/v1/data` (geen authenticatie nodig)
 
 ### Kenteken lookup (RDW + EV database)
-- Geen API key nodig — publieke RDW Open Data
-- Endpoints gebruikt door `api/kenteken.js`:
-  - `opendata.rdw.nl/resource/m9d7-ebf2.json` (basisdata: merk, handelsbenaming, eerste toelating)
-  - `opendata.rdw.nl/resource/8ys7-d773.json` (brandstofdata: PHEV/BEV-detectie)
-- EV database: `ev-database.json` in projectroot bevat `batterijKwh`, `bruikbaarKwh` en `laadVermogenAcKw` voor ~50 populaire PHEV/EV modellen in Nederland
-- Match-volgorde: merk + bouwjaar-range → `rdwHandelsbenaming` exacte match → substring match → `model` substring
-- Toevoegen aan database: nieuw object in de array van `ev-database.json` met `merk`, `model`, `rdwHandelsbenaming`, `bouwjaarVanaf`, `bouwjaarTot`, `type` (PHEV/BEV), `batterijKwh`, `bruikbaarKwh`, `laadVermogenAcKw`
+
+De app combineert drie bronnen voor merk/model/specs op basis van een Nederlands kenteken:
+
+**RDW Open Data** — geen API key nodig
+- `opendata.rdw.nl/resource/m9d7-ebf2.json` — basisdata (merk, handelsbenaming, datum eerste toelating)
+- `opendata.rdw.nl/resource/8ys7-d773.json` — brandstofdata voor PHEV/BEV-detectie
+
+**Eigen curated EV database** — `ev-database.json` in projectroot
+- ~70 PHEV/EV modellen die populair zijn in NL, met `rdwHandelsbenaming` voor exacte RDW-match
+- Bevat zowel PHEVs (Volvo XC90 T8, BMW 330e, Range Rover P400e, etc.) als BEVs
+- Onze entries hebben **altijd voorrang** bij conflict met externe bronnen
+- Toevoegen: nieuw object met `merk`, `model`, `variant` (optioneel), `rdwHandelsbenaming`, `bouwjaarVanaf`, `bouwjaarTot`, `type` (PHEV/BEV), `batterijKwh`, `bruikbaarKwh`, `laadVermogenAcKw`, `laadVermogenDcKw` (optioneel), `elektrischBereikKm`
+
+**Open EV Data (KilowattApp)** — fallback voor onbekende BEVs
+- Bron: `github.com/KilowattApp/open-ev-data` — MIT licentie, attributie vereist
+- Bevat 1300+ BEV-modellen wereldwijd (Abarth tot Zeekr) — **geen PHEVs**
+- Lokaal opgeslagen in `kilowatt-ev-data.json` (1,5 MB, server-side gebruikt door `api/kenteken.js`)
+- `kilowatt-meta.json` bevat alleen het aantal entries voor snelle frontend-load
+- Wordt alleen geraadpleegd als onze curated database geen match heeft, en alleen voor non-PHEV kentekens (PHEV-detectie via RDW brandstofdata voorkomt verkeerde matches)
+- **Attributie**: "Open EV Data (https://github.com/KilowattApp/open-ev-data)" wordt getoond in de Integraties-tab
+
+**Match-volgorde** (in `api/kenteken.js`):
+1. Onze database — merk + bouwjaar-range + type + `rdwHandelsbenaming` exact → substring → model substring
+2. Bij geen match: KilowattApp fuzzy match — merk + bouwjaar ±2 jaar + model substring
+3. Bij meerdere varianten: response bevat `meerdereVarianten: true` + `varianten[]` array, frontend toont dropdown
+
+**Updaten KilowattApp data**:
+```bash
+curl -o kilowatt-ev-data.json https://raw.githubusercontent.com/KilowattApp/open-ev-data/master/data/ev-data.json
+# regenereer kilowatt-meta.json met:
+node -e "const d=require('./kilowatt-ev-data.json'); require('fs').writeFileSync('kilowatt-meta.json', JSON.stringify({count:d.data.length,brands:d.brands.length,updated_at:d.meta.updated_at,source:'https://github.com/KilowattApp/open-ev-data'}, null, 2)+'\n')"
+```
 
 ## Prijsformule
 ```

@@ -1,5 +1,7 @@
 const fetch = require('node-fetch');
-const evDatabase = require('../ev-database.json');
+const evDatabase   = require('../ev-database.json');
+const kilowattData = require('../kilowatt-ev-data.json'); // BEV-only, fallback voor obscure modellen
+const kilowattVehicles = (kilowattData && kilowattData.data) || [];
 
 function normaliseerKenteken(k) {
   return (k || '').toString().replace(/[\s-]/g, '').toUpperCase();
@@ -64,6 +66,44 @@ function variantNaam(entry) {
   return entry.variant || entry.model || '—';
 }
 
+// KilowattApp Open EV Data — bevat alleen BEVs. Geen rdwHandelsbenaming, geen
+// bouwjaar-range; alleen merk/model/variant/release_year. Match-strategie:
+//   1) merk (case-insensitive equals)
+//   2) bouwjaar binnen +/- 2 jaar van release_year (heuristiek)
+//   3) handelsbenaming bevat model OF model bevat handelsbenaming
+function matchKilowattVarianten(merkRdw, handelsbenamingRdw, bouwjaar, brandstoftypeRdw) {
+  // KilowattApp is BEV-only; voor expliciete PHEV-detectie nooit fallbacken
+  if (brandstoftypeRdw === 'PHEV') return [];
+  const merkU = (merkRdw || '').toUpperCase();
+  const handU = (handelsbenamingRdw || '').toUpperCase();
+  if (!merkU || !handU) return [];
+
+  const merkMatch = kilowattVehicles.filter(v => (v.brand || '').toUpperCase() === merkU);
+  if (merkMatch.length === 0) return [];
+
+  const jaarMatch = bouwjaar
+    ? merkMatch.filter(v => v.release_year && Math.abs(v.release_year - bouwjaar) <= 2)
+    : merkMatch;
+  if (jaarMatch.length === 0) return [];
+
+  const modelMatch = jaarMatch.filter(v => {
+    const m = (v.model || '').toUpperCase();
+    return m && (handU.includes(m) || m.includes(handU));
+  });
+  return modelMatch;
+}
+
+function kilowattNaarOnsSchema(v) {
+  return {
+    variantNaam:        (v.variant || '').trim() || v.model || '—',
+    batterijKwh:        v.usable_battery_size ?? null,
+    bruikbaarKwh:       v.usable_battery_size ?? null,
+    laadVermogenAcKw:   v.ac_charger?.max_power ?? null,
+    laadVermogenDcKw:   v.dc_charger?.max_power ?? null,
+    elektrischBereikKm: v.range ?? null,
+  };
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
@@ -110,6 +150,41 @@ module.exports = async (req, res) => {
   const matches = matchEvDatabase(merk, handelsbenaming, bouwjaar, brandstoftypeRdw);
 
   if (matches.length === 0) {
+    // Fallback: KilowattApp Open EV Data (BEV-only). Geen risico op verkeerde
+    // PHEV-match want PHEV-RDW vlag wordt door matchKilowattVarianten geweigerd.
+    const kilowattMatches = matchKilowattVarianten(merk, handelsbenaming, bouwjaar, brandstoftypeRdw);
+    if (kilowattMatches.length === 1) {
+      const v = kilowattMatches[0];
+      const c = kilowattNaarOnsSchema(v);
+      return res.json({
+        gevonden:           true,
+        inDatabase:         true,
+        databron:           'kilowattapp',
+        kenteken,
+        merk:               (v.brand || '').toUpperCase(),
+        model:              v.model,
+        bouwjaar,
+        type:               brandstoftypeRdw || 'BEV',
+        batterijKwh:        c.batterijKwh,
+        bruikbaarKwh:       c.bruikbaarKwh,
+        laadVermogenAcKw:   c.laadVermogenAcKw,
+        elektrischBereikKm: c.elektrischBereikKm,
+      });
+    }
+    if (kilowattMatches.length > 1) {
+      return res.json({
+        gevonden:          true,
+        inDatabase:        true,
+        databron:          'kilowattapp',
+        meerdereVarianten: true,
+        kenteken,
+        merk:              (kilowattMatches[0].brand || '').toUpperCase(),
+        model:             kilowattMatches[0].model,
+        bouwjaar,
+        type:              brandstoftypeRdw || 'BEV',
+        varianten:         kilowattMatches.map(kilowattNaarOnsSchema),
+      });
+    }
     return res.json({
       gevonden:   true,
       inDatabase: false,
