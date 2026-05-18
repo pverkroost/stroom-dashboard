@@ -29,7 +29,10 @@
       "Bash(grep -rEho 'process\\\\.env\\\\[`[A-Z_]+_\\\\$\\\\{[a-zA-Z]+\\\\}`\\\\]' api/ --include=\"*.js\")",
       "Bash(curl *)",
       "Bash(node --check api/kenteken.js)",
-      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('ev-database.json','utf8'\\)\\)\")"
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('ev-database.json','utf8'\\)\\)\")",
+      "Read(//tmp/**)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const db=require\\('./ev-database.json'\\); console.log\\('Entries:', db.length\\); const ps=db.filter\\(e=>e.merk==='POLESTAR'\\); console.log\\('Polestar entries:', ps.length\\); ps.forEach\\(p=>console.log\\(' -', p.variant||p.model, p.bouwjaarVanaf+'-'+p.bouwjaarTot, p.batterijKwh+'kWh'\\)\\);\")"
     ]
   }
 }

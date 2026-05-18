@@ -1335,9 +1335,103 @@ async function _doeKentekenLookup(kenteken) {
   }
 }
 
+// Toont variant-selectie wanneer er meerdere varianten gevonden zijn voor
+// dezelfde merk + bouwjaar. Encodeer varianten in data-attribuut zodat de
+// kies-handler ze terug kan lezen zonder global state.
+function bouwVariantKeuzeHtml(d, contextId) {
+  const opts = (d.varianten || []).map((v, i) => {
+    const kwh   = v.bruikbaarKwh ?? v.batterijKwh;
+    const specs = `🔋 ${kwh ? kwh.toString().replace('.', ',') + ' kWh' : '—'}${v.laadVermogenAcKw ? ' · ⚡ ' + v.laadVermogenAcKw.toString().replace('.', ',') + ' kW' : ''}`;
+    return `<option value="${i}">${v.variantNaam} — ${specs}</option>`;
+  }).join('');
+  // Basis-data (zonder varianten[]) zodat we 'm kunnen combineren met de gekozen variant
+  const basis = { ...d };
+  delete basis.varianten;
+  delete basis.meerdereVarianten;
+  const basisAttr     = JSON.stringify(basis).replace(/"/g, '&quot;');
+  const variantenAttr = JSON.stringify(d.varianten || []).replace(/"/g, '&quot;');
+  return `
+    <div style="padding:10px;border-radius:7px;background:var(--card);border:1px solid var(--border);font-size:12px">
+      <div style="font-weight:600;margin-bottom:2px">${d.merk} ${d.model || ''}${d.bouwjaar ? ' · ' + d.bouwjaar : ''}</div>
+      <div style="color:var(--muted);margin-bottom:8px;font-size:11px">Meerdere varianten — kies welke je hebt:</div>
+      <select id="${contextId}_variantSel" data-basis="${basisAttr}" data-varianten="${variantenAttr}"
+        onchange="kiesVariant('${contextId}')"
+        style="width:100%;padding:9px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;margin-bottom:10px">
+        <option value="">— Kies variant —</option>
+        ${opts}
+      </select>
+      <div id="${contextId}_variantDetail"></div>
+    </div>`;
+}
+
+function kiesVariant(contextId) {
+  const sel = document.getElementById(contextId + '_variantSel');
+  const target = document.getElementById(contextId + '_variantDetail');
+  if (!sel || !target) return;
+  const idx = parseInt(sel.value, 10);
+  if (isNaN(idx)) { target.innerHTML = ''; return; }
+  const basis     = JSON.parse(sel.dataset.basis);
+  const varianten = JSON.parse(sel.dataset.varianten);
+  const v = varianten[idx];
+  if (!v) return;
+  const merged = {
+    ...basis,
+    inDatabase:         true,
+    batterijKwh:        v.batterijKwh,
+    bruikbaarKwh:       v.bruikbaarKwh,
+    laadVermogenAcKw:   v.laadVermogenAcKw,
+    elektrischBereikKm: v.elektrischBereikKm,
+    variantNaam:        v.variantNaam,
+  };
+  // Render zonder outer wrapper — we zitten al binnen de variant-keuze div
+  target.innerHTML = _bouwAutoConfigInner(merged, contextId);
+  setTimeout(() => updateWerkelijkVermogen(contextId, merged.laadVermogenAcKw ?? null), 0);
+}
+
+// Inner content van bouwAutoConfigHtml zonder buitenste wrapper-div.
+// Wordt direct gebruikt na variant-selectie waar de outer div al bestaat.
+function _bouwAutoConfigInner(d, contextId) {
+  const inDb        = d.inDatabase === true;
+  const handmatig   = d.handmatig === true;
+  const titel       = handmatig
+    ? 'Auto handmatig invoeren'
+    : `${d.merk || ''} ${d.model || ''}${d.bouwjaar ? ' · ' + d.bouwjaar : ''}${d.variantNaam ? ' · ' + d.variantNaam : ''}`.trim();
+  const autoMaxKw   = d.laadVermogenAcKw ?? null;
+  const kwh         = d.bruikbaarKwh ?? d.batterijKwh ?? null;
+  if (kwh) window[contextId + '_pendingKwh'] = kwh;
+
+  const specsRegel = (kwh || autoMaxKw)
+    ? `<div style="font-size:11px;color:var(--muted);margin-bottom:6px">${kwh ? '🔋 ' + _formatKwh(kwh) : ''}${kwh && autoMaxKw ? ' · ' : ''}${autoMaxKw ? 'Max. laadvermogen auto: ' + _formatKw(autoMaxKw) : ''}</div>`
+    : '';
+
+  const handmatigeVelden = (!inDb || handmatig)
+    ? `<div style="display:flex;gap:6px;margin-bottom:6px">
+        <input type="number" id="${contextId}_kwh" placeholder="Bruikbaar kWh" min="0" step="0.1" value="${kwh ?? ''}"
+          oninput="updateWerkelijkVermogen('${contextId}', document.getElementById('${contextId}_autoMax')?.value || null)"
+          style="flex:1;min-width:0;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
+        <input type="number" id="${contextId}_autoMax" placeholder="Auto max kW" min="0" step="0.1" value="${autoMaxKw ?? ''}"
+          oninput="updateWerkelijkVermogen('${contextId}', this.value)"
+          style="flex:1;min-width:0;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
+      </div>`
+    : '';
+
+  const dataAttr = JSON.stringify(d).replace(/"/g, '&quot;');
+  return `
+      <div style="font-weight:600;margin-bottom:2px">${titel}</div>
+      ${!inDb && !handmatig ? `<div style="color:var(--muted);margin-bottom:6px;font-size:11px">Laadgegevens niet bekend — vul handmatig in</div>` : ''}
+      ${specsRegel}
+      ${handmatigeVelden}
+      ${bouwLaadtypeHtml(contextId, autoMaxKw)}
+      <button onclick='bevestigAutoConfig(${dataAttr.replace(/'/g,"&#39;")}, "${contextId}")' style="margin-top:10px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>`;
+}
+
 // Toont auto-details (al-bekend uit RDW/EV-DB) + handmatige velden (indien niet in EV-DB) +
 // laadtype-keuze + Bevestig-knop. d kan ook {handmatig: true} zijn voor de pure-handmatige route.
 function bouwAutoConfigHtml(d, contextId) {
+  // Multi-variant: aparte UI met dropdown
+  if (d.meerdereVarianten && Array.isArray(d.varianten) && d.varianten.length > 1) {
+    return bouwVariantKeuzeHtml(d, contextId);
+  }
   const inDb       = d.inDatabase === true;
   const handmatig  = d.handmatig === true;
   const titel      = handmatig
@@ -1401,6 +1495,7 @@ function bevestigAutoConfig(data, contextId) {
     kenteken:     data.kenteken     || null,
     merk:         data.merk         || null,
     model:        data.model        || null,
+    variantNaam:  data.variantNaam  || null,
     bouwjaar:     data.bouwjaar     || null,
     type:         data.type         || null,
     batterijKwh:  data.batterijKwh  ?? kwh,
@@ -1426,7 +1521,8 @@ function bouwAutoDetailsHtml(ap) {
 
   if (hasKenteken && info.bruikbaarKwh) {
     // Auto bekend → compacte weergave + Wijzigen-knop
-    const jaarStr  = info.bouwjaar ? ' · ' + info.bouwjaar : '';
+    const jaarStr   = info.bouwjaar ? ' · ' + info.bouwjaar : '';
+    const variantStr = info.variantNaam ? ' · ' + info.variantNaam : '';
     const werkelijk = info.werkelijkKw ?? info.laadVermogenAcKw;
     const kwh       = info.bruikbaarKwh;
     const duur      = (kwh && werkelijk) ? ' · ~' + (Math.round((kwh / werkelijk) * 10) / 10).toString().replace('.', ',') + 'u laadtijd' : '';
@@ -1435,7 +1531,7 @@ function bouwAutoDetailsHtml(ap) {
       <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);background:var(--bg)">
         <div style="display:flex;align-items:flex-start;gap:8px">
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;line-height:1.4">🚗 ${info.merk} ${info.model || ''}${jaarStr}</div>
+            <div style="font-size:13px;font-weight:600;line-height:1.4">🚗 ${info.merk} ${info.model || ''}${jaarStr}${variantStr}</div>
             <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px">🔋 ${_formatKwh(kwh)} · ⚡ ${_formatKw(werkelijk)}${ltLabel}${duur}</div>
             ${info.kenteken ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${info.kenteken}</div>` : ''}
           </div>

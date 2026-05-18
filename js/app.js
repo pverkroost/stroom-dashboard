@@ -158,6 +158,7 @@ function pasAutoConfigToe(config) {
     kenteken:         config.kenteken         ?? null,
     merk:             config.merk             ?? null,
     model:            config.model            ?? null,
+    variantNaam:      config.variantNaam      ?? null,
     bouwjaar:         config.bouwjaar         ?? null,
     type:             config.type             ?? null,
     batterijKwh:      config.batterijKwh      ?? null,
@@ -377,5 +378,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.58.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.59.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();

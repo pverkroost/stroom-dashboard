@@ -27,13 +27,12 @@ function bepaalBrandstoftype(brandstofRows) {
 // 1. merk + bouwjaar-range + type (PHEV/BEV) + rdwHandelsbenaming EXACT
 // 2. merk + bouwjaar-range + type + rdwHandelsbenaming SUBSTRING
 // 3. merk + bouwjaar-range + type + model SUBSTRING
-// Type-filter belangrijk: Kia Niro 2022+ heeft zowel PHEV als BEV entry met
-// identieke rdwHandelsbenaming "NIRO" — zonder type-filter pakt het de
-// eerste die toevallig matcht.
+// Returnt ALTIJD een array (mogelijk leeg). Bij meerdere matches op zelfde
+// niveau: alle entries zodat de frontend variantselectie kan tonen.
 function matchEvDatabase(merkRdw, handelsbenamingRdw, bouwjaar, brandstoftype) {
   const merkU = (merkRdw || '').toUpperCase();
   const handU = (handelsbenamingRdw || '').toUpperCase();
-  if (!merkU) return null;
+  if (!merkU) return [];
 
   const kandidaten = evDatabase.filter(e => {
     if ((e.merk || '').toUpperCase() !== merkU) return false;
@@ -43,22 +42,26 @@ function matchEvDatabase(merkRdw, handelsbenamingRdw, bouwjaar, brandstoftype) {
     if ((brandstoftype === 'PHEV' || brandstoftype === 'BEV') && e.type && e.type !== brandstoftype) return false;
     return true;
   });
-  if (kandidaten.length === 0) return null;
+  if (kandidaten.length === 0) return [];
 
-  const exact = kandidaten.find(e => (e.rdwHandelsbenaming || '').toUpperCase() === handU);
-  if (exact) return exact;
+  const exact = kandidaten.filter(e => (e.rdwHandelsbenaming || '').toUpperCase() === handU);
+  if (exact.length > 0) return exact;
 
-  const substringHand = kandidaten.find(e => {
+  const substringHand = kandidaten.filter(e => {
     const dbHand = (e.rdwHandelsbenaming || '').toUpperCase();
     return dbHand && handU.includes(dbHand);
   });
-  if (substringHand) return substringHand;
+  if (substringHand.length > 0) return substringHand;
 
-  const substringModel = kandidaten.find(e => {
+  const substringModel = kandidaten.filter(e => {
     const dbModel = (e.model || '').toUpperCase();
     return dbModel && handU.includes(dbModel);
   });
-  return substringModel || null;
+  return substringModel;
+}
+
+function variantNaam(entry) {
+  return entry.variant || entry.model || '—';
 }
 
 module.exports = async (req, res) => {
@@ -102,11 +105,11 @@ module.exports = async (req, res) => {
     // brandstof faalt → niet kritiek, type komt eventueel uit ev-database
   }
 
-  // 3) Match tegen ev-database — neem type mee als RDW het kon bepalen,
-  // anders matcht alles op merk+bouwjaar
-  const match = matchEvDatabase(merk, handelsbenaming, bouwjaar, brandstoftypeRdw);
+  // 3) Match tegen ev-database — neem type mee als RDW het kon bepalen.
+  // matches[] kan 0, 1 of meer entries bevatten (verschillende varianten).
+  const matches = matchEvDatabase(merk, handelsbenaming, bouwjaar, brandstoftypeRdw);
 
-  if (!match) {
+  if (matches.length === 0) {
     return res.json({
       gevonden:   true,
       inDatabase: false,
@@ -118,6 +121,30 @@ module.exports = async (req, res) => {
     });
   }
 
+  if (matches.length > 1) {
+    // Meerdere varianten — frontend toont variant-selectie
+    const eersteMatch = matches[0];
+    return res.json({
+      gevonden:          true,
+      inDatabase:        true,
+      meerdereVarianten: true,
+      kenteken,
+      merk:              eersteMatch.merk,
+      model:             eersteMatch.model,
+      bouwjaar,
+      type:              eersteMatch.type || brandstoftypeRdw,
+      varianten: matches.map(m => ({
+        variantNaam:        variantNaam(m),
+        batterijKwh:        m.batterijKwh        ?? null,
+        bruikbaarKwh:       m.bruikbaarKwh       ?? null,
+        laadVermogenAcKw:   m.laadVermogenAcKw   ?? null,
+        laadVermogenDcKw:   m.laadVermogenDcKw   ?? null,
+        elektrischBereikKm: m.elektrischBereikKm ?? null,
+      })),
+    });
+  }
+
+  const match = matches[0];
   return res.json({
     gevonden:           true,
     inDatabase:         true,
