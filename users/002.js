@@ -27,7 +27,7 @@
       growatt:   { piekKw: 0,  panelen: 0,  locatie: '—' },
     },
     apparaten: [
-      { naam: 'Auto (PHEV)',             icon: '🚗',       uren: 6,   vermogen: 2.3, type: 'laden',       automatisering: false, batterij: true,  volgorde: 1, grootverbruik: false, klaarOmTekst: 'Auto moet opgeladen zijn om',       korteTekst: '🔋 Opgeladen zijn om' },
+      { naam: 'Auto (PHEV)',             icon: '🚗',       uren: 3.5, vermogen: 7.2, type: 'laden',       automatisering: false, batterij: true,  volgorde: 1, grootverbruik: false, klaarOmTekst: 'Auto moet opgeladen zijn om',       korteTekst: '🔋 Opgeladen zijn om', batterijKwh: 25, omschrijving: 'Range Rover PHEV · 7.2 kW · ~25 kWh', autoInfo: { merk: 'Range Rover', type: 'PHEV', bouwjaar: 2021, batterijKwh: 25, laadVermogenKw: 7.2 } },
       { naam: 'Warmtepomp (warm water)', icon: '♨️',       uren: 2,   vermogen: 2.0, type: 'inschakelen', automatisering: false, batterij: false, volgorde: 6, grootverbruik: true,  klaarOmTekst: 'Warmtepomp moet gereed zijn om',    korteTekst: '♨️ Gereed zijn om',    opmerking: 'buffert warm water, niet voor verwarming' },
       { naam: 'Wasmachine',              icon: '👕',       uren: 2,   vermogen: 1.5, type: 'starten',     automatisering: false, batterij: false, volgorde: 3, grootverbruik: true,  klaarOmTekst: 'Wasmachine moet gereed zijn om',    korteTekst: '👕 Gereed zijn om',    comboMet: 'Droger' },
       { naam: 'Droger',                  icon: '🌀',       uren: 2,   vermogen: 2.5, type: 'starten',     automatisering: false, batterij: false, volgorde: 4, grootverbruik: true,  klaarOmTekst: 'Droger moet gereed zijn om',        korteTekst: '🌀 Gereed zijn om',    naApparaat: 'Wasmachine' },
