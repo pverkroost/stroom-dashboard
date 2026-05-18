@@ -93,6 +93,32 @@ Vereist refactor van `js/solar.js` en de api endpoints zodat de
 fetch + render dynamisch worden gedreven door de omvormers-array
 in `users/<id>.js`. Bouwt voort op de `integraties`-vlag uit v2.55.0.
 
+### #39 — Betaalmuur via Lemon Squeezy
+Implementeer freemium model met Lemon Squeezy als payment provider.
+
+**Freemium model**:
+- Gratis: stroomprijzen, grafiek, slim inplannen basis
+- Premium (€ 5/m of € 50/j): automatisch inplannen via Homey,
+  vertrekplanner, kenteken lookup, push notificaties
+
+**Implementatie**:
+- Lemon Squeezy account aanmaken op lemonsqueezy.com
+- Product aanmaken met maandelijks + jaarlijks abonnement
+- Webhook instellen die betaalstatus opslaat in Upstash Redis
+  per gebruiker: `premium_${userId}: true/false`
+- Bij app laden: check premium status via `/api/checkPremium`
+- Premium features conditioneel tonen/verbergen op basis van status
+
+**Voordelen Lemon Squeezy**:
+- BTW en facturatie automatisch afgehandeld voor EU
+- iDEAL, creditcard, SEPA ondersteund
+- Klant beheert zelf abonnement via klantenportaal
+- Goede Vercel integratie via webhooks
+
+**Volgorde**: eerst #27 (multi-tenant auth) bouwen, dan pas #39 — zonder
+echte gebruiker-identiteit kan een per-user `premium`-vlag niet betrouwbaar
+gekoppeld worden aan een betaling.
+
 ## OPEN VRAGEN
 
 - HomeWizard P1 aanschaffen? (€29, blokkeert #11 en #12)
