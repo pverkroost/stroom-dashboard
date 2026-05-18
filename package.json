@@ -1,7 +1,14 @@
 {
+  "scripts": {
+    "lint": "eslint js/**/*.js api/**/*.js",
+    "lint:fix": "eslint js/**/*.js api/**/*.js --fix"
+  },
   "dependencies": {
     "@upstash/qstash": "^2.10.1",
     "@upstash/redis": "^1.38.0",
     "node-fetch": "^2.6.9"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1"
   }
 }

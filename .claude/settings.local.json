@@ -34,7 +34,10 @@
       "Bash(node -e ' *)",
       "Bash(node -e \"const db=require\\('./ev-database.json'\\); console.log\\('Entries:', db.length\\); const ps=db.filter\\(e=>e.merk==='POLESTAR'\\); console.log\\('Polestar entries:', ps.length\\); ps.forEach\\(p=>console.log\\(' -', p.variant||p.model, p.bouwjaarVanaf+'-'+p.bouwjaarTot, p.batterijKwh+'kWh'\\)\\);\")",
       "Bash(node *)",
-      "Bash(awk '{print $5, $9}')"
+      "Bash(awk '{print $5, $9}')",
+      "Bash(npm run *)",
+      "Bash(grep -E \"^[A-Z]:|js[\\\\\\\\/]|api[\\\\\\\\/]\")",
+      "Bash(awk '/^[A-Z]:.+\\\\.js$/ {file=$0; next} /error/ {print file \":\" $0}')"
     ]
   }
 }

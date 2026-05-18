@@ -1,0 +1,25 @@
+{
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2021": true
+  },
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": 2021
+  },
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "off",
+    "no-undef": "warn",
+    "eqeqeq": "warn",
+    "no-duplicate-case": "error",
+    "no-unreachable": "error",
+    "no-empty": ["error", { "allowEmptyCatch": true }]
+  },
+  "globals": {
+    "window": "readonly",
+    "Chart": "readonly",
+    "CONFIG": "readonly"
+  }
+}

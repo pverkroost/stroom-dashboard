@@ -1469,7 +1469,7 @@ function bouwAutoConfigHtml(d, contextId) {
       ${bouwLaadtypeHtml(contextId, autoMaxKw)}
       <button onclick='bevestigAutoConfig(${dataAttr.replace(/'/g,"&#39;")}, "${contextId}")' style="margin-top:10px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>
     </div>
-    <script>setTimeout(function(){ updateWerkelijkVermogen('${contextId}', ${autoMaxKw ?? 'null'}); }, 0)<\/script>`;
+    <script>setTimeout(function(){ updateWerkelijkVermogen('${contextId}', ${autoMaxKw ?? 'null'}); }, 0)</script>`;
 }
 
 function bevestigAutoConfig(data, contextId) {
