@@ -168,6 +168,24 @@ function renderInstellingen() {
       </div>`;
     }).join('');
   }
+  const zpCard = document.getElementById('zonnepanelenCard');
+  if (zpCard) {
+    const p   = window.CONFIG.panelen || {};
+    const se  = p.solarEdge || {};
+    const gr  = p.growatt   || {};
+    const fmt = n => Number.isInteger(n) ? n.toString() : (n ?? 0).toString().replace('.', ',');
+    const rows = [];
+    if (heeftIntegratie('solarEdge') && (se.panelen || se.piekKw)) {
+      rows.push(`<div class="tarief-row"><span class="tarief-key">SolarEdge</span><span>${fmt(se.panelen)} panelen · ${fmt(se.piekKw)} kW · ${se.locatie || '—'}</span></div>`);
+    }
+    if (heeftIntegratie('growatt') && (gr.panelen || gr.piekKw)) {
+      rows.push(`<div class="tarief-row"><span class="tarief-key">Growatt</span><span>${fmt(gr.panelen)} panelen · ${fmt(gr.piekKw)} kW · ${gr.locatie || '—'}</span></div>`);
+    }
+    const totaalPanelen = (heeftIntegratie('solarEdge') ? (se.panelen || 0) : 0) + (heeftIntegratie('growatt') ? (gr.panelen || 0) : 0);
+    rows.push(`<div class="tarief-row"><span class="tarief-key">Totaal</span><span>${totaalPanelen} panelen · ${fmt(p.totaalPiekKw)} kW piek</span></div>`);
+    rows.push(`<div class="tarief-row"><span class="tarief-key">Rendement</span><span>${Math.round((p.rendement || 0) * 100)}%</span></div>`);
+    zpCard.innerHTML = rows.join('');
+  }
   if (typeof renderApparatenInstellingen === 'function') renderApparatenInstellingen();
   const gebruikerEl = document.getElementById('instGebruiker');
   const versieEl    = document.getElementById('instVersie');
@@ -210,5 +228,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.55.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.55.1 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
