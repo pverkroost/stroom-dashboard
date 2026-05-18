@@ -57,6 +57,36 @@ Client-side constanten in `js/config.js`:
 - `GROWATT_PEAK_KW` / `SOLAREDGE_PEAK_KW` — piekvermogens
 - `APPARATEN` — apparatenlijst met vermogen en draaiuren
 
+## How to get API credentials
+
+### Growatt
+- Ga naar https://server.growatt.com/index
+- Login → Setting → API Secret Key token
+- Kopieer de token → gebruik als `GROWATT_API_TOKEN_{userId}`
+
+### SolarEdge
+- Neem contact op met je installateur
+- Installateur gaat naar de betreffende installatie/residentie
+- Klik op het tandwiel (links)
+- Ga naar: Toegang installatie → Toegangsbeheer
+- Vink "API toegang" aan en sla op
+- API sleutel en Installatie-ID verschijnen na opslaan
+- Gebruik als `SOLAREDGE_API_KEY_{userId}` en `SOLAREDGE_SITE_ID_{userId}`
+
+### Homey
+- Open de Homey app
+- Ga naar: Instellingen → Algemeen → Homey ID
+- Gebruik als `HOMEY_CLOUD_ID_{userId}`
+
+### Sepagreen tarieven
+- Login op mijn.sepagreen.nl
+- Ga naar: Mijn contract → Tariefoverzicht
+- Noteer: inkoopvergoeding, energiebelasting, vaste kosten, teruglevertarief
+
+### HomeWizard P1 Meter
+- IP adres vinden via router DHCP tabel of HomeWizard app → apparaat → tandwiel
+- Lokale API: `http://[ip-adres]/api/v1/data` (geen authenticatie nodig)
+
 ## Prijsformule
 ```
 verbruiksprijs = (epex + OPSLAG + EB) × BTW
