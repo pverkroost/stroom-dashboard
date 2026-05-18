@@ -458,7 +458,7 @@ function renderApDetail() {
   const urenStr = (Number.isInteger(uren) ? uren : uren.toString().replace('.', ',')) + ' uur';
   const totaalKwh = (uren * vermogen).toFixed(1);
 
-  const heeftAutomatisering = !!ap.automatisering;
+  const heeftAutomatisering = !!ap.automatisering && heeftIntegratie('homey');
   const apparaat           = apSleutel(naam);
   const heeftBatterij       = !!ap.batterij;
   const vpOpen             = !!apDetailState._vertrekplannerOpen;

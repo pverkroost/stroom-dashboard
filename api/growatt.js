@@ -14,7 +14,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   if (!apiToken) {
-    return res.status(503).json({ error: 'Growatt niet geconfigureerd' });
+    return res.json({ beschikbaar: false });
   }
 
   try {

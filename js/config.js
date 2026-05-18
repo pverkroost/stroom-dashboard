@@ -30,6 +30,14 @@ const GROWATT_LOCATION      = window.CONFIG.panelen.growatt.locatie;
 // instellingen) automatisch doorwerken in alle code zonder rebind.
 const APPARATEN = window.CONFIG.apparaten;
 
+// Integraties — fallback alle true als user-config het veld mist (backward
+// compat). Gebruik heeftIntegratie() om secties conditioneel te tonen.
+const INTEGRATIES = Object.assign(
+  { solarEdge: true, growatt: true, homey: true },
+  window.CONFIG.integraties || {}
+);
+function heeftIntegratie(naam) { return INTEGRATIES[naam] === true; }
+
 const SOLAR_SOURCES = [
   { name: 'SolarEdge', type: 'solaredge' },
   // { name: 'Growatt', type: 'growatt' },

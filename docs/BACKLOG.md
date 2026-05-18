@@ -85,6 +85,14 @@
 - [ ] "Volledig gratis op zon"-badge als solar > apparaatverbruik
 - [ ] Geselecteerd-uur-lijn doortrekken op Morgen + Zon tab
 
+### #37 — Abstracte omvormer/integratie architectuur
+In plaats van hardcoded SolarEdge en Growatt, een generieke
+`omvormers[]` array per gebruiker met `type`, `naam` en credentials.
+Werkt dan voor elk merk omvormer zonder code aanpassingen.
+Vereist refactor van `js/solar.js` en de api endpoints zodat de
+fetch + render dynamisch worden gedreven door de omvormers-array
+in `users/<id>.js`. Bouwt voort op de `integraties`-vlag uit v2.55.0.
+
 ## OPEN VRAGEN
 
 - HomeWizard P1 aanschaffen? (€29, blokkeert #11 en #12)

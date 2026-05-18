@@ -125,13 +125,14 @@ setInterval(laadPrijzen, 5 * 60 * 1000);
 
 
 function renderInstellingen() {
-  const bronnen = [
+  const alleBronnen = [
     { naam: 'EPEX day-ahead',  sub: 'via EnergyZero', key: 'epex' },
-    { naam: 'SolarEdge API',   sub: null,             key: 'solar' },
-    { naam: 'Growatt OpenAPI', sub: null,             key: 'growatt' },
+    { naam: 'SolarEdge API',   sub: null,             key: 'solar',    integratie: 'solarEdge' },
+    { naam: 'Growatt OpenAPI', sub: null,             key: 'growatt',  integratie: 'growatt' },
     { naam: 'Open-Meteo',      sub: null,             key: 'openMeteo' },
-    { naam: 'Homey',           sub: null,             key: 'homey', homey: true },
+    { naam: 'Homey',           sub: null,             key: 'homey', homey: true, integratie: 'homey' },
   ];
+  const bronnen = alleBronnen.filter(b => !b.integratie || heeftIntegratie(b.integratie));
   const card = document.getElementById('integratiesCard');
   if (card) {
     card.innerHTML = bronnen.map(b => {
@@ -188,6 +189,7 @@ function toggleUurOverzicht() {
 }
 
 async function testHomeyVerbinding() {
+  if (!heeftIntegratie('homey')) { apiStatus.homey = null; return; }
   try {
     const r = await fetch(apiUrl('/api/homey?test=true'));
     const data = await r.json();
@@ -208,5 +210,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.54.1 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.55.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();

@@ -38,12 +38,12 @@ module.exports = async (req, res) => {
 
   const { pin, action } = req.body || {};
 
-  if (!pincode || pin !== pincode) {
-    return res.status(401).json({ error: 'Ongeldige pincode' });
+  if (!pincode || !homeyCloudId) {
+    return res.json({ beschikbaar: false });
   }
 
-  if (!homeyCloudId) {
-    return res.status(503).json({ error: 'Homey niet geconfigureerd' });
+  if (pin !== pincode) {
+    return res.status(401).json({ error: 'Ongeldige pincode' });
   }
 
   const webhookKey = action === 'stop' ? 'auto-laden-stoppen' : 'auto-laden-starten';

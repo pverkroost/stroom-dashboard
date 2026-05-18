@@ -135,13 +135,13 @@
   <div class="section" id="zonOmvormers" style="padding-bottom:24px">
     <div class="section-title">Omvormers</div>
     <div class="advies-grid">
-      <div class="advies-card">
+      <div class="advies-card" id="zonSECard">
         <div class="advies-device-icon">🔆</div>
         <div class="advies-device-naam">SolarEdge</div>
         <div class="advies-device-sub">8 panelen · garage/kantoor</div>
         <div id="zonSEContent"><div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div></div>
       </div>
-      <div class="advies-card">
+      <div class="advies-card" id="zonGrowattCard">
         <div class="advies-device-icon">🔋</div>
         <div class="advies-device-naam">Growatt</div>
         <div class="advies-device-sub">14 panelen · huis</div>
@@ -222,7 +222,7 @@
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.54.1</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.55.0</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -245,13 +245,13 @@
     var GELDIGE_USERS = ['001', '002'];
     var raw = new URLSearchParams(window.location.search).get('u') || '001';
     var userId = GELDIGE_USERS.indexOf(raw) >= 0 ? raw : '001';
-    document.write('<script src="users/' + userId + '.js?v=2.54.1"><\/script>');
+    document.write('<script src="users/' + userId + '.js?v=2.55.0"><\/script>');
   })();
 </script>
-<script src="js/config.js?v=2.54.1"></script>
-<script src="js/solar.js?v=2.54.1"></script>
-<script src="js/prijzen.js?v=2.54.1"></script>
-<script src="js/apparaten.js?v=2.54.1"></script>
-<script src="js/app.js?v=2.54.1"></script>
+<script src="js/config.js?v=2.55.0"></script>
+<script src="js/solar.js?v=2.55.0"></script>
+<script src="js/prijzen.js?v=2.55.0"></script>
+<script src="js/apparaten.js?v=2.55.0"></script>
+<script src="js/app.js?v=2.55.0"></script>
 </body>
 </html>

@@ -3,6 +3,11 @@
 (function() {
   window.CONFIG = {
     userId: '001',
+    integraties: {
+      solarEdge: true,
+      growatt:   true,
+      homey:     true,
+    },
     tarieven: {
       opslag:            0.03073, // € per kWh excl. btw
       eb:                0.09161, // energiebelasting € per kWh excl. btw

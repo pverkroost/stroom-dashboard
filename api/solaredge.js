@@ -20,7 +20,7 @@ module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
   if (!apiKey || !siteId) {
-    return res.status(503).json({ error: 'SolarEdge niet geconfigureerd' });
+    return res.json({ beschikbaar: false });
   }
 
   let url;

@@ -13,6 +13,7 @@ function aggregateToHourly(values) {
 }
 
 async function fetchSolarEdge() {
+  if (!heeftIntegratie('solarEdge')) return null;
   const dateStr = new Date().toISOString().slice(0, 10);
   const gisterenDate = new Date(); gisterenDate.setDate(gisterenDate.getDate() - 1);
   const gisterenStr  = gisterenDate.toISOString().slice(0, 10);
@@ -28,8 +29,8 @@ async function fetchSolarEdge() {
     return null;
   }
   const overviewData = await overviewRes.json().catch(() => null);
-  if (!overviewData || overviewData.error) {
-    console.warn('[SolarEdge] overview parse mislukt of bevat error', overviewData);
+  if (!overviewData || overviewData.error || overviewData.beschikbaar === false) {
+    console.warn('[SolarEdge] overview parse mislukt of niet beschikbaar', overviewData);
     return null;
   }
 
@@ -64,10 +65,11 @@ async function fetchSolarEdge() {
 }
 
 async function fetchGrowatt() {
+  if (!heeftIntegratie('growatt')) return null;
   const res = await fetch(apiUrl('/api/growatt')).catch(() => null);
   if (!res?.ok) return null;
   const data = await res.json().catch(() => null);
-  if (!data || data.error) return null;
+  if (!data || data.error || data.beschikbaar === false) return null;
   return {
     currentWatt: Math.max(0, data.currentPower || 0),
     totalEnergy: Math.max(0, data.totalEnergy  || 0),
@@ -171,6 +173,12 @@ function renderZonTab() {
   document.getElementById('zonMorgenCards').style.display      = 'none';
   document.getElementById('zonVandaagChartWrap').style.display = '';
   document.getElementById('zonMorgenChartWrap').style.display  = 'none';
+
+  // Verberg omvormer-kaartjes als de integratie uit staat voor deze gebruiker
+  const seCard = document.getElementById('zonSECard');
+  const grCard = document.getElementById('zonGrowattCard');
+  if (seCard) seCard.style.display = heeftIntegratie('solarEdge') ? '' : 'none';
+  if (grCard) grCard.style.display = heeftIntegratie('growatt')   ? '' : 'none';
 
   const nowH  = new Date().getHours();
   const kwh   = solarVandaag?.todayKwh ?? 0;

@@ -3,6 +3,11 @@
 (function() {
   window.CONFIG = {
     userId: '002',
+    integraties: {
+      solarEdge: true,
+      growatt:   false,
+      homey:     false,
+    },
     tarieven: {
       opslag:            0.03073, // voorlopig zelfde als 001
       eb:                0.09161,
