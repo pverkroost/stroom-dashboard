@@ -1,5 +1,52 @@
 # Energie IQ — Backlog
 
+## PRIORITEIT (eerst doen)
+
+### #0a — Volledige code review en kritieke fixes
+Review de volledige codebase op bugs, security issues, dode code en
+verbeterpunten. Loop alle bestanden door.
+
+**Bestanden**: `js/*.js`, `api/*.js`, `users/*.js`, `ev-database.json`,
+`vercel.json`, `package.json`
+
+**Reviewpunten per bestand**:
+1. Bugs of edge cases die mis kunnen gaan
+2. Security issues (exposed secrets, open endpoints, XSS etc.)
+3. Dode of dubbele code
+4. Inconsistenties tussen bestanden
+5. Performance verbeterpunten
+6. Wat compacter of efficiënter kan
+
+**Rapportage met prioriteit**:
+- **KRITIEK**: moet direct gefixed worden
+- **WAARSCHUWING**: moet opgepakt worden
+- **SUGGESTIE**: nice to have verbetering
+
+Fix alle KRITIEKE issues direct. Maak lijst van WAARSCHUWINGEN en
+SUGGESTIES als aparte backlog items.
+
+### #0b — ESLint globals en eqeqeq audit
+- Voeg alle cross-file globals toe aan `.eslintrc.json` (~30 functies/
+  constanten: `OPSLAG`, `APPARATEN`, `apiUrl`, `heeftIntegratie`, `chart`,
+  `solarVandaag`, `openMeteoVandaag`, `growattVandaag`, `cacheVandaag`,
+  `cacheMorgen`, `geselecteerdStartTijd`, `dagHStr`, `hStr`, `getTodayStart`,
+  `getTomorrowStart`, etc.)
+- Audit de 15 `eqeqeq` warnings: `x == null` patterns laten staan met
+  inline comment-uitleg, rest omzetten naar `===`/`!==`
+- Doel: 0 errors, minimale warnings (alleen `no-unused-vars` voor
+  cross-file exports blijft over)
+
+### #0c — "Over Energie IQ" tekst bijwerken
+Verwijder dubbele header (`ℹ️ Over Energie IQ` staat 2x in de instellingen-
+tab "Over"-sectie), update tekst naar huidige staat van de app:
+- Intro: "Energie IQ helpt je slim te plannen wanneer je apparaten gebruikt
+  op basis van je dynamische energiecontract."
+- Combineert: EnergyZero (EPEX prijzen), SolarEdge + Growatt (zonne-
+  opbrengst), Open-Meteo (zonverwachting), Homey webhooks (automatisering),
+  RDW Open Data + EV database (kenteken lookup)
+- Geen vermelding van interne technische implementaties (Vercel, Redis,
+  QStash etc. horen in README/CLAUDE.md, niet in de app-UI)
+
 ## BUGS (eerst fixen)
 
 - [x] **#1 Apparaatscherm te negatief** ✅ Afgerond in v2.53.0 — rode/oranje
