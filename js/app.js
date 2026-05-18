@@ -181,8 +181,11 @@ function renderInstellingen() {
     if (heeftIntegratie('growatt') && (gr.panelen || gr.piekKw)) {
       rows.push(`<div class="tarief-row"><span class="tarief-key">Growatt</span><span>${fmt(gr.panelen)} panelen · ${fmt(gr.piekKw)} kW · ${gr.locatie || '—'}</span></div>`);
     }
-    const totaalPanelen = (heeftIntegratie('solarEdge') ? (se.panelen || 0) : 0) + (heeftIntegratie('growatt') ? (gr.panelen || 0) : 0);
-    rows.push(`<div class="tarief-row"><span class="tarief-key">Totaal</span><span>${totaalPanelen} panelen · ${fmt(p.totaalPiekKw)} kW piek</span></div>`);
+    const aantalOmvormers = [heeftIntegratie('solarEdge'), heeftIntegratie('growatt')].filter(Boolean).length;
+    if (aantalOmvormers > 1) {
+      const totaalPanelen = (heeftIntegratie('solarEdge') ? (se.panelen || 0) : 0) + (heeftIntegratie('growatt') ? (gr.panelen || 0) : 0);
+      rows.push(`<div class="tarief-row"><span class="tarief-key">Totaal</span><span>${totaalPanelen} panelen · ${fmt(p.totaalPiekKw)} kW piek</span></div>`);
+    }
     rows.push(`<div class="tarief-row"><span class="tarief-key">Rendement</span><span>${Math.round((p.rendement || 0) * 100)}%</span></div>`);
     zpCard.innerHTML = rows.join('');
   }
@@ -228,5 +231,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.55.1 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.55.2 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
