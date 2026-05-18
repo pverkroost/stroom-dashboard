@@ -23,7 +23,9 @@
       "Bash(node --check users/002.js)",
       "Bash(node --check api/solaredge.js)",
       "Bash(node --check api/growatt.js)",
-      "Bash(node --check api/homey.js)"
+      "Bash(node --check api/homey.js)",
+      "Bash(node --check api/planLaden.js)",
+      "Bash(node --check api/cronLaden.js)"
     ]
   }
 }

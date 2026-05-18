@@ -1,9 +1,10 @@
 const fetch = require('node-fetch');
 
-function userSlug(req) {
-  const userId  = (req.query?.u || '001').toString();
-  const mapping = JSON.parse(process.env.USERS_MAPPING || '{"001":"pieter"}');
-  return mapping[userId] || 'pieter';
+const GELDIGE_USERS = ['001', '002'];
+
+function veiligUserId(req) {
+  const raw = (req.query?.u || req.body?.u || '001').toString();
+  return GELDIGE_USERS.includes(raw) ? raw : '001';
 }
 
 module.exports = async (req, res) => {
@@ -12,10 +13,9 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const slug         = userSlug(req);
-  const SUFFIX       = slug.toUpperCase();
-  const pincode      = process.env[`APP_PINCODE_${SUFFIX}`];
-  const homeyCloudId = process.env[`HOMEY_CLOUD_ID_${SUFFIX}`];
+  const userId       = veiligUserId(req);
+  const pincode      = process.env[`APP_PINCODE_${userId}`];
+  const homeyCloudId = process.env[`HOMEY_CLOUD_ID_${userId}`];
 
   if (req.method === 'GET' && req.query?.test === 'true') {
     if (!homeyCloudId) return res.json({ verbonden: false });

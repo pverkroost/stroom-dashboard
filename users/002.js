@@ -11,8 +11,8 @@
       teruglevering:     0.0353,
     },
     panelen: {
-      lat:           52.3676,    // Amsterdam placeholder
-      lon:           4.9041,
+      lat:           52.3667, // standaard Nijverdal — aanpassen bij onboarding
+      lon:           6.4667,
       totaalPiekKw:  4.0,
       rendement:     0.8,
       solarEdge: { piekKw: 4.0, panelen: 10, locatie: 'dak' },

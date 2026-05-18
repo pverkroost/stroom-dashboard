@@ -1,14 +1,15 @@
 const fetch = require('node-fetch');
 
-function userSlug(req) {
-  const userId  = (req.query?.u || '001').toString();
-  const mapping = JSON.parse(process.env.USERS_MAPPING || '{"001":"pieter"}');
-  return mapping[userId] || 'pieter';
+const GELDIGE_USERS = ['001', '002'];
+
+function veiligUserId(req) {
+  const raw = (req.query?.u || '001').toString();
+  return GELDIGE_USERS.includes(raw) ? raw : '001';
 }
 
 module.exports = async (req, res) => {
-  const slug     = userSlug(req);
-  const apiToken = process.env[`GROWATT_API_TOKEN_${slug.toUpperCase()}`];
+  const userId   = veiligUserId(req);
+  const apiToken = process.env[`GROWATT_API_TOKEN_${userId}`];
 
   res.setHeader('Access-Control-Allow-Origin', '*');
 

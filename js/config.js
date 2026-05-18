@@ -14,9 +14,9 @@ const BTW                  = window.CONFIG.tarieven.btw;
 const VASTE_KOSTEN_PER_DAG = window.CONFIG.tarieven.vasteKostenPerDag;
 const TERUGLEVERING_OPSLAG = window.CONFIG.tarieven.teruglevering;
 
-// Panelen / locatie
-const LAT                   = window.CONFIG.panelen.lat;
-const LON                   = window.CONFIG.panelen.lon;
+// Panelen / locatie — fallback Nijverdal als user-config het veld mist
+const LAT                   = window.CONFIG.panelen.lat ?? 52.3667;
+const LON                   = window.CONFIG.panelen.lon ?? 6.4667;
 const TOTAL_PEAK_KW         = window.CONFIG.panelen.totaalPiekKw;
 const PANEL_EFFICIENCY      = window.CONFIG.panelen.rendement;
 const SOLAREDGE_PEAK_KW     = window.CONFIG.panelen.solarEdge.piekKw;
@@ -36,7 +36,8 @@ const SOLAR_SOURCES = [
 ];
 
 // Hangt elke fetch-call naar /api/... aan de juiste gebruiker. Server-side
-// vertaalt /api/* de userId via USERS_MAPPING naar de juiste env-var keys.
+// gebruikt /api/* de userId direct als suffix voor env-var keys
+// (bv. SOLAREDGE_API_KEY_001) — geen mapping nodig.
 function apiUrl(path) {
   const sep = path.includes('?') ? '&' : '?';
   return path + sep + 'u=' + encodeURIComponent(window.CONFIG.userId);

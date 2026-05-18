@@ -6,15 +6,15 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-function userSlug(req) {
-  const userId  = (req.query?.u || (req.body && req.body.userId) || '001').toString();
-  const mapping = JSON.parse(process.env.USERS_MAPPING || '{"001":"pieter"}');
-  const slug    = mapping[userId] || 'pieter';
-  return { userId, slug };
+const GELDIGE_USERS = ['001', '002'];
+
+function veiligUserId(req) {
+  const raw = (req.query?.u || req.body?.u || '001').toString();
+  return GELDIGE_USERS.includes(raw) ? raw : '001';
 }
 
-function sleutel(slug, apparaat) {
-  return 'laadplanning_' + slug + '_' + (apparaat || 'default');
+function sleutel(userId, apparaat) {
+  return 'laadplanning_' + userId + '_' + (apparaat || 'default');
 }
 
 async function planQStash(userId, startTijd, stopTijd, apparaat) {
@@ -47,12 +47,12 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { userId, slug } = userSlug(req);
-  const apparaat         = req.query?.apparaat || 'default';
-  const expectedPin      = process.env[`APP_PINCODE_${slug.toUpperCase()}`];
+  const userId      = veiligUserId(req);
+  const apparaat    = req.query?.apparaat || 'default';
+  const expectedPin = process.env[`APP_PINCODE_${userId}`];
 
   if (req.method === 'GET') {
-    const data = await redis.get(sleutel(slug, apparaat));
+    const data = await redis.get(sleutel(userId, apparaat));
     if (!data) return res.json({ actief: false });
     const planning = typeof data === 'string' ? JSON.parse(data) : data;
     return res.json(planning);
@@ -64,14 +64,14 @@ module.exports = async (req, res) => {
     const ap = apBody || apparaat;
     if (!startTijd || !stopTijd) return res.status(400).json({ error: 'startTijd en stopTijd verplicht' });
 
-    await redis.set(sleutel(slug, ap), JSON.stringify({ actief: true, startTijd, stopTijd, apparaat: ap }));
+    await redis.set(sleutel(userId, ap), JSON.stringify({ actief: true, startTijd, stopTijd, apparaat: ap }));
     await planQStash(userId, startTijd, stopTijd, ap);
 
     return res.json({ success: true });
   }
 
   if (req.method === 'DELETE') {
-    await redis.del(sleutel(slug, apparaat));
+    await redis.del(sleutel(userId, apparaat));
     return res.json({ success: true });
   }
 

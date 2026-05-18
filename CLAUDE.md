@@ -22,20 +22,21 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/homey.js` — Homey cloud webhook proxy + connectivity check
   - `api/planLaden.js` — plant laad-actie via QStash (publishJSON met delay)
   - `api/cronLaden.js` — wordt door QStash aangeroepen om Homey-webhook te triggeren
-- **State**: laadplanningen in Upstash Redis (sleutel `laadplanning_<slug>_<apparaat>`)
+- **State**: laadplanningen in Upstash Redis (sleutel `laadplanning_<userId>_<apparaat>`, bv. `laadplanning_001_autophev`)
 
 ## Multi-user (sinds v2.54.0)
 Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
 - **`users/<id>.js`** zet `window.CONFIG` (niet-gevoelige config: tarieven, panelen, apparaten).
   Geldige user-id's hardcoded in `index.html` inline loader; onbekend → fallback naar `001`.
-- **Server-side mapping** via env var `USERS_MAPPING={"001":"pieter","002":"jan"}` →
-  per-user env vars zoals `SOLAREDGE_API_KEY_PIETER`. Mapping en slugs nooit terug naar de browser.
+- **Server-side**: alle `/api/*` endpoints lezen `?u=<id>` (of body), valideren tegen
+  `GELDIGE_USERS = ['001', '002']`, en lezen env vars met userId-suffix
+  (`process.env[`SOLAREDGE_API_KEY_${userId}`]`). Geen mapping-tabel — userId IS de suffix.
 - **Frontend fetch helper**: `apiUrl(path)` in `js/config.js` hangt `?u=<id>` aan elke `/api/*` call.
 - **QStash → cronLaden**: body bevat ook `userId` zodat cronLaden de juiste Homey cloud-id pakt
   bij de scheduled webhook (na signature-verificatie).
-- **Toevoegen nieuwe user**: maak `users/<nieuw-id>.js`, update `GELDIGE_USERS` array in `index.html`,
-  vul `USERS_MAPPING` + per-user env vars in Vercel. Geen auth; URL-id's zijn raadbaar
-  (volgt #19 in backlog).
+- **Toevoegen nieuwe user**: maak `users/<nieuw-id>.js`, update `GELDIGE_USERS` array in
+  zowel `index.html` als alle 5 API endpoints, vul per-user env vars in Vercel.
+  Geen auth; URL-id's zijn raadbaar (volgt #19 in backlog).
 
 ## Externe APIs
 - **EnergyZero** (`api.energyzero.nl/v1/energyprices`) — EPEX day-ahead prijzen, excl. btw
@@ -52,7 +53,6 @@ Alle in Settings → Environment Variables van het Vercel-project:
 
 | Variable                      | Waarde / omschrijving                                    |
 |-------------------------------|----------------------------------------------------------|
-| `USERS_MAPPING`               | JSON-mapping userId → slug, bv. `{"001":"pieter","002":"jan"}` |
 | `APP_URL`                     | Volledige basis-URL voor self-callbacks vanuit QStash    |
 | `QSTASH_TOKEN`                | Upstash QStash publish token                             |
 | `QSTASH_CURRENT_SIGNING_KEY`  | Huidige QStash signing key (signature verificatie cronLaden) |
@@ -60,15 +60,31 @@ Alle in Settings → Environment Variables van het Vercel-project:
 | `UPSTASH_REDIS_REST_URL`      | Upstash Redis REST endpoint                              |
 | `UPSTASH_REDIS_REST_TOKEN`    | Upstash Redis REST token                                 |
 
-**Per gebruiker (suffix = uppercase slug, bv. `_PIETER`, `_JAN`):**
+**Per gebruiker (suffix = userId, bv. `_001`, `_002`):**
 
 | Variable suffix               | Omschrijving                                             |
 |-------------------------------|----------------------------------------------------------|
-| `GROWATT_API_TOKEN_<SLUG>`    | Growatt OpenAPI token per user                           |
-| `SOLAREDGE_API_KEY_<SLUG>`    | SolarEdge Monitoring API key per user                    |
-| `SOLAREDGE_SITE_ID_<SLUG>`    | SolarEdge site ID per user                               |
-| `HOMEY_CLOUD_ID_<SLUG>`       | Homey cloud-id per user                                  |
-| `APP_PINCODE_<SLUG>`          | Pincode voor `/api/homey` POST + `/api/planLaden` POST   |
+| `GROWATT_API_TOKEN_<NNN>`     | Growatt OpenAPI token per user                           |
+| `SOLAREDGE_API_KEY_<NNN>`     | SolarEdge Monitoring API key per user                    |
+| `SOLAREDGE_SITE_ID_<NNN>`     | SolarEdge site ID per user                               |
+| `HOMEY_CLOUD_ID_<NNN>`        | Homey cloud-id per user                                  |
+| `APP_PINCODE_<NNN>`           | Pincode voor `/api/homey` POST + `/api/planLaden` POST   |
+
+### Vercel env vars setup (overgang naar genummerde suffixen)
+
+Hernoemen (nieuwe maken met waarde van oude → Vercel redeploy → oude verwijderen):
+- `GROWATT_API_TOKEN` → `GROWATT_API_TOKEN_001`
+- `SOLAREDGE_API_KEY` → `SOLAREDGE_API_KEY_001`
+- `SOLAREDGE_SITE_ID` → `SOLAREDGE_SITE_ID_001`
+- `HOMEY_CLOUD_ID` → `HOMEY_CLOUD_ID_001`
+- `APP_PINCODE` → `APP_PINCODE_001`
+
+Nieuw toevoegen (leeg laten tot user 002 echte keys heeft):
+- `GROWATT_API_TOKEN_002`, `SOLAREDGE_API_KEY_002`, `SOLAREDGE_SITE_ID_002`,
+  `HOMEY_CLOUD_ID_002`, `APP_PINCODE_002`
+
+Vercel heeft geen rename-knop; maak de nieuwe `_001` aan, trigger redeploy,
+verwijder daarna de oude variabele zonder suffix.
 
 Client-side constanten staan per-user in `users/<id>.js` (zet `window.CONFIG`):
 - `tarieven.opslag` / `eb` / `btw` / `vasteKostenPerDag` / `teruglevering`
