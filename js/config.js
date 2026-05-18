@@ -14,12 +14,14 @@ const BTW                  = window.CONFIG.tarieven.btw;
 const VASTE_KOSTEN_PER_DAG = window.CONFIG.tarieven.vasteKostenPerDag;
 const TERUGLEVERING_OPSLAG = window.CONFIG.tarieven.teruglevering;
 
-// Panelen / locatie — fallback Nijverdal als user-config het veld mist
+// Panelen / locatie — fallback Nijverdal als user-config het veld mist.
+// TOTAL_PEAK_KW en SOLAREDGE_PEAK_KW zijn let-bindings omdat app.js ze
+// runtime kan overschrijven met de waarde uit /api/solaredge?type=details.
 const LAT                   = window.CONFIG.panelen.lat ?? 52.3667;
 const LON                   = window.CONFIG.panelen.lon ?? 6.4667;
-const TOTAL_PEAK_KW         = window.CONFIG.panelen.totaalPiekKw;
+let   TOTAL_PEAK_KW         = window.CONFIG.panelen.totaalPiekKw;
 const PANEL_EFFICIENCY      = window.CONFIG.panelen.rendement;
-const SOLAREDGE_PEAK_KW     = window.CONFIG.panelen.solarEdge.piekKw;
+let   SOLAREDGE_PEAK_KW     = window.CONFIG.panelen.solarEdge.piekKw;
 const SOLAREDGE_PANEL_COUNT = window.CONFIG.panelen.solarEdge.panelen;
 const SOLAREDGE_LOCATION    = window.CONFIG.panelen.solarEdge.locatie;
 const GROWATT_PEAK_KW       = window.CONFIG.panelen.growatt.piekKw;

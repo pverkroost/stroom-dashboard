@@ -120,8 +120,48 @@ async function laadPrijzen() {
   }
 }
 
+// Overschrijf SolarEdge piekKw met de waarde uit /details (single source of
+// truth = SolarEdge zelf). Eerst synchroon uit sessionStorage zodat de eerste
+// render direct goed is; dan async vers ophalen en bij verandering opnieuw
+// rerenderen. Bij API-uitval blijft de config-waarde gewoon staan.
+function _seCacheKey() { return 'seDetails_' + window.CONFIG.userId; }
+
+function pasOmvormerCapaciteitToe(peakPower) {
+  const peak = parseFloat(peakPower);
+  if (!peak || peak <= 0) return false;
+  const oud = window.CONFIG.panelen.solarEdge.piekKw || 0;
+  if (Math.abs(oud - peak) < 0.01) return false;
+  window.CONFIG.panelen.solarEdge.piekKw = peak;
+  const grPiek = heeftIntegratie('growatt') ? (window.CONFIG.panelen.growatt?.piekKw || 0) : 0;
+  window.CONFIG.panelen.totaalPiekKw = peak + grPiek;
+  SOLAREDGE_PEAK_KW = peak;
+  TOTAL_PEAK_KW     = peak + grPiek;
+  return true;
+}
+
+async function refreshOmvormerCapaciteit() {
+  if (!heeftIntegratie('solarEdge')) return false;
+  try {
+    const r    = await fetch(apiUrl('/api/solaredge?type=details'));
+    const data = await r.json();
+    if (!data || data.beschikbaar === false || !data.peakPower) return false;
+    const veranderd = pasOmvormerCapaciteitToe(data.peakPower);
+    try { sessionStorage.setItem(_seCacheKey(), String(parseFloat(data.peakPower))); } catch {}
+    return veranderd;
+  } catch {
+    return false;
+  }
+}
+
+// Bootstrap: gebruik cache zodat eerste render meteen klopt
+try {
+  const cached = sessionStorage.getItem(_seCacheKey());
+  if (cached && heeftIntegratie('solarEdge')) pasOmvormerCapaciteitToe(cached);
+} catch {}
+
 laadPrijzen();
 setInterval(laadPrijzen, 5 * 60 * 1000);
+refreshOmvormerCapaciteit().then(veranderd => { if (veranderd) laadPrijzen(); });
 
 
 function renderInstellingen() {
@@ -231,5 +271,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.55.2 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.56.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
