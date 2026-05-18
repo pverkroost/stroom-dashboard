@@ -20,6 +20,9 @@
       lon:           6.4667,
       totaalPiekKw:  4.0,
       rendement:     0.8,
+      // Onboarding-tip: na het zetten van SOLAREDGE_API_KEY_002 + SOLAREDGE_SITE_ID_002 in Vercel,
+      // haal piekvermogen automatisch op via: GET /api/solaredge?type=details&u=002
+      // → response bevat peakPower (kWp) en name. Plak peakPower hieronder als piekKw.
       solarEdge: { piekKw: 4.0, panelen: 10, locatie: 'dak' },
       growatt:   { piekKw: 0,   panelen: 0,  locatie: '—' },
     },
