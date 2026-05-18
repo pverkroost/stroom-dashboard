@@ -1,13 +1,21 @@
 const fetch = require('node-fetch');
 
+function userSlug(req) {
+  const userId  = (req.query?.u || '001').toString();
+  const mapping = JSON.parse(process.env.USERS_MAPPING || '{"001":"pieter"}');
+  return mapping[userId] || 'pieter';
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const pincode      = process.env.APP_PINCODE;
-  const homeyCloudId = process.env.HOMEY_CLOUD_ID;
+  const slug         = userSlug(req);
+  const SUFFIX       = slug.toUpperCase();
+  const pincode      = process.env[`APP_PINCODE_${SUFFIX}`];
+  const homeyCloudId = process.env[`HOMEY_CLOUD_ID_${SUFFIX}`];
 
   if (req.method === 'GET' && req.query?.test === 'true') {
     if (!homeyCloudId) return res.json({ verbonden: false });
@@ -30,8 +38,12 @@ module.exports = async (req, res) => {
 
   const { pin, action } = req.body || {};
 
-  if (pin !== pincode) {
+  if (!pincode || pin !== pincode) {
     return res.status(401).json({ error: 'Ongeldige pincode' });
+  }
+
+  if (!homeyCloudId) {
+    return res.status(503).json({ error: 'Homey niet geconfigureerd' });
   }
 
   const webhookKey = action === 'stop' ? 'auto-laden-stoppen' : 'auto-laden-starten';

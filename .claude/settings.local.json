@@ -18,7 +18,12 @@
       "Bash(node --check \"C:\\\\Users\\\\pverk\\\\OneDrive - Pivit Consultancy B.V\\\\git-projecten\\\\stroom-dashboard\\\\js\\\\app.js\")",
       "Bash(node --check netlify/functions/growatt.js)",
       "Bash(git *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(node --check users/001.js)",
+      "Bash(node --check users/002.js)",
+      "Bash(node --check api/solaredge.js)",
+      "Bash(node --check api/growatt.js)",
+      "Bash(node --check api/homey.js)"
     ]
   }
 }

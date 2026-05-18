@@ -22,7 +22,20 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/homey.js` — Homey cloud webhook proxy + connectivity check
   - `api/planLaden.js` — plant laad-actie via QStash (publishJSON met delay)
   - `api/cronLaden.js` — wordt door QStash aangeroepen om Homey-webhook te triggeren
-- **State**: laadplanningen in Upstash Redis (sleutel `laadplanning_<apparaat>`)
+- **State**: laadplanningen in Upstash Redis (sleutel `laadplanning_<slug>_<apparaat>`)
+
+## Multi-user (sinds v2.54.0)
+Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
+- **`users/<id>.js`** zet `window.CONFIG` (niet-gevoelige config: tarieven, panelen, apparaten).
+  Geldige user-id's hardcoded in `index.html` inline loader; onbekend → fallback naar `001`.
+- **Server-side mapping** via env var `USERS_MAPPING={"001":"pieter","002":"jan"}` →
+  per-user env vars zoals `SOLAREDGE_API_KEY_PIETER`. Mapping en slugs nooit terug naar de browser.
+- **Frontend fetch helper**: `apiUrl(path)` in `js/config.js` hangt `?u=<id>` aan elke `/api/*` call.
+- **QStash → cronLaden**: body bevat ook `userId` zodat cronLaden de juiste Homey cloud-id pakt
+  bij de scheduled webhook (na signature-verificatie).
+- **Toevoegen nieuwe user**: maak `users/<nieuw-id>.js`, update `GELDIGE_USERS` array in `index.html`,
+  vul `USERS_MAPPING` + per-user env vars in Vercel. Geen auth; URL-id's zijn raadbaar
+  (volgt #19 in backlog).
 
 ## Externe APIs
 - **EnergyZero** (`api.energyzero.nl/v1/energyprices`) — EPEX day-ahead prijzen, excl. btw
@@ -35,27 +48,40 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
 ## Environment variables (Vercel)
 Alle in Settings → Environment Variables van het Vercel-project:
 
+**Globaal (gedeeld over users):**
+
 | Variable                      | Waarde / omschrijving                                    |
 |-------------------------------|----------------------------------------------------------|
-| `GROWATT_API_TOKEN`           | Growatt OpenAPI token                                    |
-| `SOLAREDGE_API_KEY`           | SolarEdge Monitoring API key                             |
-| `SOLAREDGE_SITE_ID`           | SolarEdge site ID                                        |
-| `HOMEY_CLOUD_ID`              | Homey cloud-id voor `<cloud-id>.connect.athom.com`       |
-| `APP_PINCODE`                 | Pincode voor authenticatie op `/api/homey` POST          |
+| `USERS_MAPPING`               | JSON-mapping userId → slug, bv. `{"001":"pieter","002":"jan"}` |
 | `APP_URL`                     | Volledige basis-URL voor self-callbacks vanuit QStash    |
 | `QSTASH_TOKEN`                | Upstash QStash publish token                             |
-| `UPSTASH_REDIS_REST_URL`      | Upstash Redis REST endpoint                              |
-| `UPSTASH_REDIS_REST_TOKEN`    | Upstash Redis REST token                                 |
 | `QSTASH_CURRENT_SIGNING_KEY`  | Huidige QStash signing key (signature verificatie cronLaden) |
 | `QSTASH_NEXT_SIGNING_KEY`     | Volgende QStash signing key (key rotation)               |
+| `UPSTASH_REDIS_REST_URL`      | Upstash Redis REST endpoint                              |
+| `UPSTASH_REDIS_REST_TOKEN`    | Upstash Redis REST token                                 |
 
-Client-side constanten staan in `js/config.js` (niet als env var):
-- `LAT` / `LON` — locatie voor Open-Meteo
-- `GROWATT_PEAK_KW` / `SOLAREDGE_PEAK_KW` — piekvermogens panelen
-- `APPARATEN` — lijst van apparaten (auto, wasmachine, etc.) met vermogen en draaiuren
+**Per gebruiker (suffix = uppercase slug, bv. `_PIETER`, `_JAN`):**
 
-## Tarieven (Sepa Green, excl. btw)
-Bron: laatste tariefblad. Aanpassen in zowel `js/config.js` als de Tarieven-sectie van `index.html`.
+| Variable suffix               | Omschrijving                                             |
+|-------------------------------|----------------------------------------------------------|
+| `GROWATT_API_TOKEN_<SLUG>`    | Growatt OpenAPI token per user                           |
+| `SOLAREDGE_API_KEY_<SLUG>`    | SolarEdge Monitoring API key per user                    |
+| `SOLAREDGE_SITE_ID_<SLUG>`    | SolarEdge site ID per user                               |
+| `HOMEY_CLOUD_ID_<SLUG>`       | Homey cloud-id per user                                  |
+| `APP_PINCODE_<SLUG>`          | Pincode voor `/api/homey` POST + `/api/planLaden` POST   |
+
+Client-side constanten staan per-user in `users/<id>.js` (zet `window.CONFIG`):
+- `tarieven.opslag` / `eb` / `btw` / `vasteKostenPerDag` / `teruglevering`
+- `panelen.lat` / `lon` — locatie voor Open-Meteo
+- `panelen.solarEdge.piekKw` + `growatt.piekKw` — piekvermogens panelen
+- `apparaten` — lijst met vermogen, draaiuren, automatisering-vlag etc.
+
+`js/config.js` is een thin compat-laag die `window.CONFIG.*` exposeert als
+oude constants (`OPSLAG`, `EB`, `LAT`, `APPARATEN`, …) zodat bestaande code
+ongewijzigd werkt. Pas waarden aan in het juiste `users/<id>.js` bestand.
+
+## Tarieven (Sepa Green, excl. btw) — referentie voor 001
+Bron: laatste tariefblad. Aanpassen in `users/001.js` en de Tarieven-sectie van `index.html`.
 
 | Tarief                        | Waarde            | Constante in code        |
 |-------------------------------|-------------------|--------------------------|

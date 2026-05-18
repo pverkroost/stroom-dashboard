@@ -213,6 +213,7 @@
   <div class="section" style="padding-bottom:24px">
     <div class="section-title">App info</div>
     <div class="tarief-card">
+      <div class="tarief-row"><span class="tarief-key">Gebruiker</span><span id="instGebruiker">—</span></div>
       <div class="tarief-row"><span class="tarief-key">Versie</span><span id="instVersie">—</span></div>
       <div class="tarief-row"><span class="tarief-key">Laatste update</span><span id="instLaatsteUpdate">—</span></div>
     </div>
@@ -221,7 +222,7 @@
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.53.0</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.54.0</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -235,10 +236,22 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="js/config.js?v=2.53.0"></script>
-<script src="js/solar.js?v=2.53.0"></script>
-<script src="js/prijzen.js?v=2.53.0"></script>
-<script src="js/apparaten.js?v=2.53.0"></script>
-<script src="js/app.js?v=2.53.0"></script>
+<script>
+  // Multi-user: laad users/<id>.js synchroon vóór de rest. Ongeldige/onbekende
+  // ?u-waarden vallen terug op '001'. document.write blokkeert het parsen tot
+  // de injected script tag geladen is — zodat window.CONFIG er staat tegen
+  // de tijd dat js/config.js draait.
+  (function() {
+    var GELDIGE_USERS = ['001', '002'];
+    var raw = new URLSearchParams(window.location.search).get('u') || '001';
+    var userId = GELDIGE_USERS.indexOf(raw) >= 0 ? raw : '001';
+    document.write('<script src="users/' + userId + '.js?v=2.54.0"><\/script>');
+  })();
+</script>
+<script src="js/config.js?v=2.54.0"></script>
+<script src="js/solar.js?v=2.54.0"></script>
+<script src="js/prijzen.js?v=2.54.0"></script>
+<script src="js/apparaten.js?v=2.54.0"></script>
+<script src="js/app.js?v=2.54.0"></script>
 </body>
 </html>

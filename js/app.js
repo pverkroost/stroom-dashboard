@@ -168,8 +168,10 @@ function renderInstellingen() {
     }).join('');
   }
   if (typeof renderApparatenInstellingen === 'function') renderApparatenInstellingen();
-  const versieEl = document.getElementById('instVersie');
-  const updateEl = document.getElementById('instLaatsteUpdate');
+  const gebruikerEl = document.getElementById('instGebruiker');
+  const versieEl    = document.getElementById('instVersie');
+  const updateEl    = document.getElementById('instLaatsteUpdate');
+  if (gebruikerEl) gebruikerEl.textContent = window.CONFIG.userId;
   if (versieEl) versieEl.textContent = document.getElementById('versionStamp')?.textContent || '—';
   if (updateEl) {
     const lu = document.getElementById('lastUpdate')?.textContent || '—';
@@ -187,7 +189,7 @@ function toggleUurOverzicht() {
 
 async function testHomeyVerbinding() {
   try {
-    const r = await fetch('/api/homey?test=true');
+    const r = await fetch(apiUrl('/api/homey?test=true'));
     const data = await r.json();
     apiStatus.homey = { ok: !!data.verbonden };
   } catch {
@@ -206,5 +208,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.51.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.54.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();

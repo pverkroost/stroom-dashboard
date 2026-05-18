@@ -1,7 +1,20 @@
 const fetch = require('node-fetch');
 
+function userSlug(req) {
+  const userId  = (req.query?.u || '001').toString();
+  const mapping = JSON.parse(process.env.USERS_MAPPING || '{"001":"pieter"}');
+  return mapping[userId] || 'pieter';
+}
+
 module.exports = async (req, res) => {
-  const apiToken = process.env.GROWATT_API_TOKEN;
+  const slug     = userSlug(req);
+  const apiToken = process.env[`GROWATT_API_TOKEN_${slug.toUpperCase()}`];
+
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
+  if (!apiToken) {
+    return res.status(503).json({ error: 'Growatt niet geconfigureerd' });
+  }
 
   try {
     const r    = await fetch(
@@ -12,7 +25,6 @@ module.exports = async (req, res) => {
     const json = JSON.parse(text);
     const plant = json?.data?.plants?.[0];
 
-    res.setHeader('Access-Control-Allow-Origin', '*');
     res.json({
       currentPower:    parseFloat(plant?.current_power) || 0,
       totalEnergy:     parseFloat(plant?.total_energy)  || 0,

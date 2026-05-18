@@ -798,7 +798,7 @@ async function laadPlanningStatus(apparaat) {
   const btn      = document.getElementById('planInladenBtn');
   if (!statusEl) return;
   try {
-    const r    = await fetch('/api/planLaden?apparaat=' + (apparaat || ''));
+    const r    = await fetch(apiUrl('/api/planLaden?apparaat=' + (apparaat || '')));
     const data = await r.json();
     if (data.actief) {
       _planningActief = true;
@@ -848,7 +848,7 @@ async function planInladen(stilUpdate = false) {
 
   if (stilUpdate) {
     try {
-      const r = await fetch('/api/planLaden', {
+      const r = await fetch(apiUrl('/api/planLaden'), {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ startTijd: startTijd.toISOString(), stopTijd: stopTijd.toISOString(), apparaat, pin: apDetailState._cachedPlanPin })
@@ -885,7 +885,7 @@ async function annuleerPlanning(apparaat) {
   if (!apparaat && apDetailState) apparaat = apSleutel(apDetailState.ap.naam);
   const statusEl = document.getElementById('planningStatusEl');
   try {
-    const r    = await fetch('/api/planLaden?apparaat=' + (apparaat || ''), { method: 'DELETE' });
+    const r    = await fetch(apiUrl('/api/planLaden?apparaat=' + (apparaat || '')), { method: 'DELETE' });
     const data = await r.json();
     if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
     _planningActief = false;
@@ -905,7 +905,7 @@ let _homeyPendingAction = null;
 function homeyActie(action) {
   if (action === 'start' && _planningActief) {
     const ap = apDetailState ? apSleutel(apDetailState.ap.naam) : 'autophev';
-    fetch('/api/planLaden?apparaat=' + ap, { method: 'DELETE' }).then(() => {
+    fetch(apiUrl('/api/planLaden?apparaat=' + ap), { method: 'DELETE' }).then(() => {
       _planningActief = false;
       const statusEl = document.getElementById('planningStatusEl');
       if (statusEl) statusEl.style.display = 'none';
@@ -945,7 +945,7 @@ async function bevestigPincode() {
       const startTijd = new Date(startP.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
       const stopTijd  = new Date(startTijd.getTime() + ap.uren * 3600000);
 
-      const r = await fetch('/api/planLaden', {
+      const r = await fetch(apiUrl('/api/planLaden'), {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ startTijd: startTijd.toISOString(), stopTijd: stopTijd.toISOString(), apparaat, pin })
@@ -963,7 +963,7 @@ async function bevestigPincode() {
     }
 
     // 'start' of 'stop' — Homey webhook direct
-    const r = await fetch('/api/homey', {
+    const r = await fetch(apiUrl('/api/homey'), {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ pin, action })

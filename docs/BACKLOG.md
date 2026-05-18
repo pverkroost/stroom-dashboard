@@ -66,10 +66,13 @@
 
 ## MULTI-USER
 
-- [ ] **#18 Eerste externe gebruiker (simpele aanpak)** — Aparte Vercel
-  deploy met eigen config.js en env vars. Subdomain via TransIP:
-  CNAME naam=jan, waarde=cname.vercel-dns.com, TTL=300.
-  Zinvol voor max 3-4 gebruikers.
+- [~] **#18 Eerste externe gebruiker** — Basis multi-user via `?u=001`
+  parameter gebouwd in v2.54.0. Eén Vercel deploy met `users/<id>.js`
+  voor niet-gevoelige config (tarieven, panelen, apparaten) en
+  `USERS_MAPPING` env var voor server-side userId → slug vertaling.
+  Per-user env vars: `SOLAREDGE_API_KEY_<SLUG>`, `GROWATT_API_TOKEN_<SLUG>`,
+  `HOMEY_CLOUD_ID_<SLUG>`, `APP_PINCODE_<SLUG>`. Redis-keys nu
+  `laadplanning_<slug>_<apparaat>`. Echte auth (#19) nog niet gebouwd.
 
 - [ ] **#19 Multi-tenant architectuur** — Echte SaaS wanneer 5+ gebruikers.
   Auth via Clerk/Supabase, per-user tarieven/panelen/apparaten/API-secrets

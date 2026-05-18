@@ -1,50 +1,47 @@
-const OPSLAG              = 0.03073; // inkoopvergoeding € per kWh excl. btw
-const EB                  = 0.09161; // energiebelasting € per kWh excl. btw
-const BTW                 = 1.21;
-const VASTE_KOSTEN_PER_DAG = 1.35;    // leveringskosten + netbeheer € per dag excl. btw
-const LAT = 52.36; // afgerond ~1km, ruim voldoende voor Open-Meteo
-const LON = 6.46;
-const SOLAREDGE_PEAK_KW     = 3.2;
-const SOLAREDGE_PANEL_COUNT = 8;
-const SOLAREDGE_LOCATION    = 'garage/kantoor';
-const GROWATT_PEAK_KW       = 4.6;
-const GROWATT_PANEL_COUNT   = 14;
-const GROWATT_LOCATION      = 'huis';
-const HOMEY_DEVICE_ID       = ''; // Homey device ID van de slimme stekker (Auto PHEV)
-const TOTAL_PEAK_KW         = 7.8;
-const PANEL_EFFICIENCY      = 0.8;
+// User-config (geladen door users/<id>.js vóór dit bestand) is de single source
+// of truth voor tarieven, panelen en apparaten. Onderstaande constants zijn
+// thin aliases zodat de bestaande call-sites in prijzen/solar/apparaten.js
+// geen window.CONFIG.x.y.z hoeven te tikken — alle hardcoded waarden komen
+// in werkelijkheid via window.CONFIG binnen.
+if (!window.CONFIG) {
+  throw new Error('window.CONFIG niet geladen — users/<id>.js moet vóór js/config.js worden geladen.');
+}
+
+// Tarieven
+const OPSLAG               = window.CONFIG.tarieven.opslag;
+const EB                   = window.CONFIG.tarieven.eb;
+const BTW                  = window.CONFIG.tarieven.btw;
+const VASTE_KOSTEN_PER_DAG = window.CONFIG.tarieven.vasteKostenPerDag;
+const TERUGLEVERING_OPSLAG = window.CONFIG.tarieven.teruglevering;
+
+// Panelen / locatie
+const LAT                   = window.CONFIG.panelen.lat;
+const LON                   = window.CONFIG.panelen.lon;
+const TOTAL_PEAK_KW         = window.CONFIG.panelen.totaalPiekKw;
+const PANEL_EFFICIENCY      = window.CONFIG.panelen.rendement;
+const SOLAREDGE_PEAK_KW     = window.CONFIG.panelen.solarEdge.piekKw;
+const SOLAREDGE_PANEL_COUNT = window.CONFIG.panelen.solarEdge.panelen;
+const SOLAREDGE_LOCATION    = window.CONFIG.panelen.solarEdge.locatie;
+const GROWATT_PEAK_KW       = window.CONFIG.panelen.growatt.piekKw;
+const GROWATT_PANEL_COUNT   = window.CONFIG.panelen.growatt.panelen;
+const GROWATT_LOCATION      = window.CONFIG.panelen.growatt.locatie;
+
+// Apparaten — direct via window.CONFIG.apparaten zodat editor-acties (in
+// instellingen) automatisch doorwerken in alle code zonder rebind.
+const APPARATEN = window.CONFIG.apparaten;
 
 const SOLAR_SOURCES = [
   { name: 'SolarEdge', type: 'solaredge' },
   // { name: 'Growatt', type: 'growatt' },
 ];
 
-const VOLVO_SVG = `<svg viewBox="0 0 52 24" width="48" height="22" xmlns="http://www.w3.org/2000/svg" style="display:block;margin-bottom:2px">
-  <path d="M4,20 L3,14 L6,12 L11,6 L37,6 L42,10 L48,10 L49,14 L49,20 Z" fill="#1a3a5c"/>
-  <path d="M12,12 L15.5,7.5 L22,7.5 L22,12 Z" fill="#88c0d8" opacity="0.82"/>
-  <rect x="23" y="7.5" width="10" height="4.5" rx="0.5" fill="#88c0d8" opacity="0.82"/>
-  <path d="M34.5,7.5 L39,12 L34.5,12 Z" fill="#88c0d8" opacity="0.62"/>
-  <line x1="23" y1="12" x2="23" y2="19.5" stroke="#14304e" stroke-width="0.8"/>
-  <circle cx="12" cy="20" r="4" fill="#08141e"/>
-  <circle cx="12" cy="20" r="1.8" fill="#2a4060"/>
-  <circle cx="38" cy="20" r="4" fill="#08141e"/>
-  <circle cx="38" cy="20" r="1.8" fill="#2a4060"/>
-  <rect x="3" y="13.5" width="3" height="1.8" rx="0.6" fill="#f5e070"/>
-  <rect x="46.5" y="11" width="2.5" height="2.5" rx="0.4" fill="#dd2222"/>
-</svg>`;
+// Hangt elke fetch-call naar /api/... aan de juiste gebruiker. Server-side
+// vertaalt /api/* de userId via USERS_MAPPING naar de juiste env-var keys.
+function apiUrl(path) {
+  const sep = path.includes('?') ? '&' : '?';
+  return path + sep + 'u=' + encodeURIComponent(window.CONFIG.userId);
+}
 
-const APPARATEN = [
-  { naam: 'Auto (PHEV)',             icon: VOLVO_SVG, uren: 6,   vermogen: 2.3, type: 'laden',       automatisering: true,  batterij: true,  volgorde: 1, grootverbruik: false, klaarOmTekst: 'Auto moet opgeladen zijn om',       korteTekst: '🔋 Opgeladen zijn om' },
-  { naam: 'Warmtepomp (warm water)', icon: '♨️',       uren: 2,   vermogen: 2.0, type: 'inschakelen', automatisering: false, batterij: false, volgorde: 6, grootverbruik: true,  klaarOmTekst: 'Warmtepomp moet gereed zijn om',    korteTekst: '♨️ Gereed zijn om',    opmerking: 'buffert warm water, niet voor verwarming' },
-  { naam: 'Wasmachine',              icon: '👕',       uren: 2,   vermogen: 1.5, type: 'starten',     automatisering: false, batterij: false, volgorde: 3, grootverbruik: true,  klaarOmTekst: 'Wasmachine moet gereed zijn om',    korteTekst: '👕 Gereed zijn om',    comboMet: 'Droger' },
-  { naam: 'Droger',                  icon: '🌀',       uren: 2,   vermogen: 2.5, type: 'starten',     automatisering: false, batterij: false, volgorde: 4, grootverbruik: true,  klaarOmTekst: 'Droger moet gereed zijn om',        korteTekst: '🌀 Gereed zijn om',    naApparaat: 'Wasmachine' },
-  { naam: 'Vaatwasser',              icon: '🍽️',      uren: 3.5, vermogen: 1.8, type: 'starten',     automatisering: false, batterij: false, volgorde: 2, grootverbruik: true,  klaarOmTekst: 'Vaatwasser moet gereed zijn om',    korteTekst: '🍽️ Gereed zijn om'    },
-  { naam: 'E-bikes (2x)',            icon: '🚲',       uren: 4,   vermogen: 0.2, type: 'laden',       automatisering: false, batterij: false, volgorde: 5, grootverbruik: false, klaarOmTekst: 'E-bike moet opgeladen zijn om',     korteTekst: '🚲 Opgeladen zijn om'  },
-  { naam: 'Boiler kantoor',          icon: '🚿',       uren: 1,   vermogen: 2.5, type: 'inschakelen', automatisering: false, batterij: false, volgorde: 7, grootverbruik: true,  klaarOmTekst: 'Boiler moet opgewarmd zijn om',     korteTekst: '🚿 Opgewarmd zijn om'  },
-  { naam: 'Airco',                   icon: '❄️',       uren: 3,   vermogen: 2.0, type: 'inschakelen', automatisering: false, batterij: false, volgorde: 8, grootverbruik: true,  klaarOmTekst: 'Airco moet actief zijn om',         korteTekst: '❄️ Actief zijn om'    },
-];
-
-const TERUGLEVERING_OPSLAG = 0.0353; // € per kWh excl. btw
 function berekenTerugleverPrijs(epex) { return (epex - TERUGLEVERING_OPSLAG) * BTW; }
 
 function uurStr(d) {

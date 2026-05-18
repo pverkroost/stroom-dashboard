@@ -1,8 +1,16 @@
 const fetch = require('node-fetch');
 
+function userSlug(req) {
+  const userId  = (req.query?.u || '001').toString();
+  const mapping = JSON.parse(process.env.USERS_MAPPING || '{"001":"pieter"}');
+  return mapping[userId] || 'pieter';
+}
+
 module.exports = async (req, res) => {
-  const apiKey    = process.env.SOLAREDGE_API_KEY;
-  const siteId    = process.env.SOLAREDGE_SITE_ID;
+  const slug      = userSlug(req);
+  const SUFFIX    = slug.toUpperCase();
+  const apiKey    = process.env[`SOLAREDGE_API_KEY_${SUFFIX}`];
+  const siteId    = process.env[`SOLAREDGE_SITE_ID_${SUFFIX}`];
   const type      = req.query.type || 'overview';
   const date      = req.query.date || new Date().toISOString().split('T')[0];
   const startDate = req.query.startDate || date;

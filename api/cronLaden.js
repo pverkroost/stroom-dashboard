@@ -12,8 +12,8 @@ const WEBHOOKS = {
   autophev: { starten: 'auto-laden-starten', stoppen: 'auto-laden-stoppen' },
 };
 
-function sleutel(apparaat) {
-  return 'laadplanning_' + (apparaat || 'default');
+function sleutel(slug, apparaat) {
+  return 'laadplanning_' + slug + '_' + (apparaat || 'default');
 }
 
 function readRawBody(req) {
@@ -54,17 +54,26 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'Invalid JSON' });
   }
 
-  const { actie, apparaat } = body;
+  const { actie, apparaat, userId } = body;
   if (!actie || !apparaat) return res.status(400).json({ error: 'actie en apparaat verplicht' });
 
   const webhooks = WEBHOOKS[apparaat];
   if (!webhooks) return res.status(400).json({ error: 'Onbekend apparaat: ' + apparaat });
 
-  const homeyBase = `https://${process.env.HOMEY_CLOUD_ID}.connect.athom.com/api/manager/logic/webhook`;
+  const mapping = JSON.parse(process.env.USERS_MAPPING || '{"001":"pieter"}');
+  const slug    = mapping[(userId || '001').toString()] || 'pieter';
+  const SUFFIX  = slug.toUpperCase();
+  const homeyCloudId = process.env[`HOMEY_CLOUD_ID_${SUFFIX}`];
+
+  if (!homeyCloudId) {
+    return res.status(503).json({ error: 'Homey niet geconfigureerd voor deze gebruiker' });
+  }
+
+  const homeyBase = `https://${homeyCloudId}.connect.athom.com/api/manager/logic/webhook`;
 
   if (actie === 'starten') {
     // Controleer of planning nog actief is — gebruiker kan hebben geannuleerd
-    const data = await redis.get(sleutel(apparaat));
+    const data = await redis.get(sleutel(slug, apparaat));
     if (!data) return res.json({ actie: 'geannuleerd', reden: 'planning niet meer actief' });
 
     await fetch(`${homeyBase}/${webhooks.starten}`);
@@ -73,7 +82,7 @@ module.exports = async (req, res) => {
 
   if (actie === 'stoppen') {
     await fetch(`${homeyBase}/${webhooks.stoppen}`);
-    await redis.del(sleutel(apparaat));
+    await redis.del(sleutel(slug, apparaat));
     return res.json({ actie: 'gestopt', apparaat });
   }
 

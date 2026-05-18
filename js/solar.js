@@ -18,9 +18,9 @@ async function fetchSolarEdge() {
   const gisterenStr  = gisterenDate.toISOString().slice(0, 10);
 
   const [powerRes, overviewRes, gisterenRes] = await Promise.all([
-    fetch(`/api/solaredge?type=power&date=${dateStr}`).catch(() => null),
-    fetch(`/api/solaredge?type=overview`),
-    fetch(`/api/solaredge?type=energy&startDate=${gisterenStr}&endDate=${gisterenStr}`).catch(() => null)
+    fetch(apiUrl(`/api/solaredge?type=power&date=${dateStr}`)).catch(() => null),
+    fetch(apiUrl(`/api/solaredge?type=overview`)),
+    fetch(apiUrl(`/api/solaredge?type=energy&startDate=${gisterenStr}&endDate=${gisterenStr}`)).catch(() => null)
   ]);
 
   if (!overviewRes?.ok) {
@@ -64,7 +64,7 @@ async function fetchSolarEdge() {
 }
 
 async function fetchGrowatt() {
-  const res = await fetch('/api/growatt').catch(() => null);
+  const res = await fetch(apiUrl('/api/growatt')).catch(() => null);
   if (!res?.ok) return null;
   const data = await res.json().catch(() => null);
   if (!data || data.error) return null;
