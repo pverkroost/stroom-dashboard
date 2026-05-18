@@ -434,9 +434,9 @@ function updateTijdlijnHighlights() {
   const vergStr  = diff === null ? '' :
     Math.abs(diff) < 0.005 ? ' · ✓ beste tijd' :
     diff < 0 ? ' · ✓ € ' + Math.abs(diff).toFixed(2) + ' goedkoper' :
-    ' · ⚠️ € ' + diff.toFixed(2) + ' duurder dan beste tijd';
+    ' · beste tijd: € ' + diff.toFixed(2) + ' goedkoper';
   tip.textContent = dagHStrPlain(selStart) + '–' + hStr(eindDat) + ' · € ' + (eff ?? 0).toFixed(2) + solStr + vergStr;
-  tip.style.color = (diff === null || diff < 0.005) ? '#27500a' : '#92400e';
+  tip.style.color = (diff === null || diff < 0.005) ? 'var(--color-text-success)' : 'var(--color-text-secondary)';
 }
 
 function toggleVertrekplanner() {
@@ -515,10 +515,10 @@ function renderApDetail() {
   // Vergelijking geselecteerde tijd vs beste tijd — beide met berekendeUren
   const _vDiff = selEff - besteEff;
   const vergelijkHtml = Math.abs(_vDiff) < 0.005
-    ? '<div id="selVergelijkDiv" style="font-size:11px;color:#27500a;margin-top:6px">✓ Dit is de beste tijd</div>'
+    ? '<div id="selVergelijkDiv" style="font-size:11px;color:var(--color-text-success);margin-top:6px">✓ Dit is de beste tijd</div>'
     : _vDiff < 0
-      ? '<div id="selVergelijkDiv" style="font-size:11px;color:#27500a;margin-top:6px">✓ € ' + Math.abs(_vDiff).toFixed(2) + ' goedkoper dan beste tijd</div>'
-      : '<div id="selVergelijkDiv" style="font-size:11px;color:#92400e;background:rgba(146,64,14,0.06);border-radius:6px;padding:4px 8px;margin-top:6px">⚠️ € ' + _vDiff.toFixed(2) + ' duurder dan beste tijd</div>';
+      ? '<div id="selVergelijkDiv" style="font-size:11px;color:var(--color-text-success);margin-top:6px">✓ € ' + Math.abs(_vDiff).toFixed(2) + ' goedkoper dan beste tijd</div>'
+      : '<div id="selVergelijkDiv" style="font-size:11px;color:var(--color-text-secondary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;padding:4px 8px;margin-top:6px">beste tijd: € ' + _vDiff.toFixed(2) + ' goedkoper</div>';
 
   // Teruglevering waarschuwing
   const morgenStart = getTomorrowStart();
@@ -695,14 +695,14 @@ function updateKostenWeergave(berekendeUren) {
   const vergelijkEl = document.getElementById('selVergelijkDiv');
   if (vergelijkEl) {
     if (Math.abs(_vDiff) < 0.005) {
-      vergelijkEl.style.cssText = 'font-size:11px;color:#27500a;margin-top:6px';
+      vergelijkEl.style.cssText = 'font-size:11px;color:var(--color-text-success);margin-top:6px';
       vergelijkEl.textContent = '✓ Dit is de beste tijd';
     } else if (_vDiff < 0) {
-      vergelijkEl.style.cssText = 'font-size:11px;color:#27500a;margin-top:6px';
+      vergelijkEl.style.cssText = 'font-size:11px;color:var(--color-text-success);margin-top:6px';
       vergelijkEl.textContent = '✓ € ' + Math.abs(_vDiff).toFixed(2) + ' goedkoper dan beste tijd';
     } else {
-      vergelijkEl.style.cssText = 'font-size:11px;color:#92400e;background:rgba(146,64,14,0.06);border-radius:6px;padding:4px 8px;margin-top:6px';
-      vergelijkEl.textContent = '⚠️ € ' + _vDiff.toFixed(2) + ' duurder dan beste tijd';
+      vergelijkEl.style.cssText = 'font-size:11px;color:var(--color-text-secondary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;padding:4px 8px;margin-top:6px';
+      vergelijkEl.textContent = 'beste tijd: € ' + _vDiff.toFixed(2) + ' goedkoper';
     }
   }
 
@@ -772,9 +772,9 @@ function herbereken() {
     ?? berekenKostenVanaf(berekendeUren, ap.vermogen, planUren, besteIdxVP);
   const diffVP = (besteEffVP != null && effVP != null) ? effVP - besteEffVP : null;
   const vpVergelijkHtml = diffVP === null ? '' :
-    Math.abs(diffVP) < 0.005 ? '<div style="font-size:11px;color:#27500a;margin-top:4px">✓ Zelfde als beste tijd</div>' :
-    diffVP < 0 ? '<div style="font-size:11px;color:#27500a;margin-top:4px">↕️ € ' + Math.abs(diffVP).toFixed(2) + ' goedkoper dan beste tijd</div>' :
-    '<div style="font-size:11px;color:#92400e;margin-top:4px">↕️ € ' + diffVP.toFixed(2) + ' duurder dan beste tijd</div>';
+    Math.abs(diffVP) < 0.005 ? '<div style="font-size:11px;color:var(--color-text-success);margin-top:4px">✓ Zelfde als beste tijd</div>' :
+    diffVP < 0 ? '<div style="font-size:11px;color:var(--color-text-success);margin-top:4px">↕️ € ' + Math.abs(diffVP).toFixed(2) + ' goedkoper dan beste tijd</div>' :
+    '<div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px">beste tijd: € ' + diffVP.toFixed(2) + ' goedkoper</div>';
 
   // Generiek format: "Start om HH:MM — klaar om HH:MM — € X.XX"
   const adviesRegel = 'Start om ' + hStr(res.startTijd) + ' — klaar om ' + hStr(eindDat) + ' — € ' + effVP.toFixed(2) + (dekVPPct > 0 ? ' · ☀️ ' + dekVPPct + '%' : '');
@@ -1055,13 +1055,18 @@ function renderLaadadvies() {
     console.log(`[${naam}] geselecteerdUur: ${selStartUur} | dekBeste: ${dekPct}% | dekSel: ${dekPctSel}% | besteEff: ${besteEff?.toFixed(2)} | selEff: ${selEff?.toFixed(2)}`);
 
     let vergelijkBadge = '';
+    let besparingStr   = '';
     if (selEff !== null) {
       if (selStartIdx === besteStartIdx) {
         vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
       } else {
         const diff = selEff - besteEff;
-        if (diff > 0.005) vergelijkBadge = `<div class="advies-badge rood">kost € ${diff.toFixed(2)} meer</div>`;
-        else              vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
+        if (diff > 0.005) {
+          vergelijkBadge = `<div class="advies-badge neutraal">beste tijd: € ${diff.toFixed(2)} goedkoper</div>`;
+          besparingStr   = `bespaar € ${diff.toFixed(2)}`;
+        } else {
+          vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
+        }
       }
     }
 
@@ -1082,19 +1087,21 @@ function renderLaadadvies() {
         ? `<div class="advies-status snel">⏰ ${laterVerb} om ${besteStartStr}</div>`
         : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
 
-    function blokRijen(sectieLabel, tijdStr, netstroom, heeftZonHier, dekking, isGedeeltelijk = false) {
+    function blokRijen(sectieLabel, tijdStr, netstroom, heeftZonHier, dekking, isGedeeltelijk = false, bespaarStr = '') {
       const priceStr = netstroom == null ? '—' : `€ ${netstroom.toFixed(2)}`;
       const bronStr  = heeftZonHier ? `☀️ ${dekking}%` : 'geen zon';
       const subParts = [tijdStr, bronStr].filter(Boolean);
       const noteStr = isGedeeltelijk
         ? '<div style="font-size:9px;color:var(--muted);margin-top:1px">* morgen nog niet beschikbaar</div>'
         : '';
+      const bespaarHtml = bespaarStr ? `<div class="advies-bespaar">${bespaarStr}</div>` : '';
       return `
         <div>
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:600;line-height:1.4">
             <span>${sectieLabel}</span><span>${priceStr}</span>
           </div>
           <div style="font-size:10px;color:var(--muted);line-height:1.3">${subParts.join(' · ')}</div>
+          ${bespaarHtml}
           ${noteStr}
         </div>`;
     }
@@ -1103,7 +1110,7 @@ function renderLaadadvies() {
       <div class="advies-device-icon">${icon}</div>
       <div class="advies-device-naam">${naam}</div>
       <div class="advies-vergelijk">
-        ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteEff, heeftZon, dekPct)}
+        ${blokRijen('Beste', `${besteStartStr}–${besteEindStr}`, besteEff, heeftZon, dekPct, false, besparingStr)}
         ${selStartIdx < planUren.length ? `
         <div style="height:0.5px;background:var(--border);margin:3px 0"></div>
         ${blokRijen(selLabel, selTijdStr, selEff, heeftZonSel, dekPctSel, selGedeeltelijk)}` : ''}

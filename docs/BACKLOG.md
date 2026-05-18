@@ -2,10 +2,11 @@
 
 ## BUGS (eerst fixen)
 
-- [ ] **#1 Apparaatscherm te negatief** — Als gebruiker een slechtere tijd
-  selecteert dan beste tijd, wordt alles rood met "kost € X meer".
-  Omdraaien naar positieve framing: bij beste tijd tonen wat je bespaart
-  in het groen. Minder rood, meer groen en motiverend.
+- [x] **#1 Apparaatscherm te negatief** ✅ Afgerond in v2.53.0 — rode/oranje
+  "kost € X meer" badges en regels verwijderd. Beste tijd toont "bespaar
+  € X.XX" in groen, geselecteerd/nu toont groen "beste tijd ✓" (bij gelijk)
+  of grijs neutraal "beste tijd: € X.XX goedkoper" (bij slechter). Toegepast
+  op apparaatkaartjes, detail panel, vertrekplanner en tijdlijn-tooltip.
 
 ## SNEL TE DOEN
 
