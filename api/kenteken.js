@@ -5,20 +5,32 @@ function normaliseerKenteken(k) {
   return (k || '').toString().replace(/[\s-]/g, '').toUpperCase();
 }
 
+// RDW-brandstof herkennen op exacte omschrijving (RDW gebruikt vaste strings):
+//   - "Elektriciteit" + "Benzine" in 2 records → PHEV
+//   - "Elektriciteit" alleen                   → BEV
+//   - geen "Elektriciteit"                     → overig (ICE)
+// klasse_hybride_elektrisch_voertuig === 'OVC-HEV' is RDW's expliciete
+// markering voor plug-in hybride en wordt als bevestiging meegenomen
+// (Diesel-PHEVs komen niet voor in onze ev-database maar fallen via OVC-HEV
+// nog steeds als PHEV uit).
 function bepaalBrandstoftype(brandstofRows) {
-  const omschrijvingen = brandstofRows.map(r => (r.brandstof_omschrijving || '').toLowerCase());
-  const hasElektrisch = omschrijvingen.some(o => o.includes('elektriciteit'));
-  const hasFossiel    = omschrijvingen.some(o => o.includes('benzine') || o.includes('diesel') || o.includes('lpg'));
-  if (hasElektrisch && hasFossiel) return 'PHEV';
-  if (hasElektrisch)               return 'BEV';
-  return null;
+  const records         = brandstofRows || [];
+  const heeftElektrisch = records.some(r => r.brandstof_omschrijving === 'Elektriciteit');
+  const heeftBenzine    = records.some(r => r.brandstof_omschrijving === 'Benzine');
+  const heeftOvcHev     = records.some(r => r.klasse_hybride_elektrisch_voertuig === 'OVC-HEV');
+  if (heeftElektrisch && (heeftBenzine || heeftOvcHev)) return 'PHEV';
+  if (heeftElektrisch)                                  return 'BEV';
+  return 'overig';
 }
 
 // Match-strategie (in volgorde van specificiteit):
-// 1. merk + bouwjaar-range OK + rdwHandelsbenaming EXACT (case-insensitive)
-// 2. merk + bouwjaar-range OK + rdwHandelsbenaming SUBSTRING (RDW-handelsbenaming bevat DB-handelsbenaming)
-// 3. merk + bouwjaar-range OK + model SUBSTRING
-function matchEvDatabase(merkRdw, handelsbenamingRdw, bouwjaar) {
+// 1. merk + bouwjaar-range + type (PHEV/BEV) + rdwHandelsbenaming EXACT
+// 2. merk + bouwjaar-range + type + rdwHandelsbenaming SUBSTRING
+// 3. merk + bouwjaar-range + type + model SUBSTRING
+// Type-filter belangrijk: Kia Niro 2022+ heeft zowel PHEV als BEV entry met
+// identieke rdwHandelsbenaming "NIRO" — zonder type-filter pakt het de
+// eerste die toevallig matcht.
+function matchEvDatabase(merkRdw, handelsbenamingRdw, bouwjaar, brandstoftype) {
   const merkU = (merkRdw || '').toUpperCase();
   const handU = (handelsbenamingRdw || '').toUpperCase();
   if (!merkU) return null;
@@ -28,6 +40,7 @@ function matchEvDatabase(merkRdw, handelsbenamingRdw, bouwjaar) {
     if (bouwjaar && e.bouwjaarVanaf && e.bouwjaarTot) {
       if (bouwjaar < e.bouwjaarVanaf || bouwjaar > e.bouwjaarTot) return false;
     }
+    if ((brandstoftype === 'PHEV' || brandstoftype === 'BEV') && e.type && e.type !== brandstoftype) return false;
     return true;
   });
   if (kandidaten.length === 0) return null;
@@ -89,8 +102,9 @@ module.exports = async (req, res) => {
     // brandstof faalt → niet kritiek, type komt eventueel uit ev-database
   }
 
-  // 3) Match tegen ev-database
-  const match = matchEvDatabase(merk, handelsbenaming, bouwjaar);
+  // 3) Match tegen ev-database — neem type mee als RDW het kon bepalen,
+  // anders matcht alles op merk+bouwjaar
+  const match = matchEvDatabase(merk, handelsbenaming, bouwjaar, brandstoftypeRdw);
 
   if (!match) {
     return res.json({
