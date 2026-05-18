@@ -26,7 +26,8 @@
       "Bash(node --check api/homey.js)",
       "Bash(node --check api/planLaden.js)",
       "Bash(node --check api/cronLaden.js)",
-      "Bash(grep -rEho 'process\\\\.env\\\\[`[A-Z_]+_\\\\$\\\\{[a-zA-Z]+\\\\}`\\\\]' api/ --include=\"*.js\")"
+      "Bash(grep -rEho 'process\\\\.env\\\\[`[A-Z_]+_\\\\$\\\\{[a-zA-Z]+\\\\}`\\\\]' api/ --include=\"*.js\")",
+      "Bash(curl *)"
     ]
   }
 }
