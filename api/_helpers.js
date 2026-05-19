@@ -78,11 +78,73 @@ async function applyGate(req, res, { endpoint, max, windowSec }) {
   return true;
 }
 
+// ── Brute-force protectie op pincode-endpoints ─────────────────────────────
+// Bovenop de generieke per-minuut rate-limit: telt specifiek 401-pincode-failures
+// per IP+endpoint binnen een 15min-window. Bij drempel wordt een aparte lockout-key
+// gezet met TTL, zodat een aanvaller na X foute pogingen Y minuten "buiten staat".
+const AUTH_FAIL_WINDOW_SEC = 15 * 60;
+const AUTH_LOCKOUT_SOFT_THRESHOLD = 5;   // 5+ fails binnen 15min  → 5min lockout
+const AUTH_LOCKOUT_HARD_THRESHOLD = 10;  // 10+ fails             → 1h lockout
+const AUTH_LOCKOUT_SOFT_SEC = 5 * 60;
+const AUTH_LOCKOUT_HARD_SEC = 60 * 60;
+
+function authLockKey(endpoint, ip)  { return `authlock_${endpoint}_${ip}`;  }
+function authFailKey(endpoint, ip)  { return `authfail_${endpoint}_${ip}`;  }
+
+// Returnt { locked, retryAfter } — als locked=true moet caller 429 sturen.
+async function checkAuthLockout({ endpoint, ip }) {
+  try {
+    const redis  = getRedis();
+    const locked = await redis.get(authLockKey(endpoint, ip));
+    if (!locked) return { locked: false };
+    // We weten de exacte TTL niet zonder extra round-trip; voor de UX is een
+    // ruwe schatting genoeg. Soft-lockout = 5min wijzen we standaard aan.
+    return { locked: true, retryAfter: AUTH_LOCKOUT_SOFT_SEC };
+  } catch {
+    return { locked: false };
+  }
+}
+
+// Roep aan bij verkeerde pincode. Geeft de nieuwe fail-count terug.
+// Bij drempel wordt aparte lockout-key gezet zodat checkAuthLockout faalt
+// voor volgende requests.
+async function recordAuthFailure({ endpoint, ip }) {
+  try {
+    const redis = getRedis();
+    const count = await redis.incr(authFailKey(endpoint, ip));
+    if (count === 1) await redis.expire(authFailKey(endpoint, ip), AUTH_FAIL_WINDOW_SEC);
+    if (count >= AUTH_LOCKOUT_HARD_THRESHOLD) {
+      await redis.set(authLockKey(endpoint, ip), '1', { ex: AUTH_LOCKOUT_HARD_SEC });
+    } else if (count >= AUTH_LOCKOUT_SOFT_THRESHOLD) {
+      await redis.set(authLockKey(endpoint, ip), '1', { ex: AUTH_LOCKOUT_SOFT_SEC });
+    }
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
+// Roep aan bij succesvolle pincode: wis counter + lockout. Beloont legitieme
+// gebruikers die per ongeluk één keer mistypten zodat ze niet onnodig vast komen
+// te zitten in de window.
+async function clearAuthFailures({ endpoint, ip }) {
+  try {
+    const redis = getRedis();
+    await Promise.all([
+      redis.del(authFailKey(endpoint, ip)),
+      redis.del(authLockKey(endpoint, ip)),
+    ]);
+  } catch {}
+}
+
 module.exports = {
   setCors,
   handlePreflight,
   getClientIp,
   rateLimit,
   applyGate,
+  checkAuthLockout,
+  recordAuthFailure,
+  clearAuthFailures,
   ALLOWED_ORIGINS,
 };

@@ -1,5 +1,5 @@
 const fetch = require('node-fetch');
-const { applyGate } = require('./_helpers');
+const { applyGate, getClientIp, checkAuthLockout, recordAuthFailure, clearAuthFailures } = require('./_helpers');
 
 const GELDIGE_USERS = ['001', '002'];
 
@@ -40,9 +40,15 @@ module.exports = async (req, res) => {
     return res.json({ beschikbaar: false });
   }
 
+  const ip = getClientIp(req);
+  const lockout = await checkAuthLockout({ endpoint: 'homey', ip });
+  if (lockout.locked) return res.status(429).json({ error: 'Te veel ongeldige pincode-pogingen. Probeer later opnieuw.' });
+
   if (pin !== pincode) {
+    await recordAuthFailure({ endpoint: 'homey', ip });
     return res.status(401).json({ error: 'Ongeldige pincode' });
   }
+  await clearAuthFailures({ endpoint: 'homey', ip });
 
   const webhookKey = action === 'stop' ? 'auto-laden-stoppen' : 'auto-laden-starten';
   const url = `https://${homeyCloudId}.connect.athom.com/api/manager/logic/webhook/${webhookKey}`;

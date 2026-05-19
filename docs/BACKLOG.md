@@ -244,11 +244,16 @@ performance micro-optimalisaties.
 
 ## AFGEROND
 
-- **#0d — Rate-limiting op publieke API endpoints** ✅ Afgerond in v2.62.0 —
-  Shared `api/_helpers.js` met Upstash Redis sliding-window counter
+- **#0d — Rate-limiting op publieke API endpoints** ✅ Afgerond in v2.62.0+v2.62.1 —
+  v2.62.0: shared `api/_helpers.js` met Upstash Redis sliding-window counter
   (`ratelimit_<endpoint>_<ip>` met TTL 60s). Limits: `/api/kenteken` 10/min,
   `/api/planLaden` 5/min, `/api/homey` 5/min. IP uit `x-forwarded-for`. Fail-open
   bij Redis-storing zodat Upstash-uitval de app niet platlegt.
+  v2.62.1: brute-force-protectie als extra laag op pin-endpoints. Aparte
+  `authfail_<endpoint>_<ip>` counter binnen 15min-window: ≥5 failures = 5min
+  lockout, ≥10 failures = 1h lockout via `authlock_*` key met TTL. Lockout-check
+  vóór pin-validatie, INCR alleen op 401 (geen geldige verzoeken telt), wist
+  bij succesvolle pin. Toegepast op `planLaden` POST+DELETE en `homey` POST.
 - **#0e — QStash message-cleanup bij overschrijven/annuleren** ✅ Afgerond in v2.62.0 —
   Redis-payload uitgebreid met `qstashStartId`/`qstashStopId`. POST annuleert
   eerst bestaande messages via `client.messages.delete()`. DELETE doet hetzelfde

@@ -1,6 +1,6 @@
 const { Redis } = require('@upstash/redis');
 const { Client } = require('@upstash/qstash');
-const { applyGate } = require('./_helpers');
+const { applyGate, getClientIp, checkAuthLockout, recordAuthFailure, clearAuthFailures } = require('./_helpers');
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
@@ -74,7 +74,14 @@ module.exports = async (req, res) => {
 
   if (req.method === 'POST') {
     const { startTijd, stopTijd, apparaat: apBody, pin } = req.body || {};
-    if (!expectedPin || pin !== expectedPin) return res.status(401).json({ error: 'Ongeldige pincode' });
+    const ip = getClientIp(req);
+    const lockout = await checkAuthLockout({ endpoint: 'planLaden', ip });
+    if (lockout.locked) return res.status(429).json({ error: 'Te veel ongeldige pincode-pogingen. Probeer later opnieuw.' });
+    if (!expectedPin || pin !== expectedPin) {
+      await recordAuthFailure({ endpoint: 'planLaden', ip });
+      return res.status(401).json({ error: 'Ongeldige pincode' });
+    }
+    await clearAuthFailures({ endpoint: 'planLaden', ip });
     const ap = apBody || apparaat;
     if (!startTijd || !stopTijd) return res.status(400).json({ error: 'startTijd en stopTijd verplicht' });
 
@@ -103,7 +110,14 @@ module.exports = async (req, res) => {
 
   if (req.method === 'DELETE') {
     const pin = req.body?.pin || req.query?.pin;
-    if (!expectedPin || pin !== expectedPin) return res.status(401).json({ error: 'Ongeldige pincode' });
+    const ip = getClientIp(req);
+    const lockout = await checkAuthLockout({ endpoint: 'planLaden', ip });
+    if (lockout.locked) return res.status(429).json({ error: 'Te veel ongeldige pincode-pogingen. Probeer later opnieuw.' });
+    if (!expectedPin || pin !== expectedPin) {
+      await recordAuthFailure({ endpoint: 'planLaden', ip });
+      return res.status(401).json({ error: 'Ongeldige pincode' });
+    }
+    await clearAuthFailures({ endpoint: 'planLaden', ip });
 
     // Annuleer eventuele pending QStash-berichten vóór we de planning uit Redis
     // verwijderen, zodat ze niet stilletjes alsnog vuren.
