@@ -7,6 +7,10 @@ function normaliseerKenteken(k) {
   return (k || '').toString().replace(/[\s-]/g, '').toUpperCase();
 }
 
+// Safe uppercase voor matching: leeg/undefined → lege string. Vermijdt 10+
+// herhalingen van `(x || '').toUpperCase()` door de match-functies heen.
+function _upper(s) { return (s || '').toString().toUpperCase(); }
+
 // RDW-brandstof herkennen op exacte omschrijving (RDW gebruikt vaste strings):
 //   - "Elektriciteit" + "Benzine" in 2 records → PHEV
 //   - "Elektriciteit" alleen                   → BEV
@@ -32,12 +36,12 @@ function bepaalBrandstoftype(brandstofRows) {
 // Returnt ALTIJD een array (mogelijk leeg). Bij meerdere matches op zelfde
 // niveau: alle entries zodat de frontend variantselectie kan tonen.
 function matchEvDatabase(merkRdw, handelsbenamingRdw, bouwjaar, brandstoftype) {
-  const merkU = (merkRdw || '').toUpperCase();
-  const handU = (handelsbenamingRdw || '').toUpperCase();
+  const merkU = _upper(merkRdw);
+  const handU = _upper(handelsbenamingRdw);
   if (!merkU) return [];
 
   const kandidaten = evDatabase.filter(e => {
-    if ((e.merk || '').toUpperCase() !== merkU) return false;
+    if (_upper(e.merk) !== merkU) return false;
     if (bouwjaar && e.bouwjaarVanaf && e.bouwjaarTot) {
       if (bouwjaar < e.bouwjaarVanaf || bouwjaar > e.bouwjaarTot) return false;
     }
@@ -46,20 +50,18 @@ function matchEvDatabase(merkRdw, handelsbenamingRdw, bouwjaar, brandstoftype) {
   });
   if (kandidaten.length === 0) return [];
 
-  const exact = kandidaten.filter(e => (e.rdwHandelsbenaming || '').toUpperCase() === handU);
-  if (exact.length > 0) return exact;
-
-  const substringHand = kandidaten.filter(e => {
-    const dbHand = (e.rdwHandelsbenaming || '').toUpperCase();
-    return dbHand && handU.includes(dbHand);
-  });
-  if (substringHand.length > 0) return substringHand;
-
-  const substringModel = kandidaten.filter(e => {
-    const dbModel = (e.model || '').toUpperCase();
-    return dbModel && handU.includes(dbModel);
-  });
-  return substringModel;
+  // Match-niveaus, eerste niet-lege wint. Zelfde structuur als de 3 afzonderlijke
+  // filter-blocks van voorheen, maar nu één cascade-loop ipv 3x uitgeschreven.
+  const niveaus = [
+    e => _upper(e.rdwHandelsbenaming) === handU,
+    e => { const dh = _upper(e.rdwHandelsbenaming); return dh && handU.includes(dh); },
+    e => { const dm = _upper(e.model);              return dm && handU.includes(dm); },
+  ];
+  for (const predicaat of niveaus) {
+    const treffers = kandidaten.filter(predicaat);
+    if (treffers.length > 0) return treffers;
+  }
+  return [];
 }
 
 function variantNaam(entry) {
@@ -74,11 +76,11 @@ function variantNaam(entry) {
 function matchKilowattVarianten(merkRdw, handelsbenamingRdw, bouwjaar, brandstoftypeRdw) {
   // KilowattApp is BEV-only; voor expliciete PHEV-detectie nooit fallbacken
   if (brandstoftypeRdw === 'PHEV') return [];
-  const merkU = (merkRdw || '').toUpperCase();
-  const handU = (handelsbenamingRdw || '').toUpperCase();
+  const merkU = _upper(merkRdw);
+  const handU = _upper(handelsbenamingRdw);
   if (!merkU || !handU) return [];
 
-  const merkMatch = kilowattVehicles.filter(v => (v.brand || '').toUpperCase() === merkU);
+  const merkMatch = kilowattVehicles.filter(v => _upper(v.brand) === merkU);
   if (merkMatch.length === 0) return [];
 
   const jaarMatch = bouwjaar
@@ -86,11 +88,10 @@ function matchKilowattVarianten(merkRdw, handelsbenamingRdw, bouwjaar, brandstof
     : merkMatch;
   if (jaarMatch.length === 0) return [];
 
-  const modelMatch = jaarMatch.filter(v => {
-    const m = (v.model || '').toUpperCase();
+  return jaarMatch.filter(v => {
+    const m = _upper(v.model);
     return m && (handU.includes(m) || m.includes(handU));
   });
-  return modelMatch;
 }
 
 function kilowattNaarOnsSchema(v) {

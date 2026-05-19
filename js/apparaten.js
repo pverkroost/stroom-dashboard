@@ -1470,58 +1470,23 @@ function kiesVariant(contextId) {
   setTimeout(() => updateWerkelijkVermogen(contextId, merged.laadVermogenAcKw ?? null), 0);
 }
 
-// Inner content van bouwAutoConfigHtml zonder buitenste wrapper-div.
-// Wordt direct gebruikt na variant-selectie waar de outer div al bestaat.
-function _bouwAutoConfigInner(d, contextId) {
-  const inDb        = d.inDatabase === true;
-  const handmatig   = d.handmatig === true;
-  const titel       = handmatig
+// Bouwt de gedeelde body van bouwAutoConfigHtml en _bouwAutoConfigInner:
+// titel + (laad-specs OF handmatige inputs) + laadtype-keuze + bevestig-knop.
+// `opts.includeVariant=true` voegt `d.variantNaam` toe aan de titel (na variant-
+// selectie); `false` laat 'm weg (eerste render vóór variant-keuze).
+function _bouwAutoConfigBody(d, contextId, opts) {
+  const inDb      = d.inDatabase === true;
+  const handmatig = d.handmatig === true;
+
+  const titelDelen = [`${d.merk || ''} ${d.model || ''}`.trim()];
+  if (d.bouwjaar) titelDelen.push(String(d.bouwjaar));
+  if (opts?.includeVariant && d.variantNaam) titelDelen.push(d.variantNaam);
+  const titel = handmatig
     ? 'Auto handmatig invoeren'
-    : escapeHtml(`${d.merk || ''} ${d.model || ''}${d.bouwjaar ? ' · ' + d.bouwjaar : ''}${d.variantNaam ? ' · ' + d.variantNaam : ''}`.trim());
-  const autoMaxKw   = d.laadVermogenAcKw ?? null;
-  const kwh         = d.bruikbaarKwh ?? d.batterijKwh ?? null;
-  if (kwh) window[contextId + '_pendingKwh'] = kwh;
+    : escapeHtml(titelDelen.filter(Boolean).join(' · '));
 
-  const specsRegel = (kwh || autoMaxKw)
-    ? `<div style="font-size:11px;color:var(--muted);margin-bottom:6px">${kwh ? '🔋 ' + _formatKwh(kwh) : ''}${kwh && autoMaxKw ? ' · ' : ''}${autoMaxKw ? 'Max. laadvermogen auto: ' + _formatKw(autoMaxKw) : ''}</div>`
-    : '';
-
-  const handmatigeVelden = (!inDb || handmatig)
-    ? `<div style="display:flex;gap:6px;margin-bottom:6px">
-        <input type="number" id="${contextId}_kwh" placeholder="Bruikbaar kWh" min="0" step="0.1" value="${escapeHtml(kwh ?? '')}"
-          oninput="updateWerkelijkVermogen('${contextId}', document.getElementById('${contextId}_autoMax')?.value || null)"
-          style="flex:1;min-width:0;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
-        <input type="number" id="${contextId}_autoMax" placeholder="Auto max kW" min="0" step="0.1" value="${escapeHtml(autoMaxKw ?? '')}"
-          oninput="updateWerkelijkVermogen('${contextId}', this.value)"
-          style="flex:1;min-width:0;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
-      </div>`
-    : '';
-
-  const dataAttr = JSON.stringify(d).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  return `
-      <div style="font-weight:600;margin-bottom:2px">${titel}</div>
-      ${!inDb && !handmatig ? `<div style="color:var(--muted);margin-bottom:6px;font-size:11px">Laadgegevens niet bekend — vul handmatig in</div>` : ''}
-      ${specsRegel}
-      ${handmatigeVelden}
-      ${bouwLaadtypeHtml(contextId, autoMaxKw)}
-      <button onclick='bevestigAutoConfig(${dataAttr}, "${contextId}")' style="margin-top:10px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>`;
-}
-
-// Toont auto-details (al-bekend uit RDW/EV-DB) + handmatige velden (indien niet in EV-DB) +
-// laadtype-keuze + Bevestig-knop. d kan ook {handmatig: true} zijn voor de pure-handmatige route.
-function bouwAutoConfigHtml(d, contextId) {
-  // Multi-variant: aparte UI met dropdown
-  if (d.meerdereVarianten && Array.isArray(d.varianten) && d.varianten.length > 1) {
-    return bouwVariantKeuzeHtml(d, contextId);
-  }
-  const inDb       = d.inDatabase === true;
-  const handmatig  = d.handmatig === true;
-  const titel      = handmatig
-    ? 'Auto handmatig invoeren'
-    : escapeHtml(`${d.merk || ''} ${d.model || ''}${d.bouwjaar ? ' · ' + d.bouwjaar : ''}`.trim());
-  const autoMaxKw  = d.laadVermogenAcKw ?? null;
-  const kwh        = d.bruikbaarKwh ?? d.batterijKwh ?? null;
-  // Pre-cache kwh voor updateWerkelijkVermogen wanneer er geen kwh-input-veld is
+  const autoMaxKw = d.laadVermogenAcKw ?? null;
+  const kwh       = d.bruikbaarKwh ?? d.batterijKwh ?? null;
   if (kwh) window[contextId + '_pendingKwh'] = kwh;
 
   const specsRegel = (kwh || autoMaxKw)
@@ -1545,13 +1510,31 @@ function bouwAutoConfigHtml(d, contextId) {
   const dataAttr = JSON.stringify(d).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
   return `
-    <div style="padding:10px;border-radius:7px;background:var(--card);border:1px solid var(--border);font-size:12px">
       <div style="font-weight:600;margin-bottom:2px">${titel}</div>
       ${!inDb && !handmatig ? `<div style="color:var(--muted);margin-bottom:6px;font-size:11px">Laadgegevens niet bekend — vul handmatig in</div>` : ''}
       ${specsRegel}
       ${handmatigeVelden}
       ${bouwLaadtypeHtml(contextId, autoMaxKw)}
-      <button onclick='bevestigAutoConfig(${dataAttr}, "${contextId}")' style="margin-top:10px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>
+      <button onclick='bevestigAutoConfig(${dataAttr}, "${contextId}")' style="margin-top:10px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>`;
+}
+
+// Inner content zonder buitenste wrapper-div. Wordt gebruikt na variant-selectie
+// (de outer div van bouwVariantKeuzeHtml omsluit dit al). Variant zit in titel.
+function _bouwAutoConfigInner(d, contextId) {
+  return _bouwAutoConfigBody(d, contextId, { includeVariant: true });
+}
+
+// Toont auto-details (al-bekend uit RDW/EV-DB) + handmatige velden (indien niet in EV-DB) +
+// laadtype-keuze + Bevestig-knop. d kan ook {handmatig: true} zijn voor de pure-handmatige route.
+function bouwAutoConfigHtml(d, contextId) {
+  // Multi-variant: aparte UI met dropdown
+  if (d.meerdereVarianten && Array.isArray(d.varianten) && d.varianten.length > 1) {
+    return bouwVariantKeuzeHtml(d, contextId);
+  }
+  const autoMaxKw = d.laadVermogenAcKw ?? null;
+  return `
+    <div style="padding:10px;border-radius:7px;background:var(--card);border:1px solid var(--border);font-size:12px">
+      ${_bouwAutoConfigBody(d, contextId, { includeVariant: false })}
     </div>
     <script>setTimeout(function(){ updateWerkelijkVermogen('${contextId}', ${autoMaxKw ?? 'null'}); }, 0)</script>`;
 }
@@ -1637,24 +1620,37 @@ function bouwAutoDetailsHtml(ap) {
     </div>`;
 }
 
+// Configuratie per kenteken-render-context. Voorheen waren zoek/toonHandmatige
+// 95% identiek met alleen verschillende DOM-IDs en font-size; nu één tabel.
+const _KENTEKEN_CTX = {
+  apPanel:  { inputId: 'apKentekenInput',     resId: 'apKentekenResultaat',    fontSize: 11 },
+  apDialog: { inputId: 'dialogKentekenInput', resId: 'dialogKentekenResultaat', fontSize: 12 },
+};
+
+async function _zoekKenteken(contextId) {
+  const cfg = _KENTEKEN_CTX[contextId];
+  if (!cfg) return;
+  const input = document.getElementById(cfg.inputId);
+  const res   = document.getElementById(cfg.resId);
+  if (!input || !res) return;
+  res.innerHTML = `<div style="font-size:${cfg.fontSize}px;color:var(--muted);padding:6px 0">Opzoeken…</div>`;
+  const { data, error } = await _doeKentekenLookup(input.value);
+  if (error) {
+    res.innerHTML = `<div style="font-size:${cfg.fontSize}px;color:#a32d2d;padding:6px 0">${escapeHtml(error)}</div>`;
+    return;
+  }
+  res.innerHTML = bouwAutoConfigHtml(data, contextId);
+}
+
 function toonHandmatigeInvoer(contextId) {
-  const target = document.getElementById(contextId === 'apPanel' ? 'apKentekenResultaat' : 'dialogKentekenResultaat');
+  const cfg = _KENTEKEN_CTX[contextId];
+  if (!cfg) return;
+  const target = document.getElementById(cfg.resId);
   if (!target) return;
   target.innerHTML = bouwAutoConfigHtml({ handmatig: true }, contextId);
 }
 
-async function zoekKentekenInPanel() {
-  const input = document.getElementById('apKentekenInput');
-  const res   = document.getElementById('apKentekenResultaat');
-  if (!input || !res) return;
-  res.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:6px 0">Opzoeken…</div>';
-  const { data, error } = await _doeKentekenLookup(input.value);
-  if (error) {
-    res.innerHTML = `<div style="font-size:11px;color:#a32d2d;padding:6px 0">${escapeHtml(error)}</div>`;
-    return;
-  }
-  res.innerHTML = bouwAutoConfigHtml(data, 'apPanel');
-}
+async function zoekKentekenInPanel() { return _zoekKenteken('apPanel'); }
 
 // Modale dialog voor de instellingen-tab Wijzigen-knop
 function toonKentekenDialog() {
@@ -1694,15 +1690,4 @@ function toonKentekenDialog() {
   setTimeout(() => document.getElementById('dialogKentekenInput')?.focus(), 50);
 }
 
-async function zoekKentekenInDialog() {
-  const input = document.getElementById('dialogKentekenInput');
-  const res   = document.getElementById('dialogKentekenResultaat');
-  if (!input || !res) return;
-  res.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:6px 0">Opzoeken…</div>';
-  const { data, error } = await _doeKentekenLookup(input.value);
-  if (error) {
-    res.innerHTML = `<div style="font-size:12px;color:#a32d2d;padding:6px 0">${escapeHtml(error)}</div>`;
-    return;
-  }
-  res.innerHTML = bouwAutoConfigHtml(data, 'apDialog');
-}
+async function zoekKentekenInDialog() { return _zoekKenteken('apDialog'); }

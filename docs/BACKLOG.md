@@ -171,10 +171,6 @@ performance micro-optimalisaties.
   per i. Bij planUren=48 nog OK; pre-compute solar prefix-sums voor O(n).
 - [ ] **#68 displayNaam 'Auto' fallback** (`js/apparaten.js:1240-1247`) — Bij 2e
   batterij-apparaat krijgen beiden 'Auto'. Maak typename-aware.
-- [ ] **#70 zoekKentekenInPanel/Dialog 95% duplicate** (`js/apparaten.js:
-  1568-1572,1604-1611`) — Extract helper `_zoek(inputId, resId, contextId)`.
-- [ ] **#71 bouwAutoConfigHtml/_Inner 90% duplicate** (`js/apparaten.js:1393-1473`)
-  — Extract gedeelde body in één helper.
 - [ ] **#72 config.js geen schema-check** (`js/config.js:11-29`) — Crash zonder
   begrijpelijke fout bij ontbrekend veld in `window.CONFIG`.
 - [ ] **#73 getTodayStart memoize** (`js/config.js:62-63`) — Wordt 100+ keer per
@@ -190,8 +186,6 @@ performance micro-optimalisaties.
   `users/<id>.js` of env var.
 - [ ] **#79 readRawBody simpler** (`api/cronLaden.js:21-28`) — `for await (const c
   of req)` is leesbaarder; voeg size-limit toe tegen DoS via grote body.
-- [ ] **#82 kenteken match-helper dedupe** (`api/kenteken.js:34-63`) — Match-logica
-  herhaald in 3 functies. Extract `kandidatenInRange(...)`.
 - [ ] **#83 KilowattApp lazy-load** (`api/kenteken.js:1-3`) — 1.5MB `kilowatt-ev-data
   .json` op cold-start. Lazy-load via dynamic import bij geen ev-database match.
 - [ ] **#86 volgorde dupliceerd met array-index** (`users/001.js:27,002.js:30`) —
@@ -215,6 +209,19 @@ performance micro-optimalisaties.
 
 ## AFGEROND
 
+- **#70 zoekKentekenInPanel/Dialog dedupe** ✅ Afgerond in v2.66.1 — `_KENTEKEN_CTX`
+  config-tabel + `_zoekKenteken(contextId)` helper. `zoekKentekenInPanel` en
+  `zoekKentekenInDialog` zijn nu 1-liner wrappers. `toonHandmatigeInvoer` gebruikt
+  ook de config-tabel ipv hardgecodeerde resId-mapping.
+- **#71 bouwAutoConfigHtml + _bouwAutoConfigInner dedupe** ✅ Afgerond in v2.66.1 —
+  Gedeelde `_bouwAutoConfigBody(d, contextId, {includeVariant})` helper.
+  `_bouwAutoConfigInner` is nu 1-liner (`includeVariant: true`),
+  `bouwAutoConfigHtml` doet alleen de wrapper-div + trailing script (~80 → ~10
+  regels eigen logica). Geen gedragsverandering, exact dezelfde HTML-output.
+- **#82 kenteken match-helper dedupe** ✅ Afgerond in v2.66.1 — `_upper(s)`
+  helper vervangt 10× `(x || '').toUpperCase()`. De 3 cascaderende substring-
+  filters in `matchEvDatabase` zijn nu een `niveaus[]`-array met for-loop ipv
+  3× uitgeschreven blocks. `matchKilowattVarianten` gebruikt nu `_upper` overal.
 - **#80 + #81 homey.js timeout + r.ok** ✅ Afgerond in v2.66.0 — AbortController(5s)
   op de webhook-fetch (consistent met cronLaden in v2.61.0). `r.ok` ipv strikte
   `r.status === 200`, zodat Athom-webhook responses van 202/204 niet meer
