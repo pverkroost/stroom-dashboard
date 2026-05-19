@@ -8,6 +8,20 @@ const ALLOWED_ORIGINS = [
   'https://stroom-dashboard.vercel.app',
 ];
 
+// Whitelist van geldige multi-user IDs. Centraal hier zodat het toevoegen
+// van een nieuwe user maar op 2 plekken hoeft: hier en de inline-loader in
+// index.html (frontend kan niet `require` uit api/). VALID_USERS[0] is de
+// fallback voor onbekende of ontbrekende ?u waardes.
+const VALID_USERS = ['001', '002'];
+
+// Veilige userId-extractie uit query of body. Onbekend/missend → VALID_USERS[0].
+// Vervangt de 5 verschillende `veiligUserId` varianten die voorheen door alle
+// endpoints heen gekopieerd waren.
+function getValidUserId(req) {
+  const raw = (req.query?.u || req.body?.u || VALID_USERS[0]).toString();
+  return VALID_USERS.includes(raw) ? raw : VALID_USERS[0];
+}
+
 // Eén Redis-instance hergebruiken voor rate-limiting (laat consumers eigen Redis houden voor data).
 let _redisInstance = null;
 function getRedis() {
@@ -147,4 +161,6 @@ module.exports = {
   recordAuthFailure,
   clearAuthFailures,
   ALLOWED_ORIGINS,
+  VALID_USERS,
+  getValidUserId,
 };

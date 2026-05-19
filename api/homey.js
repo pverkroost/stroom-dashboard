@@ -1,17 +1,10 @@
 const fetch = require('node-fetch');
-const { applyGate, getClientIp, checkAuthLockout, recordAuthFailure, clearAuthFailures } = require('./_helpers');
-
-const GELDIGE_USERS = ['001', '002'];
-
-function veiligUserId(req) {
-  const raw = (req.query?.u || req.body?.u || '001').toString();
-  return GELDIGE_USERS.includes(raw) ? raw : '001';
-}
+const { applyGate, getClientIp, getValidUserId, checkAuthLockout, recordAuthFailure, clearAuthFailures } = require('./_helpers');
 
 module.exports = async (req, res) => {
   if (!(await applyGate(req, res, { endpoint: 'homey', max: 5, windowSec: 60 }))) return;
 
-  const userId       = veiligUserId(req);
+  const userId       = getValidUserId(req);
   const pincode      = process.env[`APP_PINCODE_${userId}`];
   const homeyCloudId = process.env[`HOMEY_CLOUD_ID_${userId}`];
 

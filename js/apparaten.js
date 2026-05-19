@@ -176,7 +176,7 @@ function berekenGoedkoopsteBlok(uren, vermogenKw, prijzenLijst) {
   }
   const blok = prijzenLijst.slice(besteI, besteI + blokGrootte);
   const eindDatum = new Date(blok.at(-1).tijd);
-  eindDatum.setHours(eindDatum.getHours() + 1);
+  eindDatum.setTime(eindDatum.getTime() + 3600000); // DST-safe: +1 uur real time, niet clock-time
   return {
     startIndex: besteI,
     startTijd:  blok[0].tijd,
@@ -202,8 +202,8 @@ function berekenComboBlok(uren1, kw1, uren2, kw2, prijzenLijst) {
   const b2 = prijzenLijst.slice(besteI + uren1, besteI + totaal);
   const g1 = b1.reduce((s, p) => s + p.totaal, 0) / uren1;
   const g2 = b2.reduce((s, p) => s + p.totaal, 0) / uren2;
-  const e1 = new Date(b1.at(-1).tijd); e1.setHours(e1.getHours() + 1);
-  const e2 = new Date(b2.at(-1).tijd); e2.setHours(e2.getHours() + 1);
+  const e1 = new Date(b1.at(-1).tijd.getTime() + 3600000);
+  const e2 = new Date(b2.at(-1).tijd.getTime() + 3600000);
   return {
     startIndex: besteI,
     was:  { startTijd: b1[0].tijd, eindDatum: e1, kosten: uren1 * kw1 * g1 },
@@ -459,7 +459,7 @@ function updateTijdlijnHighlights() {
   if (berekendeUren < 0.25) { tip.textContent = ''; return; }
   const selStart = planUren[currentStartIdx]?.tijd;
   if (!selStart) { tip.textContent = ''; return; }
-  const eindDat  = new Date(selStart); eindDat.setHours(eindDat.getHours() + berekendeBlok);
+  const eindDat  = new Date(selStart.getTime() + berekendeBlok * 3600000);
   const eff      = effectieveKosten(berekendeUren, ap.vermogen, planUren, currentStartIdx)
                 ?? berekenKostenVanaf(berekendeUren, ap.vermogen, planUren, currentStartIdx);
   const dekPct   = Math.round(gemSolarDekking(currentStartIdx, berekendeBlok, ap.vermogen, planUren) * 100);
@@ -511,7 +511,7 @@ function renderApDetail() {
   apDetailState._besteIdxBer = besteIdxBer;
   const besteStartBer   = planUren[besteIdxBer]?.tijd;
   const besteEindBerDat = besteStartBer ? new Date(besteStartBer) : null;
-  if (besteEindBerDat) besteEindBerDat.setHours(besteEindBerDat.getHours() + berekendeBlok);
+  if (besteEindBerDat) besteEindBerDat.setTime(besteEindBerDat.getTime() + berekendeBlok * 3600000);
   const besteStartStr = dagHStr(besteStartBer);
   const besteEindStr  = hStr(besteEindBerDat);
   const besteEff     = berekendeUren >= 0.25
@@ -705,7 +705,7 @@ function updateKostenWeergave(berekendeUren) {
     : 0;
   const besteStartBer   = planUren[besteIdxBer]?.tijd;
   const besteEindBerDat = besteStartBer ? new Date(besteStartBer) : null;
-  if (besteEindBerDat) besteEindBerDat.setHours(besteEindBerDat.getHours() + berekendeBlok);
+  if (besteEindBerDat) besteEindBerDat.setTime(besteEindBerDat.getTime() + berekendeBlok * 3600000);
   const besteLabel = ap.type === 'laden' ? 'Beste laadtijd' : 'Beste tijd';
 
   const besteTijdInfoEl = document.getElementById('besteTijdInfoDiv');
@@ -784,7 +784,7 @@ function herbereken() {
   // Laatste startpositie waarvandaan het hele blok vóór vertrek eindigt
   let lastValidIdx = -1;
   planUren.forEach((p, i) => {
-    const eind = new Date(p.tijd); eind.setHours(eind.getHours() + aantalBlok);
+    const eind = new Date(p.tijd.getTime() + aantalBlok * 3600000);
     if (eind <= vertrekDatum) lastValidIdx = i;
   });
 
@@ -800,7 +800,7 @@ function herbereken() {
     return;
   }
 
-  const eindDat  = new Date(res.startTijd); eindDat.setHours(eindDat.getHours() + aantalBlok);
+  const eindDat  = new Date(new Date(res.startTijd).getTime() + aantalBlok * 3600000);
   const effVP    = effectieveKosten(berekendeUren, ap.vermogen, gefilterd, res.startIndex) ?? res.kosten;
   const dekVPPct = Math.round(gemSolarDekking(res.startIndex, aantalBlok, ap.vermogen, planUren) * 100);
   apDetailState._vertrekAdviesIdx = res.startIndex;
@@ -1177,7 +1177,7 @@ function renderLaadadvies() {
     const selTijdStr = (() => {
       const t = selStartIdx < planUren.length ? planUren[selStartIdx]?.tijd : null;
       if (!t) return '';
-      const e = new Date(t); e.setHours(e.getHours() + Math.ceil(uren));
+      const e = new Date(t.getTime() + Math.ceil(uren) * 3600000);
       return `${dagHStr(t)}–${String(e.getHours()).padStart(2,'0')}:00`;
     })();
 

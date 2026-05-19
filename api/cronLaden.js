@@ -1,6 +1,7 @@
 const { Redis } = require('@upstash/redis');
 const { Receiver } = require('@upstash/qstash');
 const fetch = require('node-fetch');
+const { VALID_USERS } = require('./_helpers');
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
@@ -11,8 +12,6 @@ const redis = new Redis({
 const WEBHOOKS = {
   autophev: { starten: 'auto-laden-starten', stoppen: 'auto-laden-stoppen' },
 };
-
-const GELDIGE_USERS = ['001', '002'];
 
 function sleutel(userId, apparaat) {
   return 'laadplanning_' + userId + '_' + (apparaat || 'default');
@@ -66,7 +65,7 @@ module.exports = async (req, res) => {
   // wel correct maar de inhoud niet matchend met onze user-lijst — return expliciet 400
   // zodat dergelijke berichten niet stilletjes op user 001 worden uitgevoerd.
   const rawUserIdStr = (rawUserId || '').toString();
-  if (!GELDIGE_USERS.includes(rawUserIdStr)) {
+  if (!VALID_USERS.includes(rawUserIdStr)) {
     return res.status(400).json({ error: 'Onbekende userId: ' + rawUserIdStr });
   }
   const userId = rawUserIdStr;

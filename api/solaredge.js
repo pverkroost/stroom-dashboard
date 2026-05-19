@@ -1,19 +1,12 @@
 const fetch = require('node-fetch');
-const { setCors, handlePreflight } = require('./_helpers');
-
-const GELDIGE_USERS = ['001', '002'];
-
-function veiligUserId(req) {
-  const raw = (req.query?.u || '001').toString();
-  return GELDIGE_USERS.includes(raw) ? raw : '001';
-}
+const { setCors, handlePreflight, getValidUserId } = require('./_helpers');
 
 module.exports = async (req, res) => {
   setCors(req, res);
   res.setHeader('Content-Type', 'application/json');
   if (handlePreflight(req, res)) return;
 
-  const userId    = veiligUserId(req);
+  const userId    = getValidUserId(req);
   const apiKey    = process.env[`SOLAREDGE_API_KEY_${userId}`];
   const siteId    = process.env[`SOLAREDGE_SITE_ID_${userId}`];
   const type      = req.query.type || 'overview';

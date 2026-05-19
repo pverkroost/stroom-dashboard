@@ -117,20 +117,12 @@ Uit volledige code review (#0a, agent-rapport). KRITIEKE issues zijn óf
 direct gefixt in v2.61.0 óf doorgezet als #0d–#0g. Onderstaande zijn
 WAARSCHUWING-prioriteit: bugs op edge-cases of structurele issues.
 
-- [ ] **#40 Geen vercel.json** — geen deployment-config, geen security-headers
-  (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy), geen
-  `functions.maxDuration`. Voeg `vercel.json` toe met regio, headers en max-duration.
 - [ ] **#41 setInterval zonder visibility-pauze** (`js/app.js:254`) — `laadPrijzen`
   draait elke 5min, ook in achtergrond-tab. Pauzeer via `document.visibilityState`.
 - [ ] **#42 Bootstrap vóór DOMContentLoaded** (`js/app.js:253-255`) — fetch-calls
   starten vóór DOM klaar is; `getElementById` kan null zijn. Wrap in `DOMContentLoaded`.
-- [ ] **#43 cacheVandaag filter DST-bug** (`js/app.js:13`) — `.getHours() >= nowUur`
-  splitst niet op datum + faalt rond DST (23/25-uur dagen). Vergelijk op datum+uur.
 - [ ] **#44 ev-database.json geen cache-bust** (`js/app.js:189,200`) — Na release
   oude lijst in browser cache. Voeg `?v=…` querystring toe zoals bij `.js` files.
-- [ ] **#45 DST-issues in setHours-math** (`js/apparaten.js:177-179,762`) — Bij DST-
-  overgang dubbel/missend uur. Gebruik `setTime(t + 3600*1000)` of Intl met
-  `timeZone:'Europe/Amsterdam'`.
 - [ ] **#46 console.log in productie** (`js/apparaten.js:1036-1041,1075,1217`) —
   Vervuilt console + info-disclosure. Verwijder of gate op `?debug=1`.
 - [ ] **#47 <script> via innerHTML werkt niet** (`js/apparaten.js:1472`) — Scripts
@@ -141,8 +133,6 @@ WAARSCHUWING-prioriteit: bugs op edge-cases of structurele issues.
 - [ ] **#49 ap.uren/vermogen edge case** (`js/apparaten.js:1147`) — Bij wel
   `autoInfo.kenteken` maar geen `vermogen` crasht `berekenGoedkoopsteBlok`.
   Verstrakke check: `ap.uren && ap.vermogen`.
-- [ ] **#50 fetchPrijzen geen timeout** (`js/prijzen.js:7-10`) — EnergyZero down →
-  hangende Promise.all blokkeert hele init. AbortController 10s.
 - [ ] **#51 Empty Prices array** (`js/prijzen.js:9`) — `if (!data?.Prices?.length)`
   toont "Geen prijsdata" zonder retry. Onderscheid leeg vs netwerkfout.
 - [ ] **#52 TOTAL_PEAK_KW=0 NaN** (`js/solar.js:122-126`) — `GROWATT_PEAK_KW /
@@ -156,13 +146,6 @@ WAARSCHUWING-prioriteit: bugs op edge-cases of structurele issues.
   belandt `data.details` undefined als `peakPower:null` bij client. Check `r.ok`.
 - [ ] **#56 SolarEdge api_key in query** (`api/solaredge.js:28`) — Belandt
   mogelijk in proxy/LB-logs. Gebruik header-auth waar mogelijk.
-- [ ] **#57 Geen rate-limit op kenteken** (`api/kenteken.js`) — Gratis RDW lookup
-  scraping-vatbaar. IP-rate-limit (Upstash counter, max 30/min per IP).
-- [ ] **#58 GELDIGE_USERS gedupliceerd op 7+ plekken** — `index.html` + 5 API
-  files + users-bestanden. Toevoegen user is foutgevoelig. Extracteer naar
-  `api/_users.js` shared module.
-- [ ] **#59 veiligUserId varianten** — In 5 endpoints met verschillen (homey/
-  planLaden lezen body.u, anderen niet). Extract naar shared helper.
 - [ ] **#60 users/002.js totaalPiekKw placeholder** — `totaalPiekKw: 16` en
   `solarEdge.piekKw: 16` zijn beide placeholder met dezelfde waarde. Maak
   `totaalPiekKw` computed uit som van per-omvormer piekKw.
@@ -244,6 +227,35 @@ performance micro-optimalisaties.
 
 ## AFGEROND
 
+- **#40 vercel.json met security-headers + maxDuration** ✅ Afgerond in v2.63.0 —
+  CSP (`default-src 'self'` + script-src met cdnjs.cloudflare.com, connect-src
+  met api.energyzero.nl + api.open-meteo.com), X-Frame-Options DENY,
+  X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin,
+  Permissions-Policy (camera/microphone/geolocation/interest-cohort uit).
+  `maxDuration: 10` voor alle api/*.js. Regio `fra1` (Frankfurt, dichtbij NL).
+- **#43 cacheVandaag filter DST/midnight-safe** ✅ Afgerond in v2.63.0 —
+  `js/app.js:getPrijzenVooruit` filtert nu op `p.tijd.getTime() >= hourStart`
+  ipv `.getHours() >= nowUur`. Werkt correct na midnight-passage zonder fresh
+  fetch én op 23/25-uur DST-dagen.
+- **#45 setHours(+N) → setTime(+N\*3600000) in apparaten.js** ✅ Afgerond in
+  v2.63.0 — 8 sites vervangen door ms-gebaseerde duur-additie. Bij DST-back
+  (oktober) telt nu 3 uur laden ook echt 3 uur ipv 4 (clock-time hop). Lijn 281
+  (`target.setHours(now.getHours() + N, 0, 0, 0)`) bewust ongewijzigd: dat is
+  een absolute klok-tijd-set, geen duur-additie.
+- **#50 fetchPrijzen timeout + graceful fallback** ✅ Afgerond in v2.63.0 —
+  AbortController(10s) + check op `res.ok`. Bij timeout/netwerkfout/non-2xx
+  retourneert `null` met `console.warn`, waarna de bestaande `renderGeenData`-
+  flow in `laadPrijzen` overneemt. EnergyZero-uitval blokkeert nu niet meer de
+  Promise.all-init.
+- **#57 Rate-limit op kenteken** ✅ Afgerond in v2.62.0 — 10 req/min/IP via
+  `applyGate` in `api/_helpers.js`. (Eerder reeds geïmplementeerd; nu pas
+  expliciet uit WAARSCHUWING-lijst gehaald.)
+- **#58 + #59 GELDIGE_USERS + veiligUserId centralisatie** ✅ Afgerond in v2.63.0 —
+  `VALID_USERS` constante en `getValidUserId(req)` helper in `api/_helpers.js`.
+  Alle 5 endpoints + cronLaden importeren nu uit één bron; geen lokale
+  `GELDIGE_USERS = […]` of `veiligUserId(req)` definities meer. `index.html`
+  inline-loader heeft nog steeds een eigen lijst (frontend kan geen `require`
+  doen), met expliciete sync-comment.
 - **#0d — Rate-limiting op publieke API endpoints** ✅ Afgerond in v2.62.0+v2.62.1 —
   v2.62.0: shared `api/_helpers.js` met Upstash Redis sliding-window counter
   (`ratelimit_<endpoint>_<ip>` met TTL 60s). Limits: `/api/kenteken` 10/min,

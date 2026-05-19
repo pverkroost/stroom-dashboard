@@ -7,10 +7,12 @@ let openMeteoVandaag = null, growattVandaag = null;
 let apiStatus = { epex: null, solar: null, growatt: null, openMeteo: null, homey: null };
 
 // Eén doorlopende tijdlijn vanaf nu: resterende uren vandaag + heel morgen (zodra beschikbaar).
+// Filter op timestamp (niet op getHours()) zodat we ook na middernacht-passage zonder fresh
+// fetch correct werken en DST-transities (23/25-uur dagen) geen dubbele/missende uren tonen.
 function getPrijzenVooruit() {
   if (!cacheVandaag) return [];
-  const nowUur = new Date().getHours();
-  return [...cacheVandaag.filter(p => p.tijd.getHours() >= nowUur), ...(cacheMorgen || [])];
+  const hourStart = new Date(); hourStart.setMinutes(0, 0, 0);
+  return [...cacheVandaag.filter(p => p.tijd.getTime() >= hourStart.getTime()), ...(cacheMorgen || [])];
 }
 
 function resetZonCanvassen() {
@@ -407,5 +409,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.62.1 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.63.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();

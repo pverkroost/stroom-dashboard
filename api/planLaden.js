@@ -1,18 +1,11 @@
 const { Redis } = require('@upstash/redis');
 const { Client } = require('@upstash/qstash');
-const { applyGate, getClientIp, checkAuthLockout, recordAuthFailure, clearAuthFailures } = require('./_helpers');
+const { applyGate, getClientIp, getValidUserId, checkAuthLockout, recordAuthFailure, clearAuthFailures } = require('./_helpers');
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
-
-const GELDIGE_USERS = ['001', '002'];
-
-function veiligUserId(req) {
-  const raw = (req.query?.u || req.body?.u || '001').toString();
-  return GELDIGE_USERS.includes(raw) ? raw : '001';
-}
 
 function sleutel(userId, apparaat) {
   return 'laadplanning_' + userId + '_' + (apparaat || 'default');
@@ -61,7 +54,7 @@ async function planQStash(userId, startTijd, stopTijd, apparaat) {
 module.exports = async (req, res) => {
   if (!(await applyGate(req, res, { endpoint: 'planLaden', max: 5, windowSec: 60 }))) return;
 
-  const userId      = veiligUserId(req);
+  const userId      = getValidUserId(req);
   const apparaat    = req.query?.apparaat || 'default';
   const expectedPin = process.env[`APP_PINCODE_${userId}`];
 

@@ -4,10 +4,22 @@ async function fetchPrijzen(offset) {
   const start = new Date(); start.setDate(start.getDate() + offset); start.setHours(0,0,0,0);
   const end = new Date(start); end.setDate(end.getDate() + 1);
   const url = `https://api.energyzero.nl/v1/energyprices?fromDate=${start.toISOString()}&tillDate=${end.toISOString()}&interval=4&usageType=1&inclBtw=false`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!data?.Prices?.length) return null;
-  return data.Prices.map(p => ({ tijd: new Date(p.readingDate), epex: p.price, totaal: berekenPrijs(p.price), terug: berekenTerugleverPrijs(p.price) }));
+  // 10s timeout zodat een trage/dode EnergyZero-API de hele app-init niet blokkeert.
+  // Roeper (js/app.js) toont 'Geen prijsdata' als deze null teruggeeft.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data?.Prices?.length) return null;
+    return data.Prices.map(p => ({ tijd: new Date(p.readingDate), epex: p.price, totaal: berekenPrijs(p.price), terug: berekenTerugleverPrijs(p.price) }));
+  } catch (e) {
+    console.warn('[fetchPrijzen] EnergyZero fout/timeout:', e.message);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function renderGeenData() {
