@@ -25,23 +25,6 @@ verbeterpunten. Loop alle bestanden door.
 Fix alle KRITIEKE issues direct. Maak lijst van WAARSCHUWINGEN en
 SUGGESTIES als aparte backlog items.
 
-### #0b — ESLint globals en eqeqeq audit ✅ Afgerond
-
-### #0c — "Over Energie IQ" tekst bijwerken ✅ Afgerond in v2.60.3
-Dubbele header verwijderd (alleen groene balk behouden), intro vervangen
-door "Energie IQ helpt je slim te plannen wanneer je apparaten gebruikt
-op basis van je dynamische energiecontract.", lijst bijgewerkt met
-RDW/EV-database kenteken lookup. Geen interne tech (Vercel/Redis/QStash)
-genoemd in app-UI — die staan in README/CLAUDE.md.
-
-## BUGS (eerst fixen)
-
-- [x] **#1 Apparaatscherm te negatief** ✅ Afgerond in v2.53.0 — rode/oranje
-  "kost € X meer" badges en regels verwijderd. Beste tijd toont "bespaar
-  € X.XX" in groen, geselecteerd/nu toont groen "beste tijd ✓" (bij gelijk)
-  of grijs neutraal "beste tijd: € X.XX goedkoper" (bij slechter). Toegepast
-  op apparaatkaartjes, detail panel, vertrekplanner en tijdlijn-tooltip.
-
 ## SNEL TE DOEN
 
 - [ ] **#2 UX review apparaatscherm tijdkeuze** — Er zijn nu meerdere manieren
@@ -161,6 +144,21 @@ gekoppeld worden aan een betaling.
 - Dakrichting/hoek panelen? (verbetert Open-Meteo nauwkeurigheid)
 - API Client (OAuth2) in Homey — weggooien of bewaren?
 - HOMEY_TOKEN env var — nog gebruikt of dood?
+
+## AFGEROND
+
+- **#0b — ESLint globals en eqeqeq audit** ✅ Afgerond
+- **#0c — "Over Energie IQ" tekst bijwerken** ✅ Afgerond in v2.60.3 —
+  dubbele header verwijderd (alleen groene balk behouden), intro vervangen
+  door "Energie IQ helpt je slim te plannen wanneer je apparaten gebruikt
+  op basis van je dynamische energiecontract.", lijst bijgewerkt met
+  RDW/EV-database kenteken lookup. Geen interne tech (Vercel/Redis/QStash)
+  genoemd in app-UI — die staan in README/CLAUDE.md.
+- **#1 Apparaatscherm te negatief** ✅ Afgerond in v2.53.0 — rode/oranje
+  "kost € X meer" badges en regels verwijderd. Beste tijd toont "bespaar
+  € X.XX" in groen, geselecteerd/nu toont groen "beste tijd ✓" (bij gelijk)
+  of grijs neutraal "beste tijd: € X.XX goedkoper" (bij slechter). Toegepast
+  op apparaatkaartjes, detail panel, vertrekplanner en tijdlijn-tooltip.
 
 ## CONCURRENTIEANALYSE
 
