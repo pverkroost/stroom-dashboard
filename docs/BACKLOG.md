@@ -36,16 +36,12 @@ SUGGESTIES als aparte backlog items.
 - Doel: 0 errors, minimale warnings (alleen `no-unused-vars` voor
   cross-file exports blijft over)
 
-### #0c — "Over Energie IQ" tekst bijwerken
-Verwijder dubbele header (`ℹ️ Over Energie IQ` staat 2x in de instellingen-
-tab "Over"-sectie), update tekst naar huidige staat van de app:
-- Intro: "Energie IQ helpt je slim te plannen wanneer je apparaten gebruikt
-  op basis van je dynamische energiecontract."
-- Combineert: EnergyZero (EPEX prijzen), SolarEdge + Growatt (zonne-
-  opbrengst), Open-Meteo (zonverwachting), Homey webhooks (automatisering),
-  RDW Open Data + EV database (kenteken lookup)
-- Geen vermelding van interne technische implementaties (Vercel, Redis,
-  QStash etc. horen in README/CLAUDE.md, niet in de app-UI)
+### #0c — "Over Energie IQ" tekst bijwerken ✅ Afgerond in v2.60.3
+Dubbele header verwijderd (alleen groene balk behouden), intro vervangen
+door "Energie IQ helpt je slim te plannen wanneer je apparaten gebruikt
+op basis van je dynamische energiecontract.", lijst bijgewerkt met
+RDW/EV-database kenteken lookup. Geen interne tech (Vercel/Redis/QStash)
+genoemd in app-UI — die staan in README/CLAUDE.md.
 
 ## BUGS (eerst fixen)
 

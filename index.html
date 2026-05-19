@@ -186,21 +186,20 @@
   </div>
 
   <div class="section">
-    <div class="section-title">Over Energie IQ</div>
     <div class="tarief-card" style="padding:0;overflow:hidden">
       <div style="background:#c0dd97;color:#27500a;font-size:12px;font-weight:600;padding:10px 14px">
         ℹ️ Over Energie IQ
       </div>
       <div style="padding:14px;font-size:13px;line-height:1.7;color:var(--text)">
-        <p style="margin:0 0 10px">Energie IQ geeft je inzicht in je dynamische energiecontract en helpt je slim te plannen wanneer je apparaten gebruikt.</p>
+        <p style="margin:0 0 10px">Energie IQ helpt je slim te plannen wanneer je apparaten gebruikt op basis van je dynamische energiecontract.</p>
         <p style="margin:0 0 6px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">De app combineert:</p>
-        <ul style="margin:0 0 10px;padding-left:18px;line-height:1.8">
+        <ul style="margin:0;padding-left:18px;line-height:1.8">
           <li>EPEX day-ahead stroomprijzen (via EnergyZero)</li>
           <li>Zonne-opbrengst van SolarEdge en Growatt</li>
-          <li>Weersverwachting voor solar voorspelling (Open-Meteo)</li>
-          <li>Slimme stekker bediening via Homey</li>
+          <li>Zonverwachting voor solar voorspelling (Open-Meteo)</li>
+          <li>Automatisering via Homey webhooks</li>
+          <li>Kenteken lookup via RDW Open Data en EV database</li>
         </ul>
-        <p style="margin:0">Zo zie je altijd wanneer stroom goedkoop is, wanneer de zon genoeg opwekt om gratis te verbruiken, en kun je apparaten automatisch inplannen op het voordeligste moment.</p>
       </div>
     </div>
   </div>
@@ -217,7 +216,7 @@
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.60.2</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.60.3</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -240,13 +239,13 @@
     var GELDIGE_USERS = ['001', '002'];
     var raw = new URLSearchParams(window.location.search).get('u') || '001';
     var userId = GELDIGE_USERS.indexOf(raw) >= 0 ? raw : '001';
-    document.write('<script src="users/' + userId + '.js?v=2.60.2"><\/script>');
+    document.write('<script src="users/' + userId + '.js?v=2.60.3"><\/script>');
   })();
 </script>
-<script src="js/config.js?v=2.60.2"></script>
-<script src="js/solar.js?v=2.60.2"></script>
-<script src="js/prijzen.js?v=2.60.2"></script>
-<script src="js/apparaten.js?v=2.60.2"></script>
-<script src="js/app.js?v=2.60.2"></script>
+<script src="js/config.js?v=2.60.3"></script>
+<script src="js/solar.js?v=2.60.3"></script>
+<script src="js/prijzen.js?v=2.60.3"></script>
+<script src="js/apparaten.js?v=2.60.3"></script>
+<script src="js/app.js?v=2.60.3"></script>
 </body>
 </html>
