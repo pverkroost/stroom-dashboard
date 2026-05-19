@@ -117,12 +117,6 @@ Uit volledige code review (#0a, agent-rapport). KRITIEKE issues zijn óf
 direct gefixt in v2.61.0 óf doorgezet als #0d–#0g. Onderstaande zijn
 WAARSCHUWING-prioriteit: bugs op edge-cases of structurele issues.
 
-- [ ] **#41 setInterval zonder visibility-pauze** (`js/app.js:254`) — `laadPrijzen`
-  draait elke 5min, ook in achtergrond-tab. Pauzeer via `document.visibilityState`.
-- [ ] **#42 Bootstrap vóór DOMContentLoaded** (`js/app.js:253-255`) — fetch-calls
-  starten vóór DOM klaar is; `getElementById` kan null zijn. Wrap in `DOMContentLoaded`.
-- [ ] **#44 ev-database.json geen cache-bust** (`js/app.js:189,200`) — Na release
-  oude lijst in browser cache. Voeg `?v=…` querystring toe zoals bij `.js` files.
 - [ ] **#46 console.log in productie** (`js/apparaten.js:1036-1041,1075,1217`) —
   Vervuilt console + info-disclosure. Verwijder of gate op `?debug=1`.
 - [ ] **#47 <script> via innerHTML werkt niet** (`js/apparaten.js:1472`) — Scripts
@@ -154,6 +148,20 @@ WAARSCHUWING-prioriteit: bugs op edge-cases of structurele issues.
   `berekenPrijs` en `berekenGoedkoopsteBlok`.
 - [ ] **#62 node-fetch dependency overbodig** (`package.json:9`) — Node 18+ heeft
   globale `fetch`. Verwijder `node-fetch ^2.6.9` afhankelijkheid; bespaart bundle/koudstart.
+- [ ] **#90 CSP `'unsafe-inline'` verwijderen** (`vercel.json` + alle JS-renders) —
+  Huidige CSP staat `script-src 'self' 'unsafe-inline'` toe omdat overal in
+  `js/apparaten.js`, `js/solar.js`, `js/app.js` HTML wordt opgebouwd met inline
+  `onclick="..."`-handlers in template-strings. Dat verzwakt CSP fors: XSS via
+  injected inline-script wordt nog steeds toegestaan. Refactor:
+  - Vervang alle `onclick="..."` in template-strings door `addEventListener` na
+    `innerHTML=`, of door event-delegation op een container met data-attributes
+    (`data-action="planInladen"`, `data-apparaat="..."`).
+  - Idem `oninput`, `onchange`, `ondblclick`, `ondragstart`.
+  - Inline `<style>` blokken kunnen blijven (`'unsafe-inline'` in style-src is
+    minder gevaarlijk, maar overweeg ook hashes/nonces).
+  - Daarna `'unsafe-inline'` uit script-src in `vercel.json` halen.
+  Substantiële refactor (~50+ call-sites in apparaten.js alleen), maar maakt
+  XSS-defense in v2.61.0 echt waterdicht in plaats van best-effort.
 
 ## CODE REVIEW v2.61.0 — SUGGESTIES
 
@@ -227,6 +235,19 @@ performance micro-optimalisaties.
 
 ## AFGEROND
 
+- **#41 setInterval visibility-pauze** ✅ Afgerond in v2.64.0 — 5min poll gated
+  op `document.visibilityState === 'visible'`. Bij `visibilitychange → visible`
+  directe refresh als laatste run > 1min geleden was. Bespaart EnergyZero/
+  SolarEdge/Open-Meteo quota voor users met de tab in achtergrond.
+- **#42 Bootstrap vóór DOMContentLoaded** ✅ Non-issue, gesloten in v2.64.0 —
+  scripts staan onderaan `<body>` (regels 248-252 van `index.html`), na alle
+  HTML. DOM is gegarandeerd geparsed wanneer `app.js` draait. Agent-rapport
+  baseerde de waarschuwing op generieke best-practice, niet op de feitelijke
+  page-structuur.
+- **#44 ev-database/kilowatt-meta cache-bust** ✅ Afgerond in v2.64.0 — beide
+  fetches in `js/app.js` hebben nu `?v=…` querystring (zelfde versie als
+  script-tags). Na release zien gebruikers direct de nieuwe EV-DB ipv stale
+  CDN/browser-cache.
 - **#40 vercel.json met security-headers + maxDuration** ✅ Afgerond in v2.63.0 —
   CSP (`default-src 'self'` + script-src met cdnjs.cloudflare.com, connect-src
   met api.energyzero.nl + api.open-meteo.com), X-Frame-Options DENY,

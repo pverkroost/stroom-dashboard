@@ -188,7 +188,9 @@ let _aantalKilowattModellen = null;
 async function laadEvDbCount() {
   if (_aantalEvModellen !== null) return _aantalEvModellen;
   try {
-    const r    = await fetch('/ev-database.json');
+    // Cache-bust: zelfde version-query als de script-tags zodat na een release
+    // direct de nieuwe lijst geladen wordt ipv stale CDN/browser cache.
+    const r    = await fetch('/ev-database.json?v=2.64.0');
     const data = await r.json();
     _aantalEvModellen = Array.isArray(data) ? data.length : 0;
   } catch {
@@ -199,7 +201,7 @@ async function laadEvDbCount() {
 async function laadKilowattCount() {
   if (_aantalKilowattModellen !== null) return _aantalKilowattModellen;
   try {
-    const r    = await fetch('/kilowatt-meta.json');
+    const r    = await fetch('/kilowatt-meta.json?v=2.64.0');
     const data = await r.json();
     _aantalKilowattModellen = data?.count ?? 0;
   } catch {
@@ -252,9 +254,23 @@ try {
   if (cached && heeftIntegratie('solarEdge')) pasOmvormerCapaciteitToe(cached);
 } catch {}
 
-laadPrijzen();
-setInterval(laadPrijzen, 5 * 60 * 1000);
-refreshOmvormerCapaciteit().then(veranderd => { if (veranderd) laadPrijzen(); });
+// Periodieke refresh: 5min interval maar alleen wanneer de tab zichtbaar is.
+// Dit voorkomt onnodige API-calls (EnergyZero, SolarEdge quota, Open-Meteo)
+// terwijl de gebruiker een andere tab gebruikt. Bij terugkeer naar de tab:
+// directe refresh als de laatste run > 1min geleden was, zodat een gebruiker
+// die uren weg was niet stale data ziet.
+let _laatsteRefresh = 0;
+function _markRefresh() { _laatsteRefresh = Date.now(); }
+laadPrijzen().then(_markRefresh);
+setInterval(() => {
+  if (document.visibilityState === 'visible') laadPrijzen().then(_markRefresh);
+}, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Date.now() - _laatsteRefresh > 60_000) {
+    laadPrijzen().then(_markRefresh);
+  }
+});
+refreshOmvormerCapaciteit().then(veranderd => { if (veranderd) laadPrijzen().then(_markRefresh); });
 
 
 function renderInstellingen() {
@@ -409,5 +425,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.63.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v2.64.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
