@@ -129,25 +129,17 @@ WAARSCHUWING-prioriteit: bugs op edge-cases of structurele issues.
   Verstrakke check: `ap.uren && ap.vermogen`.
 - [ ] **#51 Empty Prices array** (`js/prijzen.js:9`) — `if (!data?.Prices?.length)`
   toont "Geen prijsdata" zonder retry. Onderscheid leeg vs netwerkfout.
-- [ ] **#52 TOTAL_PEAK_KW=0 NaN** (`js/solar.js:122-126`) — `GROWATT_PEAK_KW /
-  TOTAL_PEAK_KW` geeft NaN bij user zonder integraties. Guard met
-  `TOTAL_PEAK_KW > 0`.
 - [ ] **#53 DST in solar mapping** (`js/solar.js:60`) — `solarData.map` index niet
   congruent met `prijzen[i].tijd.getHours()` op 23/25-uur dagen. Split index/uur.
-- [ ] **#54 growatt JSON.parse zonder try** (`api/growatt.js:25-27`) — Crash bij
-  niet-JSON respons (rate-limit HTML). Wrap in try.
-- [ ] **#55 solaredge geen r.ok check** (`api/solaredge.js:39`) — Bij 401/429
-  belandt `data.details` undefined als `peakPower:null` bij client. Check `r.ok`.
 - [ ] **#56 SolarEdge api_key in query** (`api/solaredge.js:28`) — Belandt
   mogelijk in proxy/LB-logs. Gebruik header-auth waar mogelijk.
 - [ ] **#60 users/002.js totaalPiekKw placeholder** — `totaalPiekKw: 16` en
   `solarEdge.piekKw: 16` zijn beide placeholder met dezelfde waarde. Maak
   `totaalPiekKw` computed uit som van per-omvormer piekKw.
-- [ ] **#61 package.json onvolledig** — Mist `private:true`, `engines.node>=18`,
-  geen `test`-script, geen test-framework. Voeg toe; overweeg test-coverage op
-  `berekenPrijs` en `berekenGoedkoopsteBlok`.
-- [ ] **#62 node-fetch dependency overbodig** (`package.json:9`) — Node 18+ heeft
-  globale `fetch`. Verwijder `node-fetch ^2.6.9` afhankelijkheid; bespaart bundle/koudstart.
+- [ ] **#61b package.json test-coverage** — `private:true`, `engines.node>=18`
+  en quoted lint glob zijn in v2.65.0 toegevoegd. Open: `test`-script + test-
+  framework + coverage op `berekenPrijs`, `berekenGoedkoopsteBlok`,
+  `bepaalBrandstoftype`.
 - [ ] **#90 CSP `'unsafe-inline'` verwijderen** (`vercel.json` + alle JS-renders) —
   Huidige CSP staat `script-src 'self' 'unsafe-inline'` toe omdat overal in
   `js/apparaten.js`, `js/solar.js`, `js/app.js` HTML wordt opgebouwd met inline
@@ -235,6 +227,27 @@ performance micro-optimalisaties.
 
 ## AFGEROND
 
+- **#52 TOTAL_PEAK_KW=0 NaN-guard** ✅ Afgerond in v2.65.0 — `growattFractie()`
+  helper in `js/solar.js` retourneert 0 als `TOTAL_PEAK_KW <= 0`. Beide
+  divisie-sites (line 122 + 206) gebruiken nu de helper. Voorkomt "NaN%" in UI
+  en kapotte sortering voor users zonder solar-integratie.
+- **#54 growatt JSON.parse hardening** ✅ Afgerond in v2.65.0 — inner try-catch
+  rond `JSON.parse(text)` in `api/growatt.js`. Bij niet-JSON respons (rate-limit
+  HTML, upstream-fout) returneert nu `{ beschikbaar: false, reden: '...' }` ipv
+  500 met stacktrace. Frontend volgt hetzelfde graceful pad als bij missende token.
+- **#55 solaredge r.ok + 502 mapping** ✅ Afgerond in v2.65.0 — `r.ok` check
+  vóór JSON-parse in `api/solaredge.js`. 401 → "ongeldige API-key", 429 → "rate-
+  limit bereikt", overige non-ok → "HTTP \<status\>". Frontend krijgt 502 met
+  duidelijke `error` ipv stille `peakPower: null`. Plus JSON-parse-fout vangt.
+- **#62 node-fetch verwijderd** ✅ Afgerond in v2.65.0 — `require('node-fetch')`
+  weggehaald uit 5 endpoints (`cronLaden`, `growatt`, `homey`, `kenteken`,
+  `solaredge`). Vercel Node 20+ heeft globale `fetch`. `node-fetch ^2.6.9`
+  dependency uit `package.json` + `package-lock.json` (4 transitive packages
+  weg). Snellere cold-start (~50-100ms minder per fresh function-instance).
+- **#61a package.json schoonmaak** ✅ Afgerond in v2.65.0 (meegenomen bij #62) —
+  `private: true`, `engines.node >= 18`, quoted lint glob (`"js/**/*.js"`)
+  zodat het ook op Windows-PowerShell zonder shell-expansie werkt. Test-script
+  + framework blijft open als #61b.
 - **#41 setInterval visibility-pauze** ✅ Afgerond in v2.64.0 — 5min poll gated
   op `document.visibilityState === 'visible'`. Bij `visibilitychange → visible`
   directe refresh als laatste run > 1min geleden was. Bespaart EnergyZero/

@@ -1,6 +1,5 @@
 const { Redis } = require('@upstash/redis');
 const { Receiver } = require('@upstash/qstash');
-const fetch = require('node-fetch');
 const { VALID_USERS } = require('./_helpers');
 
 const redis = new Redis({

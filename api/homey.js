@@ -1,4 +1,3 @@
-const fetch = require('node-fetch');
 const { applyGate, getClientIp, getValidUserId, checkAuthLockout, recordAuthFailure, clearAuthFailures } = require('./_helpers');
 
 module.exports = async (req, res) => {

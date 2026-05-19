@@ -1,4 +1,3 @@
-const fetch = require('node-fetch');
 const { setCors, handlePreflight, getValidUserId } = require('./_helpers');
 
 module.exports = async (req, res) => {
@@ -18,9 +17,19 @@ module.exports = async (req, res) => {
       { headers: { token: apiToken } }
     );
     const text = await r.text();
-    const json = JSON.parse(text);
-    const plant = json?.data?.plants?.[0];
 
+    // Growatt geeft bij rate-limit of upstream-fout vaak HTML terug ipv JSON.
+    // Behandel parse-fouten als "tijdelijk niet beschikbaar" zodat de frontend
+    // hetzelfde graceful pad volgt als bij missende API-token.
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      console.warn('[growatt] geen geldige JSON respons (status:', r.status, ')');
+      return res.json({ beschikbaar: false, reden: 'upstream non-JSON' });
+    }
+
+    const plant = json?.data?.plants?.[0];
     res.json({
       currentPower:    parseFloat(plant?.current_power) || 0,
       totalEnergy:     parseFloat(plant?.total_energy)  || 0,

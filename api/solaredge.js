@@ -1,4 +1,3 @@
-const fetch = require('node-fetch');
 const { setCors, handlePreflight, getValidUserId } = require('./_helpers');
 
 module.exports = async (req, res) => {
@@ -32,7 +31,23 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const data = await fetch(url).then(r => r.json());
+    const r = await fetch(url);
+
+    // Status-check vóór JSON-parse: bij 401 (ongeldige key), 403 of 429 (rate-limit)
+    // geeft SolarEdge een JSON error-body terug die we niet als data willen
+    // doorlaten — dan ziet de frontend stilletjes `peakPower: null` of een raw
+    // error-object. Liever een expliciete fout zodat de status-tegel rood wordt.
+    if (!r.ok) {
+      const reden = r.status === 401 ? 'ongeldige API-key'
+                  : r.status === 429 ? 'rate-limit bereikt'
+                  : `HTTP ${r.status}`;
+      console.warn('[solaredge]', type, 'faalde:', reden);
+      return res.status(502).json({ error: 'SolarEdge: ' + reden });
+    }
+
+    const data = await r.json().catch(() => null);
+    if (!data) return res.status(502).json({ error: 'SolarEdge: ongeldige respons' });
+
     if (type === 'details') {
       const d = data?.details || {};
       // SolarEdge geeft alleen peakPower (kWp); we aliassen ook als installedPower

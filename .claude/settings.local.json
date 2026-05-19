@@ -38,7 +38,8 @@
       "Bash(npm run *)",
       "Bash(grep -E \"^[A-Z]:|js[\\\\\\\\/]|api[\\\\\\\\/]\")",
       "Bash(awk '/^[A-Z]:.+\\\\.js$/ {file=$0; next} /error/ {print file \":\" $0}')",
-      "Bash(findstr -i vercel)"
+      "Bash(findstr -i vercel)",
+      "Bash(npm uninstall *)"
     ]
   }
 }

@@ -117,9 +117,16 @@ function calcLiveKw() {
   return ((solarVandaag?.currentWatt ?? 0) + (growattVandaag?.currentWatt ?? 0)) / 1000;
 }
 
+// Aandeel van Growatt-panelen in totale solar-capaciteit. Bij user zonder
+// solar-integratie is TOTAL_PEAK_KW = 0; zonder guard wordt dit NaN en propageert
+// dat door alle dekkings-berekeningen ("NaN%" in UI, kapotte sortering).
+function growattFractie() {
+  return TOTAL_PEAK_KW > 0 ? GROWATT_PEAK_KW / TOTAL_PEAK_KW : 0;
+}
+
 function calcVandaagKwh() {
   const nowH = new Date().getHours();
-  const grFractie = GROWATT_PEAK_KW / TOTAL_PEAK_KW;
+  const grFractie = growattFractie();
   const grActKwh = (openMeteoVandaag?.hourly || [])
     .filter(e => e.hour <= nowH)
     .reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
@@ -203,7 +210,7 @@ function renderZonTab() {
   if (!growattVandaag && !openMeteoVandaag) {
     grEl.innerHTML = '<div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div>';
   } else {
-    const grFractie = GROWATT_PEAK_KW / TOTAL_PEAK_KW;
+    const grFractie = growattFractie();
     const grActKwh  = (openMeteoVandaag?.hourly || [])
       .filter(e => e.hour <= nowH).reduce((s, e) => s + e.watt * grFractie, 0) / 1000;
     const grVerwKwh = (openMeteoVandaag?.hourly || [])

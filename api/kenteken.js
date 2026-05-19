@@ -1,4 +1,3 @@
-const fetch = require('node-fetch');
 const evDatabase   = require('../ev-database.json');
 const kilowattData = require('../kilowatt-ev-data.json'); // BEV-only, fallback voor obscure modellen
 const kilowattVehicles = (kilowattData && kilowattData.data) || [];
