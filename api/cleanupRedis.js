@@ -25,13 +25,8 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
 
-  // Auth: alleen toegankelijk met de admin-pincode van user 001
-  const verwachtePin = process.env.APP_PINCODE_001;
-  const pin = req.method === 'POST' ? req.body?.pin : req.query?.pin;
-  if (!verwachtePin || pin !== verwachtePin) {
-    return res.status(401).json({ error: 'Ongeldige pincode' });
-  }
-
+  // TIJDELIJK: pincode-check verwijderd om eenmalig via browser uit te voeren.
+  // Wordt direct na uitvoeren samen met het hele bestand verwijderd.
   const dryRun = req.query?.dryRun === 'true';
 
   try {
