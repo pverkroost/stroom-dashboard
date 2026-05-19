@@ -62,7 +62,14 @@ module.exports = async (req, res) => {
   const webhooks = WEBHOOKS[apparaat];
   if (!webhooks) return res.status(400).json({ error: 'Onbekend apparaat: ' + apparaat });
 
-  const userId = GELDIGE_USERS.includes((rawUserId || '').toString()) ? rawUserId.toString() : '001';
+  // Geen fallback naar 001: bij ontbrekende/ongeldige userId is de body-signature
+  // wel correct maar de inhoud niet matchend met onze user-lijst — return expliciet 400
+  // zodat dergelijke berichten niet stilletjes op user 001 worden uitgevoerd.
+  const rawUserIdStr = (rawUserId || '').toString();
+  if (!GELDIGE_USERS.includes(rawUserIdStr)) {
+    return res.status(400).json({ error: 'Onbekende userId: ' + rawUserIdStr });
+  }
+  const userId = rawUserIdStr;
   const homeyCloudId = process.env[`HOMEY_CLOUD_ID_${userId}`];
 
   if (!homeyCloudId) {
@@ -71,17 +78,42 @@ module.exports = async (req, res) => {
 
   const homeyBase = `https://${homeyCloudId}.connect.athom.com/api/manager/logic/webhook`;
 
+  // 5s timeout: voorkomt dat een hangende Athom-call de Vercel-function tot
+  // function-timeout (10s) laat lopen en de gebruiker geen feedback krijgt.
+  async function homeyFetch(url) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      const r = await fetch(url, { signal: controller.signal });
+      return r;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   if (actie === 'starten') {
     // Controleer of planning nog actief is — gebruiker kan hebben geannuleerd
     const data = await redis.get(sleutel(userId, apparaat));
     if (!data) return res.json({ actie: 'geannuleerd', reden: 'planning niet meer actief' });
 
-    await fetch(`${homeyBase}/${webhooks.starten}`);
+    try {
+      const r = await homeyFetch(`${homeyBase}/${webhooks.starten}`);
+      if (!r.ok) return res.status(502).json({ error: `Homey-webhook starten faalde (${r.status})` });
+    } catch (e) {
+      return res.status(502).json({ error: 'Homey-webhook starten timeout/fout: ' + e.message });
+    }
     return res.json({ actie: 'gestart', apparaat });
   }
 
   if (actie === 'stoppen') {
-    await fetch(`${homeyBase}/${webhooks.stoppen}`);
+    try {
+      const r = await homeyFetch(`${homeyBase}/${webhooks.stoppen}`);
+      // Alleen Redis-row weghalen als webhook daadwerkelijk succesvol was —
+      // anders kunnen we de planning niet opnieuw triggeren bij retry.
+      if (!r.ok) return res.status(502).json({ error: `Homey-webhook stoppen faalde (${r.status})` });
+    } catch (e) {
+      return res.status(502).json({ error: 'Homey-webhook stoppen timeout/fout: ' + e.message });
+    }
     await redis.del(sleutel(userId, apparaat));
     return res.json({ actie: 'gestopt', apparaat });
   }

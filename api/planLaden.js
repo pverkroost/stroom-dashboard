@@ -71,6 +71,8 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === 'DELETE') {
+    const pin = req.body?.pin || req.query?.pin;
+    if (!expectedPin || pin !== expectedPin) return res.status(401).json({ error: 'Ongeldige pincode' });
     await redis.del(sleutel(userId, apparaat));
     return res.json({ success: true });
   }

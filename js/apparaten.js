@@ -53,12 +53,12 @@ function renderApparatenInstellingen() {
     const isAuto = ap.batterij === true;
     const info   = ap.autoInfo || {};
     const autoSub = isAuto && info.kenteken
-      ? `<div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${info.kenteken}${info.bouwjaar ? ' · ' + info.bouwjaar : ''}${info.laadtypeLabel ? ' · ' + info.laadtypeLabel.split('(')[0].trim() : ''}</div>`
+      ? `<div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(info.kenteken)}${info.bouwjaar ? ' · ' + escapeHtml(info.bouwjaar) : ''}${info.laadtypeLabel ? ' · ' + escapeHtml(info.laadtypeLabel.split('(')[0].trim()) : ''}</div>`
       : '';
     const knop = isAuto
       ? `<button onclick="event.stopPropagation();toonKentekenDialog()" style="flex-shrink:0;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-family:inherit;cursor:pointer">${info.kenteken ? 'Wijzigen' : 'Kenteken'}</button>`
       : '';
-    return `<div class="apparaat-row" draggable="true" data-naam="${ap.naam}"
+    return `<div class="apparaat-row" draggable="true" data-naam="${escapeHtml(ap.naam)}"
               style="display:flex;align-items:center;gap:12px;padding:8px 4px;border-bottom:0.5px solid var(--border)">
       <span class="drag-handle" style="cursor:grab;color:var(--muted);font-size:18px;user-select:none;flex-shrink:0;width:24px;text-align:center;touch-action:none;padding:8px 0">☰</span>
       ${instIconHtml(ap.icon)}
@@ -903,10 +903,35 @@ async function planInladen(stilUpdate = false) {
 
 async function annuleerPlanning(apparaat) {
   if (!apparaat && apDetailState) apparaat = apSleutel(apDetailState.ap.naam);
-  const statusEl = document.getElementById('planningStatusEl');
+  const statusEl  = document.getElementById('planningStatusEl');
+  const cachedPin = apDetailState?._cachedPlanPin;
+
+  // Geen gecachte pin (bv. na page-refresh): trigger pincode-prompt voor annuleren.
+  if (!cachedPin) {
+    _homeyPendingAction = 'annuleer';
+    const section      = document.getElementById('homeyPincodeSection');
+    const input        = document.getElementById('homeyPinInput');
+    const okBtn        = document.getElementById('homeyOkBtn');
+    const promptStatus = document.getElementById('homeyStatus');
+    if (section)      { section.style.display = 'block'; section.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    if (input)        { input.disabled = false; input.value = ''; input.focus(); }
+    if (okBtn)        { okBtn.disabled = false; okBtn.textContent = '✓'; }
+    if (promptStatus) { promptStatus.textContent = 'Voer pincode in om planning te annuleren'; promptStatus.style.color = 'var(--muted)'; }
+    return;
+  }
+
   try {
-    const r    = await fetch(apiUrl('/api/planLaden?apparaat=' + (apparaat || '')), { method: 'DELETE' });
+    const r = await fetch(apiUrl('/api/planLaden?apparaat=' + (apparaat || '')), {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ pin: cachedPin })
+    });
     const data = await r.json();
+    if (r.status === 401) {
+      // Gecachte pin niet meer geldig — wis cache en prompt opnieuw
+      if (apDetailState) apDetailState._cachedPlanPin = null;
+      return annuleerPlanning(apparaat);
+    }
     if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
     _planningActief = false;
     if (statusEl) statusEl.style.display = 'none';
@@ -923,14 +948,8 @@ async function annuleerPlanning(apparaat) {
 let _homeyPendingAction = null;
 
 function homeyActie(action) {
-  if (action === 'start' && _planningActief) {
-    const ap = apDetailState ? apSleutel(apDetailState.ap.naam) : 'autophev';
-    fetch(apiUrl('/api/planLaden?apparaat=' + ap), { method: 'DELETE' }).then(() => {
-      _planningActief = false;
-      const statusEl = document.getElementById('planningStatusEl');
-      if (statusEl) statusEl.style.display = 'none';
-    }).catch(() => {});
-  }
+  // Pre-DELETE bij 'start' is verwijderd: daarvoor is auth nodig. Cleanup van
+  // actieve planning gebeurt nu na succesvolle 'start'-bevestiging in bevestigPincode.
   _homeyPendingAction = action;
   const section  = document.getElementById('homeyPincodeSection');
   const input    = document.getElementById('homeyPinInput');
@@ -974,11 +993,37 @@ async function bevestigPincode() {
       if (r.status === 401) throw new Error('Ongeldige pincode');
       if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
 
-      apDetailState._cachedPlanPin = pin; // herbruikbaar voor stille slider-updates in deze sessie
+      apDetailState._cachedPlanPin = pin; // herbruikbaar voor stille slider-updates en annuleren in deze sessie
       _planningActief = true;
       if (section)  section.style.display = 'none';
       if (statusEl) { statusEl.textContent = '✓ Planning opgeslagen'; statusEl.style.color = 'var(--green)'; }
       await laadPlanningStatus(apparaat);
+      return;
+    }
+
+    if (action === 'annuleer') {
+      if (!apDetailState) throw new Error('Geen apparaat actief');
+      const apparaat = apSleutel(apDetailState.ap.naam);
+      const r = await fetch(apiUrl('/api/planLaden?apparaat=' + apparaat), {
+        method:  'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ pin })
+      });
+      const data = await r.json();
+      if (r.status === 401) throw new Error('Ongeldige pincode');
+      if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
+
+      apDetailState._cachedPlanPin = pin;
+      _planningActief = false;
+      if (section) section.style.display = 'none';
+      const planStatusEl = document.getElementById('planningStatusEl');
+      if (planStatusEl) planStatusEl.style.display = 'none';
+      const btn = document.getElementById('planInladenBtn');
+      if (btn) {
+        const t = getSelStartActual();
+        btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
+      }
+      if (statusEl) { statusEl.textContent = '✓ Planning geannuleerd'; statusEl.style.color = 'var(--green)'; }
       return;
     }
 
@@ -991,6 +1036,24 @@ async function bevestigPincode() {
     const data = await r.json();
     if (r.status === 401) throw new Error('Ongeldige pincode');
     if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
+
+    // Bij 'start' met actieve planning: cleanup planning na succesvolle webhook.
+    // Best-effort — als DELETE faalt, blijft Redis-row staan (verstreken QStash
+    // messages firen alsnog, dat is backlog #6/#7 voor QStash msg-cleanup).
+    if (action === 'start' && _planningActief && apDetailState) {
+      const apparaat = apSleutel(apDetailState.ap.naam);
+      try {
+        await fetch(apiUrl('/api/planLaden?apparaat=' + apparaat), {
+          method:  'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ pin })
+        });
+        _planningActief = false;
+        const planStatusEl = document.getElementById('planningStatusEl');
+        if (planStatusEl) planStatusEl.style.display = 'none';
+      } catch {}
+    }
+
     if (section)  section.style.display = 'none';
     if (statusEl) {
       statusEl.textContent = action === 'start' ? '✓ Laden gestart!' : '✓ Laden gestopt.';
@@ -1342,17 +1405,17 @@ function bouwVariantKeuzeHtml(d, contextId) {
   const opts = (d.varianten || []).map((v, i) => {
     const kwh   = v.bruikbaarKwh ?? v.batterijKwh;
     const specs = `🔋 ${kwh ? kwh.toString().replace('.', ',') + ' kWh' : '—'}${v.laadVermogenAcKw ? ' · ⚡ ' + v.laadVermogenAcKw.toString().replace('.', ',') + ' kW' : ''}`;
-    return `<option value="${i}">${v.variantNaam} — ${specs}</option>`;
+    return `<option value="${i}">${escapeHtml(v.variantNaam)} — ${specs}</option>`;
   }).join('');
   // Basis-data (zonder varianten[]) zodat we 'm kunnen combineren met de gekozen variant
   const basis = { ...d };
   delete basis.varianten;
   delete basis.meerdereVarianten;
-  const basisAttr     = JSON.stringify(basis).replace(/"/g, '&quot;');
-  const variantenAttr = JSON.stringify(d.varianten || []).replace(/"/g, '&quot;');
+  const basisAttr     = JSON.stringify(basis).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const variantenAttr = JSON.stringify(d.varianten || []).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
   return `
     <div style="padding:10px;border-radius:7px;background:var(--card);border:1px solid var(--border);font-size:12px">
-      <div style="font-weight:600;margin-bottom:2px">${d.merk} ${d.model || ''}${d.bouwjaar ? ' · ' + d.bouwjaar : ''}</div>
+      <div style="font-weight:600;margin-bottom:2px">${escapeHtml(d.merk)} ${escapeHtml(d.model || '')}${d.bouwjaar ? ' · ' + escapeHtml(d.bouwjaar) : ''}</div>
       <div style="color:var(--muted);margin-bottom:8px;font-size:11px">Meerdere varianten — kies welke je hebt:</div>
       <select id="${contextId}_variantSel" data-basis="${basisAttr}" data-varianten="${variantenAttr}"
         onchange="kiesVariant('${contextId}')"
@@ -1395,7 +1458,7 @@ function _bouwAutoConfigInner(d, contextId) {
   const handmatig   = d.handmatig === true;
   const titel       = handmatig
     ? 'Auto handmatig invoeren'
-    : `${d.merk || ''} ${d.model || ''}${d.bouwjaar ? ' · ' + d.bouwjaar : ''}${d.variantNaam ? ' · ' + d.variantNaam : ''}`.trim();
+    : escapeHtml(`${d.merk || ''} ${d.model || ''}${d.bouwjaar ? ' · ' + d.bouwjaar : ''}${d.variantNaam ? ' · ' + d.variantNaam : ''}`.trim());
   const autoMaxKw   = d.laadVermogenAcKw ?? null;
   const kwh         = d.bruikbaarKwh ?? d.batterijKwh ?? null;
   if (kwh) window[contextId + '_pendingKwh'] = kwh;
@@ -1406,23 +1469,23 @@ function _bouwAutoConfigInner(d, contextId) {
 
   const handmatigeVelden = (!inDb || handmatig)
     ? `<div style="display:flex;gap:6px;margin-bottom:6px">
-        <input type="number" id="${contextId}_kwh" placeholder="Bruikbaar kWh" min="0" step="0.1" value="${kwh ?? ''}"
+        <input type="number" id="${contextId}_kwh" placeholder="Bruikbaar kWh" min="0" step="0.1" value="${escapeHtml(kwh ?? '')}"
           oninput="updateWerkelijkVermogen('${contextId}', document.getElementById('${contextId}_autoMax')?.value || null)"
           style="flex:1;min-width:0;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
-        <input type="number" id="${contextId}_autoMax" placeholder="Auto max kW" min="0" step="0.1" value="${autoMaxKw ?? ''}"
+        <input type="number" id="${contextId}_autoMax" placeholder="Auto max kW" min="0" step="0.1" value="${escapeHtml(autoMaxKw ?? '')}"
           oninput="updateWerkelijkVermogen('${contextId}', this.value)"
           style="flex:1;min-width:0;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
       </div>`
     : '';
 
-  const dataAttr = JSON.stringify(d).replace(/"/g, '&quot;');
+  const dataAttr = JSON.stringify(d).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   return `
       <div style="font-weight:600;margin-bottom:2px">${titel}</div>
       ${!inDb && !handmatig ? `<div style="color:var(--muted);margin-bottom:6px;font-size:11px">Laadgegevens niet bekend — vul handmatig in</div>` : ''}
       ${specsRegel}
       ${handmatigeVelden}
       ${bouwLaadtypeHtml(contextId, autoMaxKw)}
-      <button onclick='bevestigAutoConfig(${dataAttr.replace(/'/g,"&#39;")}, "${contextId}")' style="margin-top:10px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>`;
+      <button onclick='bevestigAutoConfig(${dataAttr}, "${contextId}")' style="margin-top:10px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>`;
 }
 
 // Toont auto-details (al-bekend uit RDW/EV-DB) + handmatige velden (indien niet in EV-DB) +
@@ -1436,7 +1499,7 @@ function bouwAutoConfigHtml(d, contextId) {
   const handmatig  = d.handmatig === true;
   const titel      = handmatig
     ? 'Auto handmatig invoeren'
-    : `${d.merk || ''} ${d.model || ''}${d.bouwjaar ? ' · ' + d.bouwjaar : ''}`.trim();
+    : escapeHtml(`${d.merk || ''} ${d.model || ''}${d.bouwjaar ? ' · ' + d.bouwjaar : ''}`.trim());
   const autoMaxKw  = d.laadVermogenAcKw ?? null;
   const kwh        = d.bruikbaarKwh ?? d.batterijKwh ?? null;
   // Pre-cache kwh voor updateWerkelijkVermogen wanneer er geen kwh-input-veld is
@@ -1448,17 +1511,19 @@ function bouwAutoConfigHtml(d, contextId) {
 
   const handmatigeVelden = (!inDb || handmatig)
     ? `<div style="display:flex;gap:6px;margin-bottom:6px">
-        <input type="number" id="${contextId}_kwh" placeholder="Bruikbaar kWh" min="0" step="0.1" value="${kwh ?? ''}"
+        <input type="number" id="${contextId}_kwh" placeholder="Bruikbaar kWh" min="0" step="0.1" value="${escapeHtml(kwh ?? '')}"
           oninput="updateWerkelijkVermogen('${contextId}', document.getElementById('${contextId}_autoMax')?.value || null)"
           style="flex:1;min-width:0;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
-        <input type="number" id="${contextId}_autoMax" placeholder="Auto max kW" min="0" step="0.1" value="${autoMaxKw ?? ''}"
+        <input type="number" id="${contextId}_autoMax" placeholder="Auto max kW" min="0" step="0.1" value="${escapeHtml(autoMaxKw ?? '')}"
           oninput="updateWerkelijkVermogen('${contextId}', this.value)"
           style="flex:1;min-width:0;padding:7px;border-radius:5px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);font-family:inherit">
       </div>`
     : '';
 
-  // Encode data voor passing naar bevestig-handler (JSON in HTML-attribute)
-  const dataAttr = JSON.stringify(d).replace(/"/g, '&quot;');
+  // Encode data voor passing naar bevestig-handler (JSON in HTML-attribute).
+  // Escape & eerst (anders worden bestaande entities in user-data dubbel-decoded),
+  // dan " (eindigt geen attribuut), dan ' (de attribuut-wrapper).
+  const dataAttr = JSON.stringify(d).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
   return `
     <div style="padding:10px;border-radius:7px;background:var(--card);border:1px solid var(--border);font-size:12px">
@@ -1467,7 +1532,7 @@ function bouwAutoConfigHtml(d, contextId) {
       ${specsRegel}
       ${handmatigeVelden}
       ${bouwLaadtypeHtml(contextId, autoMaxKw)}
-      <button onclick='bevestigAutoConfig(${dataAttr.replace(/'/g,"&#39;")}, "${contextId}")' style="margin-top:10px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>
+      <button onclick='bevestigAutoConfig(${dataAttr}, "${contextId}")' style="margin-top:10px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>
     </div>
     <script>setTimeout(function(){ updateWerkelijkVermogen('${contextId}', ${autoMaxKw ?? 'null'}); }, 0)</script>`;
 }
@@ -1531,9 +1596,9 @@ function bouwAutoDetailsHtml(ap) {
       <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);background:var(--bg)">
         <div style="display:flex;align-items:flex-start;gap:8px">
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;line-height:1.4">🚗 ${info.merk} ${info.model || ''}${jaarStr}${variantStr}</div>
-            <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px">🔋 ${_formatKwh(kwh)} · ⚡ ${_formatKw(werkelijk)}${ltLabel}${duur}</div>
-            ${info.kenteken ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${info.kenteken}</div>` : ''}
+            <div style="font-size:13px;font-weight:600;line-height:1.4">🚗 ${escapeHtml(info.merk)} ${escapeHtml(info.model || '')}${escapeHtml(jaarStr)}${escapeHtml(variantStr)}</div>
+            <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px">🔋 ${_formatKwh(kwh)} · ⚡ ${_formatKw(werkelijk)}${escapeHtml(ltLabel)}${duur}</div>
+            ${info.kenteken ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${escapeHtml(info.kenteken)}</div>` : ''}
           </div>
           <button onclick="toonKentekenDialog()" style="flex-shrink:0;padding:6px 11px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit">Wijzigen</button>
         </div>
@@ -1566,7 +1631,7 @@ async function zoekKentekenInPanel() {
   res.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:6px 0">Opzoeken…</div>';
   const { data, error } = await _doeKentekenLookup(input.value);
   if (error) {
-    res.innerHTML = `<div style="font-size:11px;color:#a32d2d;padding:6px 0">${error}</div>`;
+    res.innerHTML = `<div style="font-size:11px;color:#a32d2d;padding:6px 0">${escapeHtml(error)}</div>`;
     return;
   }
   res.innerHTML = bouwAutoConfigHtml(data, 'apPanel');
@@ -1605,7 +1670,7 @@ async function zoekKentekenInDialog() {
   res.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:6px 0">Opzoeken…</div>';
   const { data, error } = await _doeKentekenLookup(input.value);
   if (error) {
-    res.innerHTML = `<div style="font-size:12px;color:#a32d2d;padding:6px 0">${error}</div>`;
+    res.innerHTML = `<div style="font-size:12px;color:#a32d2d;padding:6px 0">${escapeHtml(error)}</div>`;
     return;
   }
   res.innerHTML = bouwAutoConfigHtml(data, 'apDialog');

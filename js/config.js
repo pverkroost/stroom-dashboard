@@ -55,6 +55,18 @@ function apiUrl(path) {
 
 function berekenTerugleverPrijs(epex) { return (epex - TERUGLEVERING_OPSLAG) * BTW; }
 
+// HTML-escape voor user-controlled / 3rd-party data (RDW, EV-DB, API errors)
+// die in template-strings naar innerHTML gaat. Null/undefined → lege string.
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function uurStr(d) {
   return d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
