@@ -16,13 +16,19 @@ function sleutel(userId, apparaat) {
   return 'laadplanning_' + userId + '_' + (apparaat || 'default');
 }
 
-function readRawBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on('data', (chunk) => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', reject);
-  });
+// Body kleiner dan 64KB ruim genoeg voor QStash messages (compacte JSON).
+// Size-limit beschermt tegen DoS via opzettelijk grote bodies; bij overschrijding
+// throw'en we — caller geeft 400 terug.
+const MAX_BODY_BYTES = 64 * 1024;
+async function readRawBody(req) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > MAX_BODY_BYTES) throw new Error('Request body too large');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 module.exports = async (req, res) => {
@@ -37,7 +43,12 @@ module.exports = async (req, res) => {
   const signature = req.headers['upstash-signature'];
   if (!signature) return res.status(401).json({ error: 'Missing signature' });
 
-  const rawBody = await readRawBody(req);
+  let rawBody;
+  try {
+    rawBody = await readRawBody(req);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
 
   const receiver = new Receiver({ currentSigningKey: currentKey, nextSigningKey: nextKey });
   try {

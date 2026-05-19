@@ -19,7 +19,12 @@ const TERUGLEVERING_OPSLAG = window.CONFIG.tarieven.teruglevering;
 // runtime kan overschrijven met de waarde uit /api/solaredge?type=details.
 const LAT                   = window.CONFIG.panelen.lat ?? 52.3667;
 const LON                   = window.CONFIG.panelen.lon ?? 6.4667;
-let   TOTAL_PEAK_KW         = window.CONFIG.panelen.totaalPiekKw;
+// totaalPiekKw uit user-config is een placeholder; bij ontbreken (of 0) wordt het
+// computed uit de som van per-omvormer piekKw zodat een vergeten field-update
+// niet stil leidt tot NaN-divisies in solar-dekkingsberekeningen.
+let   TOTAL_PEAK_KW         = window.CONFIG.panelen.totaalPiekKw
+                              || ((window.CONFIG.panelen.solarEdge?.piekKw || 0)
+                                + (window.CONFIG.panelen.growatt?.piekKw   || 0));
 const PANEL_EFFICIENCY      = window.CONFIG.panelen.rendement;
 let   SOLAREDGE_PEAK_KW     = window.CONFIG.panelen.solarEdge.piekKw;
 const SOLAREDGE_PANEL_COUNT = window.CONFIG.panelen.solarEdge.panelen;
@@ -74,8 +79,37 @@ function uurStr(d) {
   return d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
 
-function getTodayStart()    { const d = new Date(); d.setHours(0,0,0,0); return d; }
+// Debug-logging gate: alleen actief met `?debug=1` in URL. Vervangt eerder
+// onvoorwaardelijke console.log-spam in productie (info-disclosure + console-
+// vervuiling). console.warn / .error blijven onvoorwaardelijk want signaleren
+// echte issues.
+const _DEBUG = typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('debug') === '1';
+function dbg(...args) { if (_DEBUG) console.log(...args); }
+
+// getTodayStart/getTomorrowStart worden tijdens render 100+ keer aangeroepen.
+// Cache de midnight-timestamp 60s; callers krijgen altijd een fresh Date
+// (om mutaties zoals setHours/setDate veilig te maken).
+let _todayCacheTs = 0;
+let _todayCacheValue = 0;
+function getTodayStart() {
+  const now = Date.now();
+  if (_todayCacheValue && now - _todayCacheTs < 60_000) {
+    return new Date(_todayCacheValue);
+  }
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  _todayCacheTs    = now;
+  _todayCacheValue = d.getTime();
+  return new Date(_todayCacheValue);
+}
 function getTomorrowStart() { const d = getTodayStart(); d.setDate(d.getDate() + 1); return d; }
+
+// Centrale guard voor "apparaat is bruikbaar voor kostenberekening". Voorkomt
+// dat call-sites verspreid `ap.uren * ap.vermogen` doen → NaN-propagatie bij
+// partial config (bv. nieuwe user met auto zonder kenteken-lookup gedaan).
+function apIsBruikbaar(ap) {
+  return !!ap && (ap.uren ?? 0) > 0 && (ap.vermogen ?? 0) > 0;
+}
 function hStr(d)            { return (d && typeof d.getHours === 'function') ? String(d.getHours()).padStart(2,'0') + ':00' : '—'; }
 
 const _DAGNAMEN = ['zo','ma','di','wo','do','vr','za'];

@@ -75,7 +75,7 @@ function renderGrafiek(prijzen, min, max, gem) {
 
   const terugLijn = {
     type: 'line',
-    data: prijzen.map(p => p.terug !== undefined ? parseFloat(p.terug.toFixed(3)) : null),
+    data: prijzen.map(p => p.terug !== undefined ? Math.round(p.terug * 1000) / 1000 : null),
     borderColor: 'rgba(200,50,50,0.8)', backgroundColor: 'transparent',
     fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2, borderDash: [5, 4], yAxisID: 'y'
   };
@@ -148,7 +148,7 @@ function renderGrafiek(prijzen, min, max, gem) {
     data: {
       labels: prijzen.map(p => uurStr(p.tijd)),
       datasets: [
-        { data: prijzen.map(p => parseFloat(p.totaal.toFixed(3))), backgroundColor: barKleuren, borderColor: barBorders, borderWidth: barBorderWidths, borderRadius: 3, borderSkipped: false, yAxisID: 'y' },
+        { data: prijzen.map(p => Math.round(p.totaal * 1000) / 1000), backgroundColor: barKleuren, borderColor: barBorders, borderWidth: barBorderWidths, borderRadius: 3, borderSkipped: false, yAxisID: 'y' },
         terugLijn,
         ...solarDatasets
       ]

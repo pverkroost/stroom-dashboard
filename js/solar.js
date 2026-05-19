@@ -37,7 +37,7 @@ async function fetchSolarEdge() {
   const currentWatt = Math.max(0, overviewData?.overview?.currentPower?.power || 0);
   const todayKwh    = Math.max(0, (overviewData?.overview?.lastDayData?.energy  || 0) / 1000);
   const maandKwh    = Math.max(0, (overviewData?.overview?.lastMonthData?.energy || 0) / 1000);
-  console.log('[SolarEdge] overview OK — currentWatt:', currentWatt, 'todayKwh:', todayKwh, 'maandKwh:', maandKwh);
+  dbg('[SolarEdge] overview OK — currentWatt:', currentWatt, 'todayKwh:', todayKwh, 'maandKwh:', maandKwh);
 
   let hourly = [], piekWatt = 0, piekUur = null;
   if (powerRes?.ok) {

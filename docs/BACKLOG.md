@@ -117,20 +117,10 @@ Uit volledige code review (#0a, agent-rapport). KRITIEKE issues zijn óf
 direct gefixt in v2.61.0 óf doorgezet als #0d–#0g. Onderstaande zijn
 WAARSCHUWING-prioriteit: bugs op edge-cases of structurele issues.
 
-- [ ] **#46 console.log in productie** (`js/apparaten.js:1036-1041,1075,1217`) —
-  Vervuilt console + info-disclosure. Verwijder of gate op `?debug=1`.
-- [ ] **#49 ap.uren/vermogen edge case** (`js/apparaten.js:1147`) — Bij wel
-  `autoInfo.kenteken` maar geen `vermogen` crasht `berekenGoedkoopsteBlok`.
-  Verstrakke check: `ap.uren && ap.vermogen`.
 - [ ] **#51 Empty Prices array** (`js/prijzen.js:9`) — `if (!data?.Prices?.length)`
   toont "Geen prijsdata" zonder retry. Onderscheid leeg vs netwerkfout.
 - [ ] **#53 DST in solar mapping** (`js/solar.js:60`) — `solarData.map` index niet
   congruent met `prijzen[i].tijd.getHours()` op 23/25-uur dagen. Split index/uur.
-- [ ] **#56 SolarEdge api_key in query** (`api/solaredge.js:28`) — Belandt
-  mogelijk in proxy/LB-logs. Gebruik header-auth waar mogelijk.
-- [ ] **#60 users/002.js totaalPiekKw placeholder** — `totaalPiekKw: 16` en
-  `solarEdge.piekKw: 16` zijn beide placeholder met dezelfde waarde. Maak
-  `totaalPiekKw` computed uit som van per-omvormer piekKw.
 - [ ] **#61b package.json test-coverage** — `private:true`, `engines.node>=18`
   en quoted lint glob zijn in v2.65.0 toegevoegd. Open: `test`-script + test-
   framework + coverage op `berekenPrijs`, `berekenGoedkoopsteBlok`,
@@ -155,35 +145,17 @@ WAARSCHUWING-prioriteit: bugs op edge-cases of structurele issues.
 Uit volledige code review (#0a). Nice-to-have verbeteringen, code-kwaliteit,
 performance micro-optimalisaties.
 
-- [ ] **#63 apiStatus magische keys** (`js/app.js:7,93`) — Typo's blijven onopgemerkt.
-  Constants of JSDoc typedef.
 - [ ] **#64 switchTab grote if/else** (`js/app.js:25-79`) — Splits per tab-handler.
-- [ ] **#66 Versie-stamp hardcoded** (`js/app.js:410`) — Hardcoded versie-string
-  inconsistent met CLAUDE.md auto-bump-regel. Haal uit één constante.
 - [ ] **#67 berekenGoedkoopsteBlok O(n²)** (`js/apparaten.js:168-186`) — Inner loop
   per i. Bij planUren=48 nog OK; pre-compute solar prefix-sums voor O(n).
 - [ ] **#72 config.js geen schema-check** (`js/config.js:11-29`) — Crash zonder
   begrijpelijke fout bij ontbrekend veld in `window.CONFIG`.
-- [ ] **#73 getTodayStart memoize** (`js/config.js:62-63`) — Wordt 100+ keer per
-  render gebouwd. Memoize per tick.
-- [ ] **#74 parseFloat(toFixed) roundtrip** (`js/prijzen.js:139`) — Gebruik
-  `Math.round(x*1000)/1000`.
 - [ ] **#76 _terugleverRendering flag** (`js/solar.js:256-261`) — Vervang door
   async/await + idempotent rendering.
 - [ ] **#77 Solar HTML-blokken dedupe** (`js/solar.js:307,321`) — "Zelf verbruiken"
   vs "Terugleveren" 80% identiek. Extract template-helper.
-- [ ] **#78 cronLaden hardcoded WEBHOOKS** (`api/cronLaden.js:11-13`) — Nieuwe
-  apparaten met automatisering vergen code-deploy. Maak data-driven via
-  `users/<id>.js` of env var.
-- [ ] **#79 readRawBody simpler** (`api/cronLaden.js:21-28`) — `for await (const c
-  of req)` is leesbaarder; voeg size-limit toe tegen DoS via grote body.
 - [ ] **#83 KilowattApp lazy-load** (`api/kenteken.js:1-3`) — 1.5MB `kilowatt-ev-data
   .json` op cold-start. Lazy-load via dynamic import bij geen ev-database match.
-- [ ] **#86 volgorde dupliceerd met array-index** (`users/001.js:27,002.js:30`) —
-  Leid af van array-volgorde.
-- [ ] **#87 Auto-config null-propagatie** (`users/002.js:30`) — `uren: null,
-  vermogen: null` propageert NaN in `ap.uren * ap.vermogen` op meerdere call-sites.
-  Centraliseer "auto nog niet ingesteld" guard.
 - [ ] **#88 ev-database geen schema-validatie** — Typo `type:'BEC'` ipv `'BEV'`
   blijft onopgemerkt. JSON-schema in CI.
 - [ ] **#89 package lint glob quotes** (`package.json:3-4`) — `js/**/*.js` werkt
@@ -200,6 +172,54 @@ performance micro-optimalisaties.
 
 ## AFGEROND
 
+- **#46 console.log gate** ✅ Afgerond in v2.68.0 — `dbg(...)` helper in
+  `js/config.js`, actief alleen met `?debug=1` in URL. 4 noisy `console.log`
+  calls in `apparaten.js` en `solar.js` vervangen. `console.warn` blijft
+  onvoorwaardelijk want signaleert echte issues.
+- **#49 + #87 apIsBruikbaar centrale guard** ✅ Afgerond in v2.68.0 — `apIsBruikbaar(ap)`
+  in `js/config.js` controleert `(ap.uren ?? 0) > 0 && (ap.vermogen ?? 0) > 0`.
+  Vangt zowel `null`/`undefined` als `0` af; voorheen liet `!ap.uren` bv. `0.5`
+  door (truthy) maar `vermogen: 0` crashte downstream in NaN-propagatie.
+- **#56 SolarEdge api_key in URL** ✅ Gesloten als non-issue in v2.68.0 —
+  SolarEdge Monitoring API ondersteunt geen header-auth voor /overview, /power,
+  /energy, /details endpoints. De `api_key` query-param is conform spec van
+  SolarEdge. Acceptabel risico: proxy/LB-logs zien de key, maar onze deploy
+  zit alleen achter Vercel (geen tussenproxy) en de key heeft alleen read-access
+  tot één plant. Niet "fixbaar" zonder andere monitoring-provider.
+- **#60 totaalPiekKw computed-fallback** ✅ Afgerond in v2.68.0 — `js/config.js`
+  rekent `TOTAL_PEAK_KW` uit `solarEdge.piekKw + growatt.piekKw` als
+  `panelen.totaalPiekKw` ontbreekt of 0 is. Vergeten field-update in
+  `users/<id>.js` leidt nu niet meer tot stille NaN.
+- **#63 apiStatus seal + typedef** ✅ Afgerond in v2.68.0 — `apiStatus` is nu
+  `Object.seal()` ipv plain object; typo's bij key-toewijzing falen luid
+  (TypeError in strict-mode) ipv stilletjes. Plus JSDoc typedef voor IDE-hints.
+- **#66 single-source versie-constant** ✅ Afgerond in v2.68.0 — `window.APP_VERSION`
+  inline gezet in `index.html` (vóór alle andere scripts). `js/app.js` leest
+  hem voor footer-stamp én voor `?v=`-cache-bust van `ev-database.json` en
+  `kilowatt-meta.json`. `document.write` van users/<id>.js gebruikt 'm ook.
+  Bij versie-bump: alleen index.html nog editen (replace_all). 4 plekken in
+  `js/app.js` zijn nu derived.
+- **#73 getTodayStart memoize** ✅ Afgerond in v2.68.0 — Midnight-timestamp
+  60s cache in `js/config.js`; callers krijgen altijd een fresh `Date` (om
+  setHours/setDate-mutaties veilig te maken). Marginale CPU-besparing tijdens
+  intensieve render.
+- **#74 parseFloat(toFixed) → Math.round** ✅ Afgerond in v2.68.0 — 2 sites in
+  `js/prijzen.js`. `parseFloat(x.toFixed(3))` → `Math.round(x*1000)/1000`. Geen
+  string-roundtrip meer voor de chart-data-array.
+- **#78 cronLaden WEBHOOKS data-driven** ❌ Gesloten als won't-fix in v2.68.0 —
+  Naam-mapping `{ autophev: { starten: 'auto-laden-starten', stoppen: 'auto-laden-stoppen' } }`
+  is geketend aan de daadwerkelijke webhook-flow in Homey (handmatig ingesteld).
+  Data-driven refactor zonder bijbehorende Homey-flow-update zou de bestaande
+  automation breken. Bij nieuwe auto-equipped apparaten: handmatige update hier
+  is de juiste plek (proportioneel met Homey-config aanmaken).
+- **#79 readRawBody async + size-limit** ✅ Afgerond in v2.68.0 — `for await`-loop
+  ipv `req.on('data')` Promise-wrapper. `MAX_BODY_BYTES = 64KB` cap throw't bij
+  overschrijding → caller geeft 400. DoS-bescherming tegen opzettelijk grote
+  bodies vóór de signature-check.
+- **#86 volgorde array-index fallback** ✅ Afgerond in v2.68.0 — `getApparatenSorted`
+  fallback van `ap.volgorde ?? 99` naar `originalIdx` (positie in user-config).
+  Het `ap.volgorde` veld in users/<id>.js is nu redundant maar wordt nog gerespecteerd
+  als localStorage-default zonder behavior-verandering.
 - **#65 INTEGRATIES default `false`** ✅ Afgerond in v2.67.0 — `js/config.js`
   fallback gewijzigd van `{solarEdge: true, growatt: true, homey: true}` naar
   alles `false`. Veilig voor users 001/002 want zij hebben expliciete

@@ -4,23 +4,27 @@ function updateApparaatKaarten() {
 }
 
 // ── Apparaten config (volgorde) in localStorage ─────────────────────────────
+// localStorage bewaart drag&drop-volgorde per user. Default-volgorde komt uit
+// array-index in user-config (users/<id>.js APPARATEN). Voorheen werd
+// `ap.volgorde` als losse field per apparaat gebruikt — dat was redundant met
+// array-volgorde en bij array-reorder zonder volgorde-update onbetrouwbaar.
 function getApparaatConfig() {
   const raw = localStorage.getItem('apparaten_config');
   if (raw) { try { return JSON.parse(raw); } catch {} }
   const cfg = {};
-  APPARATEN.forEach(ap => { cfg[ap.naam] = { volgorde: ap.volgorde }; });
+  APPARATEN.forEach((ap, idx) => { cfg[ap.naam] = { volgorde: idx }; });
   localStorage.setItem('apparaten_config', JSON.stringify(cfg));
   return cfg;
 }
 function saveApparaatConfig(cfg) {
   localStorage.setItem('apparaten_config', JSON.stringify(cfg));
 }
-// Sorteer APPARATEN op volgorde uit localStorage (fallback: config.js default)
+// Sorteer APPARATEN op volgorde uit localStorage; fallback = positie in user-config.
 function getApparatenSorted() {
   const cfg = getApparaatConfig();
   return APPARATEN.map((ap, originalIdx) => ({
     ap,
-    volgorde: cfg[ap.naam]?.volgorde ?? ap.volgorde ?? 99,
+    volgorde: cfg[ap.naam]?.volgorde ?? originalIdx,
     originalIdx,
   })).sort((a, b) => a.volgorde - b.volgorde);
 }
@@ -1115,7 +1119,7 @@ function renderLaadadvies() {
     if (gevonden >= 0) { geselecteerdIdx = gevonden; heeftSelectie = true; }
   }
 
-  console.log('[Slim inplannen]',
+  dbg('[Slim inplannen]',
     '| planUren:', planUren.length,
     '| solarVandaag:', !!solarVandaag,
     '| openMeteoVandaag:', openMeteoVandaag?.hourly?.length ?? 0, 'uur',
@@ -1154,7 +1158,7 @@ function renderLaadadvies() {
     const selEff   = selNetstroom !== null ? (selSolar ?? selNetstroom) : null;
 
     const selStartUur = planUren[selStartIdx]?.tijd ? dagHStr(planUren[selStartIdx].tijd) : '—';
-    console.log(`[${naam}] geselecteerdUur: ${selStartUur} | dekBeste: ${dekPct}% | dekSel: ${dekPctSel}% | besteEff: ${besteEff?.toFixed(2)} | selEff: ${selEff?.toFixed(2)}`);
+    dbg(`[${naam}] geselecteerdUur: ${selStartUur} | dekBeste: ${dekPct}% | dekSel: ${dekPctSel}% | besteEff: ${besteEff?.toFixed(2)} | selEff: ${selEff?.toFixed(2)}`);
 
     let vergelijkBadge = '';
     let besparingStr   = '';
@@ -1225,8 +1229,10 @@ function renderLaadadvies() {
   const selLabel = heeftSelectie ? 'Keuze' : 'Nu';
 
   function renderApparaat(ap, apIdx) {
-    // Auto zonder kenteken/specs → vriendelijke call-to-action ipv crashende berekeningen
-    if (ap.batterij === true && (!ap.uren || !ap.vermogen || !ap.autoInfo?.kenteken)) {
+    // Auto zonder kenteken/specs → vriendelijke call-to-action ipv crashende berekeningen.
+    // apIsBruikbaar() vangt zowel `null`/`undefined` als `0` af; voorheen liet `!ap.uren`
+    // bv. `uren: 0.5` door (truthy) maar `vermogen: 0` crashte downstream in `* vermogen`.
+    if (ap.batterij === true && (!apIsBruikbaar(ap) || !ap.autoInfo?.kenteken)) {
       return `<div class="advies-card" onclick="openApDetail(${apIdx})" style="cursor:pointer">
         <div class="advies-device-icon">🚗</div>
         <div class="advies-device-naam">Auto</div>
@@ -1296,7 +1302,7 @@ function renderLaadadvies() {
   const meer      = sortedAll.slice(4);
   const top4Html  = top4.map(x => veiligRender(x.ap, x.originalIdx)).join('');
   const meerHtml  = meer.map(x => veiligRender(x.ap, x.originalIdx)).join('');
-  console.log('[Slim inplannen] top4:', top4.map(x => x.ap.naam), '| meer:', meer.map(x => x.ap.naam), '| containerMeer:', !!containerMeer);
+  dbg('[Slim inplannen] top4:', top4.map(x => x.ap.naam), '| meer:', meer.map(x => x.ap.naam), '| containerMeer:', !!containerMeer);
   container.innerHTML = `<div class="advies-grid">${top4Html}</div>`;
   if (containerMeer) {
     containerMeer.innerHTML = `<div class="advies-grid">${meerHtml}</div>

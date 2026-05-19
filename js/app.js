@@ -4,7 +4,15 @@ let uurOverzichtOpen = false;
 let solarVandaag = null, solarMorgen = null;
 let isZonTab = false, isInstTab = false, zonChart = null, voorspellingChart = null;
 let openMeteoVandaag = null, growattVandaag = null;
-let apiStatus = { epex: null, solar: null, growatt: null, openMeteo: null, homey: null };
+
+/**
+ * Status-tracking per API-bron. Magische keys voorheen verspreid; nu één
+ * Object.freeze() zodat typo's (bv. apiStatus.opek = ...) een TypeError geven
+ * ipv stilletjes te slagen op een non-existing property.
+ * @typedef {'epex'|'solar'|'growatt'|'openMeteo'|'homey'} ApiKey
+ * @type {Record<ApiKey, { ok: boolean, tijd: Date|null } | null>}
+ */
+const apiStatus = Object.seal({ epex: null, solar: null, growatt: null, openMeteo: null, homey: null });
 
 // Eén doorlopende tijdlijn vanaf nu: resterende uren vandaag + heel morgen (zodra beschikbaar).
 // Filter op timestamp (niet op getHours()) zodat we ook na middernacht-passage zonder fresh
@@ -190,7 +198,7 @@ async function laadEvDbCount() {
   try {
     // Cache-bust: zelfde version-query als de script-tags zodat na een release
     // direct de nieuwe lijst geladen wordt ipv stale CDN/browser cache.
-    const r    = await fetch('/ev-database.json?v=2.64.0');
+    const r    = await fetch('/ev-database.json?v=' + window.APP_VERSION);
     const data = await r.json();
     _aantalEvModellen = Array.isArray(data) ? data.length : 0;
   } catch {
@@ -201,7 +209,7 @@ async function laadEvDbCount() {
 async function laadKilowattCount() {
   if (_aantalKilowattModellen !== null) return _aantalKilowattModellen;
   try {
-    const r    = await fetch('/kilowatt-meta.json?v=2.64.0');
+    const r    = await fetch('/kilowatt-meta.json?v=' + window.APP_VERSION);
     const data = await r.json();
     _aantalKilowattModellen = data?.count ?? 0;
   } catch {
@@ -425,5 +433,5 @@ async function testHomeyVerbinding() {
   const parts = fmt.formatToParts(now);
   const g = t => parts.find(p => p.type === t).value;
   document.getElementById('versionStamp').textContent =
-    `v2.67.0 · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
+    `v${window.APP_VERSION} · ${g('day')}-${g('month')}-${g('year')} ${g('hour')}:${g('minute')}`;
 })();
