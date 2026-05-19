@@ -106,6 +106,11 @@ module.exports = async (req, res) => {
   }
 
   if (actie === 'stoppen') {
+    // Als planning al weggegooid is (annuleer geslaagd maar QStash msg-cleanup
+    // mislukte): niets te stoppen — sla Homey-webhook over om dubbele acties te vermijden.
+    const data = await redis.get(sleutel(userId, apparaat));
+    if (!data) return res.json({ actie: 'geannuleerd', reden: 'planning niet meer actief' });
+
     try {
       const r = await homeyFetch(`${homeyBase}/${webhooks.stoppen}`);
       // Alleen Redis-row weghalen als webhook daadwerkelijk succesvol was —

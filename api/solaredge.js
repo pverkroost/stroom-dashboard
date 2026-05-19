@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+const { setCors, handlePreflight } = require('./_helpers');
 
 const GELDIGE_USERS = ['001', '002'];
 
@@ -8,6 +9,10 @@ function veiligUserId(req) {
 }
 
 module.exports = async (req, res) => {
+  setCors(req, res);
+  res.setHeader('Content-Type', 'application/json');
+  if (handlePreflight(req, res)) return;
+
   const userId    = veiligUserId(req);
   const apiKey    = process.env[`SOLAREDGE_API_KEY_${userId}`];
   const siteId    = process.env[`SOLAREDGE_SITE_ID_${userId}`];
@@ -15,9 +20,6 @@ module.exports = async (req, res) => {
   const date      = req.query.date || new Date().toISOString().split('T')[0];
   const startDate = req.query.startDate || date;
   const endDate   = req.query.endDate   || date;
-
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Content-Type', 'application/json');
 
   if (!apiKey || !siteId) {
     return res.json({ beschikbaar: false });

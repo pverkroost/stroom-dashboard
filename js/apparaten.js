@@ -309,7 +309,26 @@ function openApDetail(apIdx) {
 function sluitApDetail() {
   document.getElementById('apparaatDetail').classList.remove('open');
   document.body.style.overflow = '';
+  wisCachedPlanPin(); // verlaat-detail = einde "sessie" voor de plain pincode
   apDetailState = null;
+}
+
+// Pincode-cache TTL: 5min na laatste set. Voorkomt dat een tab die open blijft
+// staan de plain pincode permanent in memory houdt.
+const _PLAN_PIN_TTL_MS = 5 * 60 * 1000;
+let _planPinTimer = null;
+function cachePlanPin(pin) {
+  if (!apDetailState) return;
+  apDetailState._cachedPlanPin = pin;
+  if (_planPinTimer) clearTimeout(_planPinTimer);
+  _planPinTimer = setTimeout(() => {
+    if (apDetailState) apDetailState._cachedPlanPin = null;
+    _planPinTimer = null;
+  }, _PLAN_PIN_TTL_MS);
+}
+function wisCachedPlanPin() {
+  if (_planPinTimer) { clearTimeout(_planPinTimer); _planPinTimer = null; }
+  if (apDetailState) apDetailState._cachedPlanPin = null;
 }
 
 function adjustApDetail(delta) {
@@ -875,7 +894,7 @@ async function planInladen(stilUpdate = false) {
       });
       const data = await r.json();
       if (r.status === 401) {
-        apDetailState._cachedPlanPin = null;
+        wisCachedPlanPin();
         const statusEl = document.getElementById('planningStatusEl');
         if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = '#a32d2d'; statusEl.textContent = 'Pincode niet meer geldig — plan opnieuw in'; }
         return;
@@ -929,7 +948,7 @@ async function annuleerPlanning(apparaat) {
     const data = await r.json();
     if (r.status === 401) {
       // Gecachte pin niet meer geldig — wis cache en prompt opnieuw
-      if (apDetailState) apDetailState._cachedPlanPin = null;
+      wisCachedPlanPin();
       return annuleerPlanning(apparaat);
     }
     if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
@@ -993,7 +1012,7 @@ async function bevestigPincode() {
       if (r.status === 401) throw new Error('Ongeldige pincode');
       if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
 
-      apDetailState._cachedPlanPin = pin; // herbruikbaar voor stille slider-updates en annuleren in deze sessie
+      cachePlanPin(pin); // herbruikbaar voor stille slider-updates en annuleren; wipt na 5min
       _planningActief = true;
       if (section)  section.style.display = 'none';
       if (statusEl) { statusEl.textContent = '✓ Planning opgeslagen'; statusEl.style.color = 'var(--green)'; }
@@ -1013,7 +1032,7 @@ async function bevestigPincode() {
       if (r.status === 401) throw new Error('Ongeldige pincode');
       if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
 
-      apDetailState._cachedPlanPin = pin;
+      cachePlanPin(pin);
       _planningActief = false;
       if (section) section.style.display = 'none';
       const planStatusEl = document.getElementById('planningStatusEl');

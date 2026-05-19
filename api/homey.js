@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+const { applyGate } = require('./_helpers');
 
 const GELDIGE_USERS = ['001', '002'];
 
@@ -8,10 +9,7 @@ function veiligUserId(req) {
 }
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (!(await applyGate(req, res, { endpoint: 'homey', max: 5, windowSec: 60 }))) return;
 
   const userId       = veiligUserId(req);
   const pincode      = process.env[`APP_PINCODE_${userId}`];

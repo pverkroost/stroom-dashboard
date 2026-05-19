@@ -2,6 +2,7 @@ const fetch = require('node-fetch');
 const evDatabase   = require('../ev-database.json');
 const kilowattData = require('../kilowatt-ev-data.json'); // BEV-only, fallback voor obscure modellen
 const kilowattVehicles = (kilowattData && kilowattData.data) || [];
+const { applyGate } = require('./_helpers');
 
 function normaliseerKenteken(k) {
   return (k || '').toString().replace(/[\s-]/g, '').toUpperCase();
@@ -105,8 +106,8 @@ function kilowattNaarOnsSchema(v) {
 }
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
+  if (!(await applyGate(req, res, { endpoint: 'kenteken', max: 10, windowSec: 60 }))) return;
 
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });

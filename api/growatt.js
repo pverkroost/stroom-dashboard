@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+const { setCors, handlePreflight } = require('./_helpers');
 
 const GELDIGE_USERS = ['001', '002'];
 
@@ -8,10 +9,11 @@ function veiligUserId(req) {
 }
 
 module.exports = async (req, res) => {
+  setCors(req, res);
+  if (handlePreflight(req, res)) return;
+
   const userId   = veiligUserId(req);
   const apiToken = process.env[`GROWATT_API_TOKEN_${userId}`];
-
-  res.setHeader('Access-Control-Allow-Origin', '*');
 
   if (!apiToken) {
     return res.json({ beschikbaar: false });

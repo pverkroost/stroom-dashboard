@@ -1,33 +1,5 @@
 # Energie IQ — Backlog
 
-## PRIORITEIT (eerst doen)
-
-### #0d — KRITIEK: Rate-limiting op pincode-write endpoints
-Pincode is 4 cijfers (10k mogelijkheden); zonder rate-limiting brute-forcable
-vanaf elke origin. Geldt voor `api/homey.js`, `api/planLaden.js` POST + DELETE,
-en `api/cronLaden.js` indirect via signature. Voeg Upstash Redis-counter toe
-per IP+endpoint: bv. `auth_fail_${ip}_${endpoint}` met TTL 15min en
-exponential back-off; na 5 mislukkingen 401 voor 5min, na 10 voor 1u.
-
-### #0e — KRITIEK: QStash message-cleanup bij overschrijven/annuleren planning
-`api/planLaden.js` POST publiceert nieuwe `starten`/`stoppen` berichten zonder
-de vorige te annuleren. Bij planning aanpassen of annuleren blijven oude QStash
-berichten in de queue en kunnen alsnog vuren. Sla `messageId`s op in Redis
-(`laadplanning_<u>_<ap>` payload uitbreiden met `qstashStartId`/`qstashStopId`)
-en roep `client.messages.delete(id)` aan vóór nieuwe publishes en bij DELETE.
-
-### #0f — KRITIEK: CORS lockdown op write- en data-endpoints
-Alle endpoints zetten `Access-Control-Allow-Origin: *`. Voor write-endpoints
-(`homey`, `planLaden`, `cronLaden`) opent dit brute-force vanaf elke origin
-in een gebruikers-browser. Beperk via env var `ALLOWED_ORIGIN` (bv.
-`https://energieiq.nl`) en respecteer `Origin`-header. Idem voor data-endpoints
-(`growatt`, `solaredge`, `kenteken`) als minder kritiek.
-
-### #0g — KRITIEK: Pincode in-memory cache wipen
-`apDetailState._cachedPlanPin` blijft staan voor de duur van het detail-paneel.
-Wis de cache bij sluiten van het paneel en na inactiviteit (timeout 5min).
-Voorkomt dat een DevTools-inspectie de plain pincode toont na ander gebruik.
-
 ## SNEL TE DOEN
 
 - [ ] **#2 UX review apparaatscherm tijdkeuze** — Er zijn nu meerdere manieren
@@ -272,6 +244,25 @@ performance micro-optimalisaties.
 
 ## AFGEROND
 
+- **#0d — Rate-limiting op publieke API endpoints** ✅ Afgerond in v2.62.0 —
+  Shared `api/_helpers.js` met Upstash Redis sliding-window counter
+  (`ratelimit_<endpoint>_<ip>` met TTL 60s). Limits: `/api/kenteken` 10/min,
+  `/api/planLaden` 5/min, `/api/homey` 5/min. IP uit `x-forwarded-for`. Fail-open
+  bij Redis-storing zodat Upstash-uitval de app niet platlegt.
+- **#0e — QStash message-cleanup bij overschrijven/annuleren** ✅ Afgerond in v2.62.0 —
+  Redis-payload uitgebreid met `qstashStartId`/`qstashStopId`. POST annuleert
+  eerst bestaande messages via `client.messages.delete()`. DELETE doet hetzelfde
+  vóór `redis.del`. Defense-in-depth: `cronLaden.js` stoppen-handler checkt nu
+  ook of planning nog bestaat (skip Homey-webhook bij geannuleerde planning).
+- **#0f — CORS lockdown** ✅ Afgerond in v2.62.0 — `setCors()` in `_helpers.js`
+  reflecteert Origin alleen als hij in allow-list staat (`https://energieiq.nl`,
+  `https://stroom-dashboard.vercel.app`). Toegepast op alle 5 publieke endpoints
+  (`kenteken`, `planLaden`, `homey`, `growatt`, `solaredge`). cronLaden ongewijzigd
+  (server-to-server via QStash, geen browser-CORS).
+- **#0g — Pincode in-memory cache wipen** ✅ Afgerond in v2.62.0 —
+  `cachePlanPin()`/`wisCachedPlanPin()` helpers in `js/apparaten.js` met 5min
+  TTL via setTimeout. Wipe bij `sluitApDetail()` (paneel sluiten = einde sessie).
+  Vervangen alle directe `_cachedPlanPin = pin` assignments.
 - **#0a — Volledige code review en kritieke fixes** ✅ Afgerond in v2.61.0 —
   agent-rapport doorgenomen (12 KRITIEK, 23 WAARSCHUWING, 27 SUGGESTIE). Direct
   gefixt in v2.61.0: XSS-escape op alle RDW/EV-data render in `js/apparaten.js`
