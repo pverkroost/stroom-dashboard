@@ -25,16 +25,7 @@ verbeterpunten. Loop alle bestanden door.
 Fix alle KRITIEKE issues direct. Maak lijst van WAARSCHUWINGEN en
 SUGGESTIES als aparte backlog items.
 
-### #0b — ESLint globals en eqeqeq audit
-- Voeg alle cross-file globals toe aan `.eslintrc.json` (~30 functies/
-  constanten: `OPSLAG`, `APPARATEN`, `apiUrl`, `heeftIntegratie`, `chart`,
-  `solarVandaag`, `openMeteoVandaag`, `growattVandaag`, `cacheVandaag`,
-  `cacheMorgen`, `geselecteerdStartTijd`, `dagHStr`, `hStr`, `getTodayStart`,
-  `getTomorrowStart`, etc.)
-- Audit de 15 `eqeqeq` warnings: `x == null` patterns laten staan met
-  inline comment-uitleg, rest omzetten naar `===`/`!==`
-- Doel: 0 errors, minimale warnings (alleen `no-unused-vars` voor
-  cross-file exports blijft over)
+### #0b — ESLint globals en eqeqeq audit ✅ Afgerond
 
 ### #0c — "Over Energie IQ" tekst bijwerken ✅ Afgerond in v2.60.3
 Dubbele header verwijderd (alleen groene balk behouden), intro vervangen
