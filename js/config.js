@@ -32,10 +32,13 @@ const GROWATT_LOCATION      = window.CONFIG.panelen.growatt.locatie;
 // instellingen) automatisch doorwerken in alle code zonder rebind.
 const APPARATEN = window.CONFIG.apparaten;
 
-// Integraties — fallback alle true als user-config het veld mist (backward
-// compat). Gebruik heeftIntegratie() om secties conditioneel te tonen.
+// Integraties — fallback alle false (safe-by-default): users die het veld in
+// users/<id>.js niet expliciet aanzetten krijgen geen "Homey niet verbonden"-
+// status-tegels of mislukte API-calls te zien. Bestaande users 001/002 hebben
+// expliciete `integraties` velden in hun config (zie users/*.js), dus voor hen
+// geen gedragsverandering. Gebruik heeftIntegratie() om secties te gaten.
 const INTEGRATIES = Object.assign(
-  { solarEdge: true, growatt: true, homey: true },
+  { solarEdge: false, growatt: false, homey: false },
   window.CONFIG.integraties || {}
 );
 function heeftIntegratie(naam) { return INTEGRATIES[naam] === true; }

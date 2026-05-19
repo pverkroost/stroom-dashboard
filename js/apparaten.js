@@ -1323,7 +1323,10 @@ function displayNaam(ap) {
   if (ap && ap.batterij === true) {
     const info = ap.autoInfo || {};
     if (info.merk && info.merk !== 'onbekend' && info.model) return info.merk + ' ' + info.model;
-    return 'Auto';
+    // Geen merk/model bekend: gebruik de naam uit user-config zodat 2+ batterij-
+    // apparaten van elkaar te onderscheiden zijn (bv. "PHEV" + "BEV" in dezelfde
+    // flat). Pas terugvallen op generiek "Auto" als ook naam ontbreekt.
+    return ap.naam || 'Auto';
   }
   return ap?.naam || '';
 }
@@ -1515,7 +1518,19 @@ function _bouwAutoConfigBody(d, contextId, opts) {
       ${specsRegel}
       ${handmatigeVelden}
       ${bouwLaadtypeHtml(contextId, autoMaxKw)}
+      <div id="${contextId}_error" style="display:none;color:#a32d2d;font-size:11px;margin-top:8px"></div>
       <button onclick='bevestigAutoConfig(${dataAttr}, "${contextId}")' style="margin-top:10px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Gebruik deze gegevens</button>`;
+}
+
+// Inline error in de auto-config dialog ipv blocking alert(). alert() werkt in
+// modale context (kenteken-overlay z-index 200) niet altijd betrouwbaar:
+// iOS Safari kan 'm onderdrukken na user-gesture timeout en op desktop verschijnt
+// het popup-venster buiten de modal-flow waardoor de focus verspringt.
+function _toonAutoConfigError(contextId, msg) {
+  const el = document.getElementById(contextId + '_error');
+  if (!el) return;
+  el.textContent = '⚠ ' + msg;
+  el.style.display = 'block';
 }
 
 // Inner content zonder buitenste wrapper-div. Wordt gebruikt na variant-selectie
@@ -1531,12 +1546,10 @@ function bouwAutoConfigHtml(d, contextId) {
   if (d.meerdereVarianten && Array.isArray(d.varianten) && d.varianten.length > 1) {
     return bouwVariantKeuzeHtml(d, contextId);
   }
-  const autoMaxKw = d.laadVermogenAcKw ?? null;
   return `
     <div style="padding:10px;border-radius:7px;background:var(--card);border:1px solid var(--border);font-size:12px">
       ${_bouwAutoConfigBody(d, contextId, { includeVariant: false })}
-    </div>
-    <script>setTimeout(function(){ updateWerkelijkVermogen('${contextId}', ${autoMaxKw ?? 'null'}); }, 0)</script>`;
+    </div>`;
 }
 
 function bevestigAutoConfig(data, contextId) {
@@ -1545,8 +1558,8 @@ function bevestigAutoConfig(data, contextId) {
   const autoMaxEl = document.getElementById(contextId + '_autoMax');
   let kwh         = kwhEl ? parseFloat(kwhEl.value) : (data.bruikbaarKwh ?? data.batterijKwh);
   let autoMaxKw   = autoMaxEl ? parseFloat(autoMaxEl.value) : (data.laadVermogenAcKw ?? null);
-  if (!(kwh > 0))       { alert('Vul een geldige bruikbare accucapaciteit (kWh) in.'); return; }
-  if (!(autoMaxKw > 0)) { alert('Vul een geldig auto-laadvermogen (kW) in.'); return; }
+  if (!(kwh > 0))       { _toonAutoConfigError(contextId, 'Vul een geldige bruikbare accucapaciteit (kWh) in.'); return; }
+  if (!(autoMaxKw > 0)) { _toonAutoConfigError(contextId, 'Vul een geldig auto-laadvermogen (kW) in.'); return; }
 
   // Lees laadtype
   const selected = document.querySelector(`input[name="${contextId}_laadtype"]:checked`)?.value;
@@ -1554,7 +1567,7 @@ function bevestigAutoConfig(data, contextId) {
   let laadtypeKw = laadtype?.kw;
   if (selected === 'anders') {
     laadtypeKw = parseFloat(document.getElementById(contextId + '_andersKw')?.value);
-    if (!(laadtypeKw > 0)) { alert('Vul een geldig kW-getal in bij "Anders".'); return; }
+    if (!(laadtypeKw > 0)) { _toonAutoConfigError(contextId, 'Vul een geldig kW-getal in bij "Anders".'); return; }
   }
 
   const werkelijk = Math.min(autoMaxKw, laadtypeKw);
@@ -1640,6 +1653,10 @@ async function _zoekKenteken(contextId) {
     return;
   }
   res.innerHTML = bouwAutoConfigHtml(data, contextId);
+  // Initiële "werkelijk vermogen"-display populeren. Voorheen via een
+  // `<script>setTimeout(...)</script>` inline in de HTML, maar scripts via
+  // innerHTML worden niet uitgevoerd door moderne browsers; nu expliciet hier.
+  setTimeout(() => updateWerkelijkVermogen(contextId, data.laadVermogenAcKw ?? null), 0);
 }
 
 function toonHandmatigeInvoer(contextId) {
@@ -1648,6 +1665,7 @@ function toonHandmatigeInvoer(contextId) {
   const target = document.getElementById(cfg.resId);
   if (!target) return;
   target.innerHTML = bouwAutoConfigHtml({ handmatig: true }, contextId);
+  setTimeout(() => updateWerkelijkVermogen(contextId, null), 0);
 }
 
 async function zoekKentekenInPanel() { return _zoekKenteken('apPanel'); }

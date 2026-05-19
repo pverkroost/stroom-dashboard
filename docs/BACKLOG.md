@@ -119,11 +119,6 @@ WAARSCHUWING-prioriteit: bugs op edge-cases of structurele issues.
 
 - [ ] **#46 console.log in productie** (`js/apparaten.js:1036-1041,1075,1217`) —
   Vervuilt console + info-disclosure. Verwijder of gate op `?debug=1`.
-- [ ] **#47 <script> via innerHTML werkt niet** (`js/apparaten.js:1472`) — Scripts
-  geïnjecteerd via innerHTML worden niet uitgevoerd. Vervang met handmatige
-  `setTimeout` na de `innerHTML =` toewijzing.
-- [ ] **#48 alert() blocking in modal** (`js/apparaten.js:1481-1482`) — Werkt
-  niet altijd in modale contexten (z-index/overlay). Vervang met inline error.
 - [ ] **#49 ap.uren/vermogen edge case** (`js/apparaten.js:1147`) — Bij wel
   `autoInfo.kenteken` maar geen `vermogen` crasht `berekenGoedkoopsteBlok`.
   Verstrakke check: `ap.uren && ap.vermogen`.
@@ -163,14 +158,10 @@ performance micro-optimalisaties.
 - [ ] **#63 apiStatus magische keys** (`js/app.js:7,93`) — Typo's blijven onopgemerkt.
   Constants of JSDoc typedef.
 - [ ] **#64 switchTab grote if/else** (`js/app.js:25-79`) — Splits per tab-handler.
-- [ ] **#65 INTEGRATIES default true** (`js/app.js:259-265`) — Contra-intuïtief voor
-  nieuwe users. Default `false` zou veiliger zijn.
 - [ ] **#66 Versie-stamp hardcoded** (`js/app.js:410`) — Hardcoded versie-string
   inconsistent met CLAUDE.md auto-bump-regel. Haal uit één constante.
 - [ ] **#67 berekenGoedkoopsteBlok O(n²)** (`js/apparaten.js:168-186`) — Inner loop
   per i. Bij planUren=48 nog OK; pre-compute solar prefix-sums voor O(n).
-- [ ] **#68 displayNaam 'Auto' fallback** (`js/apparaten.js:1240-1247`) — Bij 2e
-  batterij-apparaat krijgen beiden 'Auto'. Maak typename-aware.
 - [ ] **#72 config.js geen schema-check** (`js/config.js:11-29`) — Crash zonder
   begrijpelijke fout bij ontbrekend veld in `window.CONFIG`.
 - [ ] **#73 getTodayStart memoize** (`js/config.js:62-63`) — Wordt 100+ keer per
@@ -209,6 +200,26 @@ performance micro-optimalisaties.
 
 ## AFGEROND
 
+- **#65 INTEGRATIES default `false`** ✅ Afgerond in v2.67.0 — `js/config.js`
+  fallback gewijzigd van `{solarEdge: true, growatt: true, homey: true}` naar
+  alles `false`. Veilig voor users 001/002 want zij hebben expliciete
+  `integraties` velden in `users/<id>.js`. Nieuwe users zonder dat veld krijgen
+  geen "X niet verbonden"-status-tegels meer voor integraties die ze niet hebben.
+- **#68 displayNaam fallback** ✅ Afgerond in v2.67.0 — Bij batterij-apparaat
+  zonder bekende merk/model valt nu terug op `ap.naam` ipv hardcoded `'Auto'`.
+  Twee batterij-apparaten in user-config (bv. PHEV + BEV) blijven onderscheidbaar
+  in de UI. Pas écht ontbrekende naam → generiek "Auto".
+- **#48 alert() → inline error** ✅ Afgerond in v2.67.0 — `<div id="${contextId}_error">`
+  in `_bouwAutoConfigBody` + `_toonAutoConfigError(contextId, msg)` helper.
+  Alle 3 alerts in `bevestigAutoConfig` (geldige kWh, geldige autoMaxKw,
+  geldige "anders kW") vervangen. Geen meer iOS-Safari-onderdrukte popups of
+  focus-spring buiten de modal.
+- **#47 broken `<script>` via innerHTML opgelost** ✅ Afgerond in v2.67.0 —
+  `<script>setTimeout(...)</script>` weg uit `bouwAutoConfigHtml`. Initiële
+  `updateWerkelijkVermogen()` call gebeurt nu expliciet via `setTimeout` aan
+  caller-side (`_zoekKenteken` + `toonHandmatigeInvoer`). Voorheen werd de
+  display-update overgeslagen tot user-interactie omdat innerHTML-scripts
+  niet uitgevoerd worden door moderne browsers; nu zichtbaar bij eerste render.
 - **#70 zoekKentekenInPanel/Dialog dedupe** ✅ Afgerond in v2.66.1 — `_KENTEKEN_CTX`
   config-tabel + `_zoekKenteken(contextId)` helper. `zoekKentekenInPanel` en
   `zoekKentekenInDialog` zijn nu 1-liner wrappers. `toonHandmatigeInvoer` gebruikt
