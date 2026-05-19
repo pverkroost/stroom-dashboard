@@ -45,10 +45,18 @@ module.exports = async (req, res) => {
   const webhookKey = action === 'stop' ? 'auto-laden-stoppen' : 'auto-laden-starten';
   const url = `https://${homeyCloudId}.connect.athom.com/api/manager/logic/webhook/${webhookKey}`;
 
+  // 5s timeout (consistent met cronLaden in v2.61.0): voorkomt dat Homey-down de
+  // function tot Vercel-maxDuration (10s) laat lopen. r.ok accepteert alle 2xx —
+  // Athom webhook-triggers geven soms 204 No Content of 202 Accepted ipv 200,
+  // dus strikte `r.status === 200` rapporteerde valse "success: false".
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
   try {
-    const r = await fetch(url, { method: 'GET' });
-    res.json({ success: r.status === 200 });
+    const r = await fetch(url, { method: 'GET', signal: controller.signal });
+    res.json({ success: r.ok });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(502).json({ error: 'Homey-webhook timeout/fout: ' + e.message });
+  } finally {
+    clearTimeout(timer);
   }
 };

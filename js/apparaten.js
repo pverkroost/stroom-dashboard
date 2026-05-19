@@ -1668,7 +1668,7 @@ function toonKentekenDialog() {
     <div style="background:var(--card);border-radius:14px;padding:18px;max-width:420px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);max-height:90vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-size:15px;font-weight:600">Kenteken invoeren</div>
-        <button onclick="document.getElementById('kentekenOverlay').remove()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;padding:0">×</button>
+        <button class="modal-close-btn" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;padding:0">×</button>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
         ${bouwKentekenplaatHtml('dialogKentekenInput')}
@@ -1677,8 +1677,20 @@ function toonKentekenDialog() {
       </div>
       <div id="dialogKentekenResultaat"></div>
     </div>`;
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  // Escape-key sluit modal (a11y). Listener wordt afgemeld bij overlay-remove
+  // zodat hij niet blijft hangen voor toekomstige overlays.
+  function sluit() {
+    document.removeEventListener('keydown', onKey);
+    overlay.remove();
+  }
+  function onKey(e) {
+    if (e.key === 'Escape') sluit();
+  }
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) sluit(); });
+  document.addEventListener('keydown', onKey);
+
   document.body.appendChild(overlay);
+  overlay.querySelector('.modal-close-btn')?.addEventListener('click', sluit);
   setTimeout(() => document.getElementById('dialogKentekenInput')?.focus(), 50);
 }
 

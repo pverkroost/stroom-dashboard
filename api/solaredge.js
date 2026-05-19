@@ -1,5 +1,20 @@
 const { setCors, handlePreflight, getValidUserId } = require('./_helpers');
 
+// Datum in Europe/Amsterdam, formaat YYYY-MM-DD. Voorheen gebruikten we
+// `new Date().toISOString().split('T')[0]` wat UTC-datum geeft; tussen
+// 00:00-02:00 NL-tijd ('s zomers 01:00-02:00 UTC) was "vandaag" UTC nog
+// de vorige dag → solar-data van gisteren werd getoond.
+function vandaagNl() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Amsterdam',
+    year:  'numeric',
+    month: '2-digit',
+    day:   '2-digit',
+  }).formatToParts(new Date());
+  const get = t => parts.find(p => p.type === t).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
 module.exports = async (req, res) => {
   setCors(req, res);
   res.setHeader('Content-Type', 'application/json');
@@ -9,7 +24,7 @@ module.exports = async (req, res) => {
   const apiKey    = process.env[`SOLAREDGE_API_KEY_${userId}`];
   const siteId    = process.env[`SOLAREDGE_SITE_ID_${userId}`];
   const type      = req.query.type || 'overview';
-  const date      = req.query.date || new Date().toISOString().split('T')[0];
+  const date      = req.query.date || vandaagNl();
   const startDate = req.query.startDate || date;
   const endDate   = req.query.endDate   || date;
 

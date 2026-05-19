@@ -171,8 +171,6 @@ performance micro-optimalisaties.
   per i. Bij planUren=48 nog OK; pre-compute solar prefix-sums voor O(n).
 - [ ] **#68 displayNaam 'Auto' fallback** (`js/apparaten.js:1240-1247`) — Bij 2e
   batterij-apparaat krijgen beiden 'Auto'. Maak typename-aware.
-- [ ] **#69 Modal Escape-key handler** (`js/apparaten.js:1581`) — Overlay heeft
-  geen keydown-listener. Voeg toe.
 - [ ] **#70 zoekKentekenInPanel/Dialog 95% duplicate** (`js/apparaten.js:
   1568-1572,1604-1611`) — Extract helper `_zoek(inputId, resId, contextId)`.
 - [ ] **#71 bouwAutoConfigHtml/_Inner 90% duplicate** (`js/apparaten.js:1393-1473`)
@@ -183,8 +181,6 @@ performance micro-optimalisaties.
   render gebouwd. Memoize per tick.
 - [ ] **#74 parseFloat(toFixed) roundtrip** (`js/prijzen.js:139`) — Gebruik
   `Math.round(x*1000)/1000`.
-- [ ] **#75 Dode growatt-branch in solar** (`js/solar.js:82-89`) — `SOLAR_SOURCES`
-  growatt is uitgecommentarieerd op regel 45, maar branch staat er nog.
 - [ ] **#76 _terugleverRendering flag** (`js/solar.js:256-261`) — Vervang door
   async/await + idempotent rendering.
 - [ ] **#77 Solar HTML-blokken dedupe** (`js/solar.js:307,321`) — "Zelf verbruiken"
@@ -194,18 +190,10 @@ performance micro-optimalisaties.
   `users/<id>.js` of env var.
 - [ ] **#79 readRawBody simpler** (`api/cronLaden.js:21-28`) — `for await (const c
   of req)` is leesbaarder; voeg size-limit toe tegen DoS via grote body.
-- [ ] **#80 homey.js geen fetch-timeout** (`api/homey.js:53`) — AbortController
-  toevoegen, vergelijkbaar met cronLaden in v2.61.0.
-- [ ] **#81 homey.js r.status===200 te strikt** (`api/homey.js:54`) — Athom kan
-  204 No Content geven. Check `r.ok` of `r.status < 300`.
 - [ ] **#82 kenteken match-helper dedupe** (`api/kenteken.js:34-63`) — Match-logica
   herhaald in 3 functies. Extract `kandidatenInRange(...)`.
 - [ ] **#83 KilowattApp lazy-load** (`api/kenteken.js:1-3`) — 1.5MB `kilowatt-ev-data
   .json` op cold-start. Lazy-load via dynamic import bij geen ev-database match.
-- [ ] **#84 planLaden stopTijd > now check** (`api/planLaden.js:22,28`) — Als
-  stopTijd in verleden ligt, webhook direct. Valideer.
-- [ ] **#85 solaredge date in Europe/Amsterdam** (`api/solaredge.js:30`) — UTC-date
-  kan 1-2u off rond middernacht NL. Forceer NL-datum.
 - [ ] **#86 volgorde dupliceerd met array-index** (`users/001.js:27,002.js:30`) —
   Leid af van array-volgorde.
 - [ ] **#87 Auto-config null-propagatie** (`users/002.js:30`) — `uren: null,
@@ -227,6 +215,24 @@ performance micro-optimalisaties.
 
 ## AFGEROND
 
+- **#80 + #81 homey.js timeout + r.ok** ✅ Afgerond in v2.66.0 — AbortController(5s)
+  op de webhook-fetch (consistent met cronLaden in v2.61.0). `r.ok` ipv strikte
+  `r.status === 200`, zodat Athom-webhook responses van 202/204 niet meer
+  rapporteren als "✗ Laden niet gestart" terwijl Homey wel triggered.
+- **#84 planLaden stopTijd-validatie** ✅ Afgerond in v2.66.0 — `stopTijd` moet
+  minimaal 60s in toekomst liggen, anders 400. Voorkomt dat een frontend-bug of
+  clock-drift de stop-webhook direct laat vuren (auto laadt 0s).
+- **#85 solaredge datum in Europe/Amsterdam** ✅ Afgerond in v2.66.0 —
+  `vandaagNl()` helper via `Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Amsterdam' })`
+  vervangt `new Date().toISOString().split('T')[0]`. Voorheen toonde de app
+  rond middernacht NL gisteren's solar-data ipv vandaag.
+- **#75 dode growatt-branch in fetchSolarData** ✅ Afgerond in v2.66.0 — `if (src.type
+  === 'growatt')` weg uit `fetchSolarData` (Growatt loopt sowieso buitenom via
+  `js/app.js` Promise.all). `fetchGrowatt` zelf blijft want die wordt nog gebruikt.
+- **#69 Modal Escape-key + cleanup** ✅ Afgerond in v2.66.0 — `keydown`-listener
+  op kenteken-overlay sluit op Escape. Inline `onclick="..remove()"` op X-button
+  vervangen door `addEventListener` zodat de keydown-listener netjes afgemeld
+  wordt (geen leak bij herhaaldelijk openen).
 - **#52 TOTAL_PEAK_KW=0 NaN-guard** ✅ Afgerond in v2.65.0 — `growattFractie()`
   helper in `js/solar.js` retourneert 0 als `TOTAL_PEAK_KW <= 0`. Beide
   divisie-sites (line 122 + 206) gebruiken nu de helper. Voorkomt "NaN%" in UI

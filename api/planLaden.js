@@ -78,6 +78,15 @@ module.exports = async (req, res) => {
     const ap = apBody || apparaat;
     if (!startTijd || !stopTijd) return res.status(400).json({ error: 'startTijd en stopTijd verplicht' });
 
+    // Valideer dat stopTijd minstens 60s in de toekomst ligt. Bij clock-drift
+    // tussen frontend en server, of bij een frontend-bug, kan stopTijd in het
+    // verleden zitten — QStash krijgt dan delay:0 en de stop-webhook vuurt direct
+    // (auto laadt effectief 0s). startTijd in het verleden is OK (laad direct).
+    const stopMs = new Date(stopTijd).getTime();
+    if (!Number.isFinite(stopMs) || stopMs < Date.now() + 60_000) {
+      return res.status(400).json({ error: 'stopTijd moet minstens 60s in de toekomst liggen' });
+    }
+
     // Annuleer eerst eventuele bestaande QStash-berichten voor dit apparaat —
     // anders blijven oude starten/stoppen messages in de queue staan en vuren
     // alsnog (zelfs als de nieuwe planning andere tijden heeft).

@@ -79,10 +79,12 @@ async function fetchGrowatt() {
 }
 
 async function fetchSolarData() {
+  // SOLAR_SOURCES bevat alleen solaredge — Growatt is afzonderlijk geladen
+  // door js/app.js (in Promise.all), niet via deze fallback-loop. Loop blijft
+  // generiek voor toekomstige bronnen (HomeAssistant via #13).
   for (const src of SOLAR_SOURCES) {
     try {
       if (src.type === 'solaredge') { const d = await fetchSolarEdge(); if (d) return d; }
-      if (src.type === 'growatt')   { const d = await fetchGrowatt();   if (d) return d; }
     } catch(e) { /* volgende bron proberen */ }
   }
   return null;
