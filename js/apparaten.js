@@ -825,7 +825,7 @@ async function laadPlanningStatus(apparaat) {
       const start = new Date(data.startTijd);
       const stop  = new Date(data.stopTijd);
       statusEl.style.display = 'block';
-      statusEl.innerHTML = '<span style="color:var(--green)">&#9679;</span> Gepland: start ' + dagHStr(start) + ' &middot; klaar ' + hStr(stop) + '&nbsp;<button onclick="annuleerPlanning()" style="margin-left:6px;font-size:11px;border:none;background:none;color:#a32d2d;cursor:pointer;padding:0;text-decoration:underline">Annuleren</button>';
+      statusEl.innerHTML = '<span style="color:var(--green)">&#9679;</span> Gepland: start ' + dagHMStr(start) + ' &middot; klaar ' + hMStr(stop) + '&nbsp;<button onclick="annuleerPlanning()" style="margin-left:6px;font-size:11px;border:none;background:none;color:#a32d2d;cursor:pointer;padding:0;text-decoration:underline">Annuleren</button>';
       if (btn) btn.textContent = '✓ Ingepland — wijzig';
     } else {
       _planningActief = false;

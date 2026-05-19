@@ -71,6 +71,7 @@ function dagPrefix(datum) {
   return `<span style="opacity:0.65;font-size:0.9em">${_DAGNAMEN[dag.getDay()]} </span>`;
 }
 function dagHStr(datum) { return datum ? dagPrefix(datum) + hStr(datum) : '—'; }
+function dagHMStr(datum) { return datum ? dagPrefix(datum) + hMStr(datum) : '—'; }
 function dagHStrPlain(datum) {
   if (!datum) return '—';
   const dag = new Date(datum); dag.setHours(0,0,0,0);
