@@ -608,10 +608,17 @@ function renderApDetail() {
         '</div>' +
       '</div>';
 
-  // Bij batterij-apparaten staat de auto-naam al in het auto-info blok
-  // (bouwAutoDetailsHtml); de header toont dan generiek 'Auto' om dubbele
-  // vermelding te voorkomen. Overige apparaten tonen gewoon hun naam.
-  document.getElementById('apDetailNaam').textContent = heeftBatterij ? 'Auto' : displayNaam(ap);
+  // Header: bij een bekende auto toont de header naam + kenteken, anders
+  // generiek 'Auto'. Overige apparaten tonen gewoon hun apparaatnaam.
+  let headerNaam = displayNaam(ap);
+  if (heeftBatterij) {
+    const aInfo      = ap.autoInfo || {};
+    const autoBekend = !!aInfo.kenteken && aInfo.merk && aInfo.merk !== 'onbekend';
+    headerNaam = autoBekend
+      ? [aInfo.merk, aInfo.model, aInfo.variantNaam].filter(Boolean).join(' ') + ' · ' + aInfo.kenteken
+      : 'Auto';
+  }
+  document.getElementById('apDetailNaam').textContent = headerNaam;
   document.getElementById('apDetailBody').innerHTML =
 
     // 0. AUTO DETAILS — bovenaan, alleen bij apparaten met batterij:true
@@ -1623,20 +1630,23 @@ function bouwAutoDetailsHtml(ap) {
   const hasKenteken = !!info.kenteken && info.merk && info.merk !== 'onbekend';
 
   if (hasKenteken && info.bruikbaarKwh) {
-    // Auto bekend → compacte weergave + Wijzigen-knop
-    const jaarStr   = info.bouwjaar ? ' · ' + info.bouwjaar : '';
-    const variantStr = info.variantNaam ? ' · ' + info.variantNaam : '';
+    // Auto bekend → compacte 2-regel weergave + Wijzigen-knop.
+    // Regel 1: naam · bouwjaar · kenteken   Regel 2: ⚡ vermogen · laadtijd
+    // Kleinere font + twee regels zodat het ook op 375px-schermen netjes past.
     const werkelijk = info.werkelijkKw ?? info.laadVermogenAcKw;
     const kwh       = info.bruikbaarKwh;
-    const duur      = (kwh && werkelijk) ? ' · ~' + (Math.round((kwh / werkelijk) * 10) / 10).toString().replace('.', ',') + 'u laadtijd' : '';
-    const ltLabel   = info.laadtypeLabel ? ' (' + info.laadtypeLabel.split('(')[0].trim() + ')' : '';
+    const duurStr   = (kwh && werkelijk)
+      ? '~' + (Math.round((kwh / werkelijk) * 10) / 10).toString().replace('.', ',') + 'u laadtijd'
+      : '';
+    const naamDelen = [info.merk, info.model, info.variantNaam].filter(Boolean).join(' ');
+    const regel1    = [naamDelen, info.bouwjaar, info.kenteken].filter(Boolean).join(' · ');
+    const regel2    = [_formatKw(werkelijk), duurStr].filter(Boolean).join(' · ');
     return `
       <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);background:var(--bg)">
         <div style="display:flex;align-items:flex-start;gap:8px">
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;line-height:1.4">🚗 ${escapeHtml(info.merk)} ${escapeHtml(info.model || '')}${escapeHtml(jaarStr)}${escapeHtml(variantStr)}</div>
-            <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px">🔋 ${_formatKwh(kwh)} · ⚡ ${_formatKw(werkelijk)}${escapeHtml(ltLabel)}${duur}</div>
-            ${info.kenteken ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${escapeHtml(info.kenteken)}</div>` : ''}
+            <div style="font-size:12px;font-weight:600;line-height:1.4">🚗 ${escapeHtml(regel1)}</div>
+            <div style="font-size:11px;color:var(--muted);line-height:1.4;margin-top:2px">⚡ ${escapeHtml(regel2)}</div>
           </div>
           <button onclick="toonKentekenDialog()" style="flex-shrink:0;padding:6px 11px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit">Wijzigen</button>
         </div>
