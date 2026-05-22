@@ -275,6 +275,18 @@ function getPlanUren() {
   return getPrijzenVooruit();
 }
 
+// Centrale laadtijd-berekening: hoeveel uur moet er nog geladen/gedraaid worden,
+// gegeven het batterijpercentage uit de slider. 76% vol → nog 24% × ap.uren.
+// Apparaten zonder batterij hebben _vpBatterij = 0 → volledige ap.uren.
+// Alle tijd-, kosten- en planning-berekeningen in dit panel gaan via deze
+// functie zodat slider, status en inplannen-advies altijd hetzelfde tonen.
+function benodigdeLaadUren() {
+  if (!apDetailState) return 0;
+  const pct = apDetailState._vpBatterij ?? 0;
+  if (pct >= 100) return 0;
+  return ((100 - pct) / 100) * apDetailState.ap.uren;
+}
+
 // Default "klaar om" tijd voor het Inplannen-veld:
 // - huidige tijd + benodigde uren + 1 buffer-uur (altijd haalbaar)
 // - of de volgende ochtend 08:00 als het nu 18:00 of later is
@@ -357,8 +369,7 @@ function selTijdWijzig(val) {
   apDetailState.currentStartIdx   = Math.floor(totalMinutes / 60);
   apDetailState._minuteOffset     = totalMinutes % 60;
   apDetailState._handmatigGekozen = true;
-  const berekendeUren = ((100 - (apDetailState._vpBatterij ?? 0)) / 100) * apDetailState.ap.uren;
-  updateKostenWeergave(berekendeUren);
+  updateKostenWeergave(benodigdeLaadUren());
 }
 
 function gebruikTijdDetail() {
@@ -426,19 +437,18 @@ function bouwTijdlijnHtml(planUren, currentStartIdx, besteIdx, berekendeBlok, ma
 
 function tijdlijnSelect(idx) {
   if (!apDetailState) return;
-  const { ap, maxIdx } = apDetailState;
+  const { maxIdx } = apDetailState;
   apDetailState.currentStartIdx   = Math.max(0, Math.min(maxIdx, idx | 0));
   apDetailState._minuteOffset     = 0;
   apDetailState._handmatigGekozen = true;
-  const berekendeUren = ((100 - (apDetailState._vpBatterij ?? 0)) / 100) * ap.uren;
-  updateKostenWeergave(berekendeUren);
+  updateKostenWeergave(benodigdeLaadUren());
   if (_planningActief) planInladen(true);
 }
 
 function updateTijdlijnHighlights() {
   if (!apDetailState) return;
   const { ap, planUren, currentStartIdx } = apDetailState;
-  const berekendeUren = ((100 - (apDetailState._vpBatterij ?? 0)) / 100) * ap.uren;
+  const berekendeUren = benodigdeLaadUren();
   const berekendeBlok = berekendeUren > 0 ? Math.ceil(berekendeUren) : 0;
   const besteIdx      = apDetailState._besteIdxBer ?? apDetailState.besteStartIdx;
 
@@ -506,7 +516,7 @@ function renderApDetail() {
   const besteLabel         = type === 'laden' ? 'Beste laadtijd' : 'Beste tijd';
   const vpBatterij         = apDetailState._vpBatterij  ?? 0;
   const vpTijd             = apDetailState._vpVertrekTijd ?? '07:00';
-  const berekendeUren      = vpBatterij >= 100 ? 0 : ((100 - vpBatterij) / 100) * uren;
+  const berekendeUren      = benodigdeLaadUren();
   const berekendeBlok      = berekendeUren > 0 ? Math.ceil(berekendeUren) : 0;
 
   // Beste blok — gebaseerd op benodigde laadtijd (batterijniveau)
@@ -529,8 +539,9 @@ function renderApDetail() {
   const minuteOffset     = apDetailState._minuteOffset ?? 0;
   const selStart         = planUren[currentStartIdx]?.tijd;
   const selStartActual   = selStart ? new Date(selStart.getTime() + minuteOffset * 60000) : null;
-  const selEindActual    = selStartActual && berekendeUren > 0
-    ? new Date(selStartActual.getTime() + berekendeUren * 3600000)
+  // Eind = start + uur-blok (Math.ceil) — zelfde duur als slider/advies/status.
+  const selEindActual    = selStartActual && berekendeBlok > 0
+    ? new Date(selStartActual.getTime() + berekendeBlok * 3600000)
     : null;
   const selStartStr      = dagHStr(selStart);
   const selStartStrPlain = dagHMStrPlain(selStartActual);
@@ -597,7 +608,10 @@ function renderApDetail() {
         '</div>' +
       '</div>';
 
-  document.getElementById('apDetailNaam').textContent = displayNaam(ap);
+  // Bij batterij-apparaten staat de auto-naam al in het auto-info blok
+  // (bouwAutoDetailsHtml); de header toont dan generiek 'Auto' om dubbele
+  // vermelding te voorkomen. Overige apparaten tonen gewoon hun naam.
+  document.getElementById('apDetailNaam').textContent = heeftBatterij ? 'Auto' : displayNaam(ap);
   document.getElementById('apDetailBody').innerHTML =
 
     // 0. AUTO DETAILS — bovenaan, alleen bij apparaten met batterij:true
@@ -720,8 +734,9 @@ function updateKostenWeergave(berekendeUren) {
   const selStartActual = planUren[currentStartIdx]?.tijd
     ? new Date(planUren[currentStartIdx].tijd.getTime() + minuteOffset * 60000)
     : null;
-  const selEindActual  = selStartActual && berekendeUren > 0
-    ? new Date(selStartActual.getTime() + berekendeUren * 3600000)
+  // Eind = start + uur-blok (Math.ceil) — zelfde duur als slider/advies/status.
+  const selEindActual  = selStartActual && berekendeBlok > 0
+    ? new Date(selStartActual.getTime() + berekendeBlok * 3600000)
     : null;
   const selEff    = berekendeUren >= 0.25
     ? (effectieveKosten(berekendeUren, vermogen, planUren, currentStartIdx) ?? berekenKostenVanaf(berekendeUren, vermogen, planUren, currentStartIdx))
@@ -762,9 +777,8 @@ function herbereken() {
   if (!apDetailState) return;
   const { ap, planUren } = apDetailState;
 
-  // Lees berekendeUren altijd uit state (al bijgewerkt door oninput)
-  const batterijPct   = apDetailState._vpBatterij ?? 0;
-  const berekendeUren = ((100 - batterijPct) / 100) * ap.uren;
+  // Benodigde laaduren centraal berekend uit de batterij-slider
+  const berekendeUren = benodigdeLaadUren();
   const aantalBlok    = Math.ceil(berekendeUren);
 
   // Altijd: update secties 2, 4 en "Plan dit in" knop
@@ -883,11 +897,13 @@ async function planInladen(stilUpdate = false) {
   // in deze detail-paneel-sessie. Anders silent abort — gebruiker moet expliciet opnieuw inplannen.
   if (stilUpdate && !apDetailState._cachedPlanPin) return;
 
-  const { planUren, currentStartIdx, ap } = apDetailState;
+  const { planUren, currentStartIdx } = apDetailState;
   const startP = planUren[currentStartIdx];
   if (!startP) return;
   const startTijd = new Date(startP.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
-  const stopTijd  = new Date(startTijd.getTime() + ap.uren * 3600000);
+  // Laadduur = benodigde uren (houdt rekening met batterijniveau), afgerond op
+  // hele uur-blokken — zelfde block als de tijdlijn-slider en het advies tonen.
+  const stopTijd  = new Date(startTijd.getTime() + Math.ceil(benodigdeLaadUren()) * 3600000);
 
   if (stilUpdate) {
     try {
@@ -1001,11 +1017,12 @@ async function bevestigPincode() {
     if (action === 'plan') {
       if (!apDetailState) throw new Error('Geen apparaat actief');
       const apparaat = apSleutel(apDetailState.ap.naam);
-      const { planUren, currentStartIdx, ap } = apDetailState;
+      const { planUren, currentStartIdx } = apDetailState;
       const startP = planUren[currentStartIdx];
       if (!startP) throw new Error('Ongeldige starttijd');
       const startTijd = new Date(startP.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
-      const stopTijd  = new Date(startTijd.getTime() + ap.uren * 3600000);
+      // Laadduur = benodigde uren (batterijniveau), afgerond op hele uur-blokken.
+      const stopTijd  = new Date(startTijd.getTime() + Math.ceil(benodigdeLaadUren()) * 3600000);
 
       const r = await fetch(apiUrl('/api/planLaden'), {
         method:  'POST',
