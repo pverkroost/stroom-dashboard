@@ -1630,24 +1630,20 @@ function bouwAutoDetailsHtml(ap) {
   const hasKenteken = !!info.kenteken && info.merk && info.merk !== 'onbekend';
 
   if (hasKenteken && info.bruikbaarKwh) {
-    // Auto bekend → compacte 2-regel weergave + Wijzigen-knop.
-    // Regel 1: naam · bouwjaar · kenteken   Regel 2: ⚡ vermogen · laadtijd
-    // Kleinere font + twee regels zodat het ook op 375px-schermen netjes past.
+    // Auto bekend → één compacte info-regel + Wijzigen-knop. Naam + kenteken
+    // staan al in de header (apDetailNaam), dus die staan hier NIET nogmaals.
+    // Toont alleen wat de header niet toont: bouwjaar · vermogen · laadtijd.
     const werkelijk = info.werkelijkKw ?? info.laadVermogenAcKw;
     const kwh       = info.bruikbaarKwh;
     const duurStr   = (kwh && werkelijk)
       ? '~' + (Math.round((kwh / werkelijk) * 10) / 10).toString().replace('.', ',') + 'u laadtijd'
       : '';
-    const naamDelen = [info.merk, info.model, info.variantNaam].filter(Boolean).join(' ');
-    const regel1    = [naamDelen, info.bouwjaar, info.kenteken].filter(Boolean).join(' · ');
-    const regel2    = [_formatKw(werkelijk), duurStr].filter(Boolean).join(' · ');
+    const vermStr   = werkelijk ? '⚡ ' + _formatKw(werkelijk) : '';
+    const regel     = [info.bouwjaar, vermStr, duurStr].filter(Boolean).join(' · ');
     return `
       <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);background:var(--bg)">
-        <div style="display:flex;align-items:flex-start;gap:8px">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:12px;font-weight:600;line-height:1.4">🚗 ${escapeHtml(regel1)}</div>
-            <div style="font-size:11px;color:var(--muted);line-height:1.4;margin-top:2px">⚡ ${escapeHtml(regel2)}</div>
-          </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;min-width:0;font-size:12px;color:var(--muted);line-height:1.4">${escapeHtml(regel)}</div>
           <button onclick="toonKentekenDialog()" style="flex-shrink:0;padding:6px 11px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit">Wijzigen</button>
         </div>
       </div>`;
