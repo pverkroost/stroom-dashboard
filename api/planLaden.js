@@ -11,6 +11,12 @@ function sleutel(userId, apparaat) {
   return 'laadplanning_' + userId + '_' + (apparaat || 'default');
 }
 
+// Apparaten waarvoor cronLaden Homey-webhooks kent. Houd in sync met WEBHOOKS
+// in api/cronLaden.js. Vroege check zodat we geen QStash-messages publiceren
+// die later in cronLaden alsnog met "Onbekend apparaat" failen — kost geld
+// en laat een dode planning in Redis achter tot de TTL hem opruimt.
+const BEKENDE_APPARATEN = ['auto'];
+
 function getQstashClient() {
   if (!process.env.QSTASH_TOKEN) return null;
   return new Client({ token: process.env.QSTASH_TOKEN });
@@ -88,6 +94,7 @@ module.exports = async (req, res) => {
     await clearAuthFailures({ endpoint: 'planLaden', ip });
     const ap = apBody || apparaat;
     if (!startTijd || !stopTijd) return res.status(400).json({ error: 'startTijd en stopTijd verplicht' });
+    if (!BEKENDE_APPARATEN.includes(ap)) return res.status(400).json({ error: 'Onbekend apparaat: ' + ap });
 
     // Valideer dat stopTijd minstens 60s in de toekomst ligt. Bij clock-drift
     // tussen frontend en server, of bij een frontend-bug, kan stopTijd in het

@@ -7,9 +7,12 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-// Homey webhook namen per apparaat — voeg hier toe voor elk apparaat met automatisering: true
+// Homey webhook namen per apparaat — voeg hier toe voor elk apparaat met automatisering: true.
+// Sleutel = apSleutel(ap.naam) uit js/apparaten.js (lowercase, alleen a-z0-9, max 20 chars).
+// Houd in sync met BEKENDE_APPARATEN in api/planLaden.js — daar valideren we vooraf
+// dat we geen QStash-messages plannen die hier toch zouden falen.
 const WEBHOOKS = {
-  autophev: { starten: 'auto-laden-starten', stoppen: 'auto-laden-stoppen' },
+  auto: { starten: 'auto-laden-starten', stoppen: 'auto-laden-stoppen' },
 };
 
 function sleutel(userId, apparaat) {
