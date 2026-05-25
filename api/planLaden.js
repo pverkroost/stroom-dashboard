@@ -62,6 +62,17 @@ module.exports = async (req, res) => {
     const data = await redis.get(sleutel(userId, apparaat));
     if (!data) return res.json({ actief: false });
     const planning = typeof data === 'string' ? JSON.parse(data) : data;
+
+    // Vangnet voor cronLaden-failures: als de stoptijd >1u verstreken is,
+    // is de stop-webhook niet (succesvol) gevuurd en blijft de row hangen.
+    // Ruim hem op en rapporteer geen actieve planning aan de frontend.
+    const stopMs = new Date(planning.stopTijd).getTime();
+    if (Number.isFinite(stopMs) && stopMs + 3600_000 < Date.now()) {
+      await annuleerQStashMessages(planning);
+      await redis.del(sleutel(userId, apparaat));
+      return res.json({ actief: false });
+    }
+
     return res.json(planning);
   }
 
@@ -98,6 +109,11 @@ module.exports = async (req, res) => {
 
     const { startId, stopId } = await planQStash(userId, startTijd, stopTijd, ap);
 
+    // TTL = stoptijd + 1u (minimum 1u) als vangnet: als cronLaden-stoppen faalt
+    // (Homey down, network), wist Redis de row alsnog en blijft de app niet
+    // "Gepland" tonen voor een al-verstreken planning.
+    const ttlSec = Math.max(3600, Math.ceil((stopMs - Date.now()) / 1000) + 3600);
+
     await redis.set(sleutel(userId, ap), JSON.stringify({
       actief:         true,
       startTijd,
@@ -105,7 +121,7 @@ module.exports = async (req, res) => {
       apparaat:       ap,
       qstashStartId:  startId,
       qstashStopId:   stopId,
-    }));
+    }), { ex: ttlSec });
 
     return res.json({ success: true });
   }
