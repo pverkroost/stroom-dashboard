@@ -38,6 +38,56 @@ function geldigHaId(id) {
   return typeof id === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(id);
 }
 
+// Home Connect enum-waarden zijn ge-prefixed (bv. 'BSH.Common.EnumType.PowerState.On'
+// of 'Cooking.Oven.Program.HotAir'). Voor weergave volstaat het laatste segment.
+function korteWaarde(v) {
+  if (typeof v !== 'string') return v;
+  const parts = v.split('.');
+  return parts[parts.length - 1];
+}
+
+// Lees power/door/operation/actief-programma/temperatuur voor één toestel.
+// Drie onafhankelijke GETs parallel; per call lenient (een toestel kan offline
+// zijn of een endpoint niet ondersteunen → veld blijft null).
+async function leesApparaatStatus(token, enc) {
+  const [settingsR, statusR, activeR] = await Promise.all([
+    hcFetch(`/api/homeappliances/${enc}/settings`,        token).catch(() => null),
+    hcFetch(`/api/homeappliances/${enc}/status`,          token).catch(() => null),
+    hcFetch(`/api/homeappliances/${enc}/programs/active`,  token).catch(() => null),
+  ]);
+
+  const out = {
+    power: null, operationState: null, doorState: null,
+    activeProgram: null, currentTemp: null, targetTemp: null,
+    tempUnit: null, remainingSeconds: null,
+  };
+
+  if (settingsR && settingsR.ok) {
+    const items = (await hcJson(settingsR))?.data?.settings || [];
+    const ps = items.find(s => s.key === 'BSH.Common.Setting.PowerState');
+    if (ps) out.power = korteWaarde(ps.value);
+  }
+  if (statusR && statusR.ok) {
+    const items = (await hcJson(statusR))?.data?.status || [];
+    const door = items.find(s => s.key === 'BSH.Common.Status.DoorState');
+    const op   = items.find(s => s.key === 'BSH.Common.Status.OperationState');
+    if (door) out.doorState      = korteWaarde(door.value);
+    if (op)   out.operationState = korteWaarde(op.value);
+  }
+  if (activeR && activeR.ok) {
+    const prog = (await hcJson(activeR))?.data || {};
+    if (prog.key) out.activeProgram = korteWaarde(prog.key);
+    const opts = prog.options || [];
+    const cur  = opts.find(o => /CurrentCavityTemperature/.test(o.key || ''));
+    const set  = opts.find(o => /SetpointTemperature/.test(o.key || ''));
+    const rem  = opts.find(o => o.key === 'BSH.Common.Option.RemainingProgramTime');
+    if (cur) { out.currentTemp = cur.value; out.tempUnit = cur.unit || out.tempUnit; }
+    if (set) { out.targetTemp  = set.value; out.tempUnit = set.unit || out.tempUnit; }
+    if (rem) out.remainingSeconds = rem.value;
+  }
+  return out;
+}
+
 module.exports = async (req, res) => {
   const action = req.query?.action;
 
@@ -66,10 +116,24 @@ module.exports = async (req, res) => {
   const userId      = getValidUserId(req);
   const expectedPin = process.env[`APP_PINCODE_${userId}`];
 
-  // Verbindingsstatus: zijn er tokens voor deze user?
+  // status: zonder haId → verbindingsstatus (tokens aanwezig?). Met haId →
+  // live monitoring van het toestel (power/programma/temperatuur/deur). Werkt
+  // zonder Remote Start en zonder veiligheidsrisico (alleen lezen).
   if (req.method === 'GET' && action === 'status') {
-    const tokens = await getHomeConnectTokens(userId);
-    return res.json({ verbonden: !!(tokens && tokens.refresh_token) });
+    const haId = req.query?.haId;
+    if (!haId) {
+      const tokens = await getHomeConnectTokens(userId);
+      return res.json({ verbonden: !!(tokens && tokens.refresh_token) });
+    }
+    if (!geldigHaId(haId)) return res.status(400).json({ error: 'Ongeldig haId' });
+    const token = await getHomeConnectToken(userId);
+    if (!token) return res.status(401).json({ error: 'Niet gekoppeld' });
+    try {
+      const status = await leesApparaatStatus(token, encodeURIComponent(haId));
+      return res.json({ haId, ...status });
+    } catch (e) {
+      return res.status(502).json({ error: 'Home Connect timeout/fout: ' + e.message });
+    }
   }
 
   // Lijst van gekoppelde apparaten.

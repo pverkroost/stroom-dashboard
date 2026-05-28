@@ -581,6 +581,73 @@ function pincodeSectieHtml() {
   '</div>';
 }
 
+// ── Home Connect live monitoring (oven / kookplaat) ─────────────────────────
+const _HC_POWER = { On: 'Aan', Off: 'Uit', Standby: 'Stand-by' };
+const _HC_DOOR  = { Open: 'Open', Closed: 'Dicht', Locked: 'Vergrendeld' };
+const _HC_OP    = { Run: 'Actief', Ready: 'Gereed', Inactive: 'Inactief', DelayedStart: 'Uitgesteld', Pause: 'Gepauzeerd', Finished: 'Klaar', Aborting: 'Afbreken', Error: 'Fout' };
+
+// 'HotAir' → 'Hot Air'; spaties vóór hoofdletters zodat enum-namen leesbaar zijn.
+function _hcHuman(s) { return s ? String(s).replace(/([a-z])([A-Z])/g, '$1 $2') : ''; }
+function _hcDuur(sec) {
+  if (sec == null) return null;
+  const m = Math.round(sec / 60);
+  if (m < 60) return m + ' min';
+  const u = Math.floor(m / 60), r = m % 60;
+  return u + ' u' + (r ? ' ' + r + ' min' : '');
+}
+
+function hcStatusRijenHtml(d) {
+  const row = (k, v) => '<div class="tarief-row"><span class="tarief-key">' + k + '</span><span style="text-align:right">' + v + '</span></div>';
+  const rijen = [];
+
+  const aan = d.power === 'On';
+  if (d.power) {
+    const dot = '<span style="color:' + (aan ? 'var(--green)' : 'var(--muted)') + '">' + (aan ? '&#9679;' : '&#9675;') + '</span> ';
+    rijen.push(row('Status', dot + (_HC_POWER[d.power] || escapeHtml(d.power))));
+  }
+  if (d.operationState && d.operationState !== 'Inactive' && _HC_OP[d.operationState]) {
+    rijen.push(row('Toestand', escapeHtml(_HC_OP[d.operationState])));
+  }
+  if (d.activeProgram) rijen.push(row('Programma', escapeHtml(_hcHuman(d.activeProgram))));
+  if (d.currentTemp != null) {
+    const unit = d.tempUnit ? ' ' + escapeHtml(d.tempUnit) : ' °C';
+    const doel = d.targetTemp != null ? ' / ' + escapeHtml(String(d.targetTemp)) + unit : '';
+    rijen.push(row('Temperatuur', escapeHtml(String(d.currentTemp)) + unit + doel));
+  } else if (d.targetTemp != null) {
+    const unit = d.tempUnit ? ' ' + escapeHtml(d.tempUnit) : ' °C';
+    rijen.push(row('Ingesteld', escapeHtml(String(d.targetTemp)) + unit));
+  }
+  const dur = _hcDuur(d.remainingSeconds);
+  if (dur) rijen.push(row('Resterend', dur));
+  if (d.doorState) rijen.push(row('Deur', escapeHtml(_HC_DOOR[d.doorState] || d.doorState)));
+
+  if (!rijen.length) {
+    return '<div style="font-size:12px;color:var(--muted)">Geen status beschikbaar — toestel mogelijk offline of uitgeschakeld.</div>';
+  }
+  return rijen.join('');
+}
+
+async function laadHcApparaatStatus(ap) {
+  const body = document.getElementById('hcMonitorBody');
+  if (!body || !ap) return;
+  const haId = hcHaIdVoor(ap);
+  if (!haId) { body.innerHTML = '<div style="font-size:12px;color:var(--muted)">Koppel dit apparaat via <b>Instellingen → Home Connect</b>.</div>'; return; }
+  try {
+    const r = await fetch(apiUrl('/api/homeconnect?action=status&haId=' + encodeURIComponent(haId)));
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { body.innerHTML = '<div style="font-size:12px;color:#a32d2d">' + escapeHtml(d.error || ('Fout ' + r.status)) + '</div>'; return; }
+    body.innerHTML = hcStatusRijenHtml(d);
+  } catch {
+    body.innerHTML = '<div style="font-size:12px;color:#a32d2d">Status ophalen mislukt</div>';
+  }
+}
+
+function verversHcStatus() {
+  const body = document.getElementById('hcMonitorBody');
+  if (body) body.innerHTML = '<div style="font-size:12px;color:var(--muted)">Status ophalen…</div>';
+  if (apDetailState) laadHcApparaatStatus(apDetailState.ap);
+}
+
 // Vult de Home Connect-sectie in het apparaat-detailpaneel. Async status →
 // re-render zodra bekend.
 function vulHcDetailSectie(ap) {
@@ -608,11 +675,18 @@ function vulHcDetailSectie(ap) {
     return;
   }
   if (!ap.homeConnectControl) {
-    // Oven / kookplaat: alleen-monitoring (zie users/<id>.js).
+    // Oven / kookplaat: alleen-monitoring (zie users/<id>.js). Live status
+    // wordt asynchroon opgehaald en in #hcMonitorBody gerenderd.
     el.innerHTML =
       '<div class="section" style="padding-top:8px">' +
-        '<div style="font-size:12px;color:var(--muted);line-height:1.6">📡 Gekoppeld met Home Connect (monitoring). Op afstand starten is voor dit toestel niet mogelijk.</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+          '<div style="font-size:13px;font-weight:600;color:var(--text)">📡 Home Connect status</div>' +
+          '<button onclick="verversHcStatus()" style="border:1px solid var(--border);background:transparent;color:var(--text);border-radius:6px;font-size:11px;padding:4px 9px;cursor:pointer;font-family:inherit">↻ Ververs</button>' +
+        '</div>' +
+        '<div id="hcMonitorBody"><div style="font-size:12px;color:var(--muted)">Status ophalen…</div></div>' +
+        '<div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5">Alleen-monitoring — op afstand starten is voor dit toestel niet mogelijk.</div>' +
       '</div>';
+    laadHcApparaatStatus(ap);
     return;
   }
   el.innerHTML =
