@@ -93,8 +93,10 @@ Voor het aansturen/monitoren van BSH-apparaten (Bosch/Siemens/Gaggenau/Neff) —
 - Kopieer Client ID en Client Secret → gebruik als `HOMECONNECT_CLIENT_ID` en `HOMECONNECT_CLIENT_SECRET` (globaal, niet per user)
 - Koppelen gebeurt in de app via **Instellingen → Home Connect → Koppel Home Connect** (OAuth-login). Tokens worden per user in Upstash Redis bewaard (`homeconnect_tokens_<userId>`).
 
+Programma's, opties (temperatuur, centrifuge, droogdoel…) en `FinishInRelative` ("klaar om") worden **volledig dynamisch** uit de API gehaald — geen hardcoded waarden, dus het werkt automatisch voor elk merk/model. Bij twee gekoppelde toestellen biedt de app na een wasbeurt aan de droger erna in te plannen (IntelligentDry).
+
 > **Let op — beperkingen van de Home Connect API:**
-> - **Wasmachine & droger**: starten/stoppen op afstand werkt, maar alleen als je op het toestel een programma kiest én "Remote Start" inschakelt. De app start het geselecteerde programma.
+> - **Wasmachine & droger**: programma + opties kies je in de app; starten op afstand vereist dat "Remote Start" op het toestel aanstaat. Met "klaar om" plant de machine zelf het startmoment (`FinishInRelative`).
 > - **Oven**: vereist per keer fysiek inschakelen van Remote Start; daarom in deze app **alleen-monitoring** (geen startknop).
 > - **Kookplaat**: de API is voor kookplaten monitor-only — op afstand starten is niet mogelijk.
 

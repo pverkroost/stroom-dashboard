@@ -46,6 +46,41 @@ function korteWaarde(v) {
   return parts[parts.length - 1];
 }
 
+// Leesbaar label uit een enum/program/optie-key. Algemeen (werkt voor elk merk):
+// laatste segment + spaties vóór hoofdletters. Plus een paar veelvoorkomende
+// BSH-conventies (GC40 = °C, RPM1200 = toeren) zodat waardes natuurlijk lezen.
+function mooieLabel(v) {
+  const k = korteWaarde(v);
+  if (typeof k !== 'string') return k;
+  let m;
+  if ((m = /^GC(\d+)$/.exec(k)))  return m[1] + ' °C';
+  if ((m = /^RPM(\d+)$/.exec(k))) return m[1] + ' tpm';
+  return k.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Za-z])(\d)/g, '$1 $2');
+}
+
+// Normaliseer de optie-definities uit /programs/available/{programKey} naar een
+// compacte vorm voor de frontend — rauwe keys/values blijven behouden zodat de
+// PUT naar /programs/active ze ongewijzigd kan terugsturen.
+function normaliseerOpties(rawOpts) {
+  return (rawOpts || []).map(o => {
+    const c = o.constraints || {};
+    const allowed = Array.isArray(c.allowedvalues)
+      ? c.allowedvalues.map(v => ({ value: v, name: mooieLabel(v) }))
+      : null;
+    return {
+      key:           o.key,
+      name:          mooieLabel(o.key),
+      type:          o.type || null,
+      unit:          o.unit || null,
+      default:       c.default != null ? c.default : (o.value != null ? o.value : null),
+      allowedValues: allowed,
+      min:           c.min != null ? c.min : null,
+      max:           c.max != null ? c.max : null,
+      stepsize:      c.stepsize != null ? c.stepsize : null,
+    };
+  });
+}
+
 // Lees power/door/operation/actief-programma/temperatuur voor één toestel.
 // Drie onafhankelijke GETs parallel; per call lenient (een toestel kan offline
 // zijn of een endpoint niet ondersteunen → veld blijft null).
@@ -152,6 +187,50 @@ module.exports = async (req, res) => {
         connected: a.connected,
       }));
       return res.json({ appliances: lijst });
+    } catch (e) {
+      return res.status(502).json({ error: 'Home Connect timeout/fout: ' + e.message });
+    }
+  }
+
+  // Beschikbare programma's voor dit toestel — volledig dynamisch (werkt voor
+  // elk merk/model). Vereist meestal dat het toestel aan + verbonden is.
+  if (req.method === 'GET' && action === 'programs') {
+    const haId = req.query?.haId;
+    if (!geldigHaId(haId)) return res.status(400).json({ error: 'Ongeldig haId' });
+    const token = await getHomeConnectToken(userId);
+    if (!token) return res.status(401).json({ error: 'Niet gekoppeld' });
+    try {
+      const r = await hcFetch(`/api/homeappliances/${encodeURIComponent(haId)}/programs/available`, token);
+      if (!r.ok) {
+        const d = await hcJson(r);
+        return res.status(r.status === 409 ? 409 : 502).json({ error: d?.error?.value || d?.error?.description || `Programma's ophalen faalde (${r.status})` });
+      }
+      const programs = ((await hcJson(r))?.data?.programs || []).map(p => ({
+        key:  p.key,
+        name: p.name || mooieLabel(p.key),
+      }));
+      return res.json({ programs });
+    } catch (e) {
+      return res.status(502).json({ error: 'Home Connect timeout/fout: ' + e.message });
+    }
+  }
+
+  // Beschikbare opties + toegestane waarden/constraints voor één programma.
+  if (req.method === 'GET' && action === 'programOptions') {
+    const haId       = req.query?.haId;
+    const programKey = req.query?.programKey;
+    if (!geldigHaId(haId)) return res.status(400).json({ error: 'Ongeldig haId' });
+    if (!programKey || !/^[A-Za-z0-9._-]{1,80}$/.test(programKey)) return res.status(400).json({ error: 'Ongeldige programKey' });
+    const token = await getHomeConnectToken(userId);
+    if (!token) return res.status(401).json({ error: 'Niet gekoppeld' });
+    try {
+      const r = await hcFetch(`/api/homeappliances/${encodeURIComponent(haId)}/programs/available/${encodeURIComponent(programKey)}`, token);
+      if (!r.ok) {
+        const d = await hcJson(r);
+        return res.status(r.status === 409 ? 409 : 502).json({ error: d?.error?.value || d?.error?.description || `Opties ophalen faalde (${r.status})` });
+      }
+      const options = normaliseerOpties((await hcJson(r))?.data?.options);
+      return res.json({ programKey, options });
     } catch (e) {
       return res.status(502).json({ error: 'Home Connect timeout/fout: ' + e.message });
     }

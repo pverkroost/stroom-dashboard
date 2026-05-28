@@ -689,16 +689,237 @@ function vulHcDetailSectie(ap) {
     laadHcApparaatStatus(ap);
     return;
   }
+  // Bestuurbaar (wasmachine / droger): dynamische programma- en optiekeuze.
   el.innerHTML =
     '<div class="section" style="padding-top:8px;padding-bottom:4px">' +
-      '<div style="display:flex;gap:8px">' +
-        '<button class="ap-cta-btn ap-cta-groen" onclick="hcActie(\'start\')" style="flex:1;margin-bottom:0">▶ Starten</button>' +
-        '<button class="ap-cta-btn ap-cta-wit" onclick="hcActie(\'stop\')" style="flex:1;margin-bottom:0">■ Stoppen</button>' +
-      '</div>' +
-      '<div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Start het op het apparaat gekozen programma. Vereist dat "Remote Start" op het toestel aanstaat.</div>' +
+      '<div id="hcProgUI"><div style="font-size:12px;color:var(--muted)">Programma\'s laden…</div></div>' +
       pincodeSectieHtml() +
       '<div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>' +
     '</div>';
+  apDetailState._hcUI = { programs: null, programKey: null, options: null, ladenOpties: false };
+  laadHcProgrammas(ap);
+}
+
+// ── Home Connect dynamische programma-/optiekeuze (wasmachine / droger) ──────
+// Alles komt live van de API: geen hardcoded programmanamen, temperaturen of
+// opties. Werkt zo automatisch voor elk Home Connect-toestel van elk merk.
+const _hcSelectStyle = 'display:block;width:100%;box-sizing:border-box;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:14px;background:var(--card);color:var(--text);font-family:inherit';
+let _hcVoorselectie = null; // washer→dryer: { apparaatNaam, programRegex, klaarOm }
+
+function hcFoutHtml(msg) {
+  return '<div style="font-size:12px;color:#a32d2d;line-height:1.5">' + escapeHtml(msg || 'Apparaat niet bereikbaar — controleer Home Connect verbinding') + '</div>' +
+    '<button onclick="verversHcProgrammas()" style="margin-top:8px;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:6px;font-size:11px;padding:5px 10px;cursor:pointer;font-family:inherit">↻ Opnieuw proberen</button>';
+}
+
+function verversHcProgrammas() {
+  if (!apDetailState || !apDetailState._hcUI) return;
+  apDetailState._hcUI = { programs: null, programKey: null, options: null, ladenOpties: false };
+  const w = document.getElementById('hcProgUI');
+  if (w) w.innerHTML = '<div style="font-size:12px;color:var(--muted)">Programma\'s laden…</div>';
+  laadHcProgrammas(apDetailState.ap);
+}
+
+async function laadHcProgrammas(ap) {
+  const haId = hcHaIdVoor(ap);
+  const w = document.getElementById('hcProgUI');
+  if (!haId) { if (w) w.innerHTML = hcFoutHtml('Koppel dit apparaat via Instellingen → Home Connect.'); return; }
+  try {
+    const r = await fetch(apiUrl('/api/homeconnect?action=programs&haId=' + encodeURIComponent(haId)));
+    const d = await r.json().catch(() => ({}));
+    if (!apDetailState || apDetailState.ap !== ap || !apDetailState._hcUI) return; // paneel gewisseld
+    if (!r.ok) { apDetailState._hcUI.programs = 'fout'; apDetailState._hcUI.foutTekst = d.error; renderHcProgUI(ap); return; }
+    apDetailState._hcUI.programs = d.programs || [];
+    _hcPasVoorselectieToe(ap);
+    renderHcProgUI(ap);
+    if (apDetailState._hcUI.programKey) kiesHcProgramma(apDetailState._hcUI.programKey);
+  } catch {
+    if (apDetailState && apDetailState._hcUI) { apDetailState._hcUI.programs = 'fout'; renderHcProgUI(ap); }
+  }
+}
+
+async function kiesHcProgramma(key) {
+  if (!apDetailState || !apDetailState._hcUI) return;
+  const ap = apDetailState.ap;
+  apDetailState._hcUI.programKey = key || null;
+  apDetailState._hcUI.options = null;
+  if (!key) { renderHcProgUI(ap); return; }
+  apDetailState._hcUI.ladenOpties = true;
+  renderHcProgUI(ap);
+  const haId = hcHaIdVoor(ap);
+  try {
+    const r = await fetch(apiUrl('/api/homeconnect?action=programOptions&haId=' + encodeURIComponent(haId) + '&programKey=' + encodeURIComponent(key)));
+    const d = await r.json().catch(() => ({}));
+    if (!apDetailState || apDetailState.ap !== ap || apDetailState._hcUI.programKey !== key) return;
+    apDetailState._hcUI.ladenOpties = false;
+    apDetailState._hcUI.options = r.ok ? (d.options || []) : [];
+    renderHcProgUI(ap);
+  } catch {
+    if (apDetailState && apDetailState._hcUI) { apDetailState._hcUI.ladenOpties = false; apDetailState._hcUI.options = []; renderHcProgUI(ap); }
+  }
+}
+
+function _hcDefaultKlaarOm() {
+  if (apDetailState && apDetailState._hcUI && apDetailState._hcUI._voorKlaarOm) return apDetailState._hcUI._voorKlaarOm;
+  const uren = (apDetailState && apDetailState.ap && apDetailState.ap.uren) || 2;
+  return defaultKlaarOmHHMM(uren);
+}
+
+function _hcIsTijdOptie(key) { return /FinishInRelative$|StartInRelative$/.test(key || ''); }
+
+function hcOptieControlHtml(o, i) {
+  const attrs = 'id="hcopt_' + i + '" data-key="' + escapeHtml(o.key) + '" data-type="' + escapeHtml(o.type || '') + '"';
+  if (o.allowedValues && o.allowedValues.length) {
+    const opts = o.allowedValues.map(av =>
+      '<option value="' + escapeHtml(String(av.value)) + '"' + (String(av.value) === String(o.default) ? ' selected' : '') + '>' + escapeHtml(av.name) + '</option>').join('');
+    return '<select ' + attrs + ' style="' + _hcSelectStyle + '">' + opts + '</select>';
+  }
+  if ((o.type === 'Double' || o.type === 'Int' || o.type === 'Integer') && (o.min != null || o.max != null)) {
+    const step = o.stepsize || 1;
+    return '<input type="number" ' + attrs +
+      (o.min != null ? ' min="' + o.min + '"' : '') + (o.max != null ? ' max="' + o.max + '"' : '') +
+      ' step="' + step + '" value="' + (o.default != null ? o.default : '') + '" style="' + _hcSelectStyle + '">';
+  }
+  if (o.type === 'Boolean') {
+    return '<select ' + attrs + ' style="' + _hcSelectStyle + '">' +
+      '<option value="true"' + (o.default === true ? ' selected' : '') + '>Aan</option>' +
+      '<option value="false"' + (o.default === false || o.default == null ? ' selected' : '') + '>Uit</option>' +
+    '</select>';
+  }
+  return '<div ' + attrs + ' style="font-size:12px;color:var(--muted)">' + (o.default != null ? escapeHtml(String(o.default)) : '—') + '</div>';
+}
+
+function hcOptiesHtml(options) {
+  const finish = options.find(o => /FinishInRelative$/.test(o.key));
+  let html = '';
+  options.forEach((o, i) => {
+    if (_hcIsTijdOptie(o.key)) return; // FinishInRelative apart als "Klaar om"
+    html += '<div style="margin-top:10px">' +
+      '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">' + escapeHtml(o.name) + (o.unit ? ' (' + escapeHtml(o.unit) + ')' : '') + '</label>' +
+      hcOptieControlHtml(o, i) +
+    '</div>';
+  });
+  if (finish) {
+    html += '<div style="margin-top:12px">' +
+      '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Klaar om</label>' +
+      '<input type="time" id="hcKlaarOm" value="' + _hcDefaultKlaarOm() + '" data-finishkey="' + escapeHtml(finish.key) + '"' + (finish.max != null ? ' data-max="' + finish.max + '"' : '') + ' style="' + _hcSelectStyle + '">' +
+      '<div style="font-size:10px;color:var(--muted);margin-top:4px">De machine plant zelf de start zodat hij klaar is op deze tijd.</div>' +
+    '</div>';
+  }
+  return html;
+}
+
+function renderHcProgUI(ap) {
+  const wrap = document.getElementById('hcProgUI');
+  if (!wrap || !apDetailState || !apDetailState._hcUI) return;
+  const ui = apDetailState._hcUI;
+  if (ui.programs === 'fout') { wrap.innerHTML = hcFoutHtml(ui.foutTekst); return; }
+  if (!ui.programs) { wrap.innerHTML = '<div style="font-size:12px;color:var(--muted)">Programma\'s laden…</div>'; return; }
+  if (!ui.programs.length) { wrap.innerHTML = hcFoutHtml('Geen programma\'s beschikbaar — zet het toestel aan.'); return; }
+
+  const progOpts = ['<option value="">— kies programma —</option>']
+    .concat(ui.programs.map(p => '<option value="' + escapeHtml(p.key) + '"' + (p.key === ui.programKey ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>')).join('');
+
+  let html =
+    '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Programma</label>' +
+    '<select onchange="kiesHcProgramma(this.value)" style="' + _hcSelectStyle + '">' + progOpts + '</select>';
+
+  if (ui.programKey) {
+    if (ui.ladenOpties) html += '<div style="font-size:12px;color:var(--muted);margin-top:10px">Opties laden…</div>';
+    else if (ui.options) html += hcOptiesHtml(ui.options);
+  }
+
+  html +=
+    '<div style="display:flex;gap:8px;margin-top:14px">' +
+      '<button class="ap-cta-btn ap-cta-groen" onclick="hcStarten()" style="flex:1;margin-bottom:0"' + (ui.programKey ? '' : ' disabled') + '>▶ Inplannen / starten</button>' +
+      '<button class="ap-cta-btn ap-cta-wit" onclick="hcActie(\'stop\')" style="flex:1;margin-bottom:0">■ Stoppen</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Vereist dat "Remote Start" op het toestel aanstaat.</div>';
+
+  wrap.innerHTML = html;
+}
+
+function _hcKlaarOmSeconden(hhmm, maxStr) {
+  const [h, m] = (hhmm || '').split(':').map(Number);
+  if (Number.isNaN(h)) return null;
+  const t = new Date(); t.setHours(h, m || 0, 0, 0);
+  if (t <= new Date()) t.setDate(t.getDate() + 1);
+  let sec = Math.max(0, Math.round((t - new Date()) / 1000));
+  const max = maxStr ? parseInt(maxStr, 10) : null;
+  if (max != null && sec > max) sec = max;
+  return sec;
+}
+
+// Verzamel programKey + gekozen opties (incl. FinishInRelative) en open de
+// pincode-prompt; bevestigPincode('hcstart') verstuurt de PUT.
+function hcStarten() {
+  if (!apDetailState || !apDetailState._hcUI || !apDetailState._hcUI.programKey) return;
+  const ui = apDetailState._hcUI;
+  const opts = [];
+  (ui.options || []).forEach((o, i) => {
+    if (_hcIsTijdOptie(o.key)) return;
+    const elc = document.getElementById('hcopt_' + i);
+    if (!elc || !('value' in elc)) return;
+    let v = elc.value;
+    if (v === '' || v == null) return;
+    const t = elc.dataset.type;
+    if (t === 'Double') v = parseFloat(v);
+    else if (t === 'Int' || t === 'Integer') v = parseInt(v, 10);
+    else if (t === 'Boolean') v = (v === 'true');
+    if (typeof v === 'number' && Number.isNaN(v)) return;
+    opts.push({ key: elc.dataset.key, value: v });
+  });
+  const klaar = document.getElementById('hcKlaarOm');
+  if (klaar && klaar.value) {
+    const sec = _hcKlaarOmSeconden(klaar.value, klaar.dataset.max);
+    if (sec != null) opts.push({ key: klaar.dataset.finishkey, value: sec });
+  }
+  apDetailState._hcStart = { programKey: ui.programKey, options: opts };
+  hcActie('start');
+}
+
+// ── Washer → dryer chaining (IntelligentDry) ────────────────────────────────
+function _vindDrogerAp(wasAp) {
+  return APPARATEN.find(a => a.homeConnect && a.homeConnectControl && a !== wasAp &&
+    (a.naApparaat === wasAp.naam || /droger|dryer/i.test(a.naam)));
+}
+
+// Na een succesvol ingeplande wasbeurt: bied aan de droger erna in te plannen,
+// als er een gekoppelde droger is. Geen stille auto-start — transparant via een
+// knop die het droger-paneel opent met een passend programma voorgeselecteerd.
+function bekijkDrogerKoppeling(wasAp) {
+  if (!wasAp) return;
+  const isWasser = wasAp.comboMet === 'Droger' || /wasmachine|washer/i.test(wasAp.naam);
+  if (!isWasser) return;
+  const droger = _vindDrogerAp(wasAp);
+  if (!droger || !hcHaIdVoor(droger)) return;
+  const statusEl = document.getElementById('homeyStatus');
+  if (!statusEl) return;
+  const idx = APPARATEN.indexOf(droger);
+  statusEl.innerHTML +=
+    '<div style="margin-top:10px"><button onclick="planDrogerNaWas(' + idx + ')" style="border:1.5px solid #639922;background:none;color:#27500a;border-radius:8px;font-size:12px;font-weight:600;padding:8px 12px;cursor:pointer;font-family:inherit">🌀 Ook droger inplannen na de was? →</button></div>';
+}
+
+function planDrogerNaWas(drogerIdx) {
+  const wasAp   = apDetailState && apDetailState.ap;
+  const wasUren = (wasAp && wasAp.uren) || 2;
+  const droger  = APPARATEN[drogerIdx];
+  if (!droger) return;
+  const drogerUren = droger.uren || 2;
+  const finish = new Date(Date.now() + (wasUren + drogerUren) * 3600000);
+  const hhmm = String(finish.getHours()).padStart(2, '0') + ':' + String(finish.getMinutes()).padStart(2, '0');
+  // Kies dynamisch een IntelligentDry-achtig programma; valt terug op het eerste.
+  _hcVoorselectie = { apparaatNaam: droger.naam, programRegex: /IntelligentDry|Intelligent/i, klaarOm: hhmm };
+  openApDetail(drogerIdx);
+}
+
+function _hcPasVoorselectieToe(ap) {
+  const v = _hcVoorselectie;
+  if (!v || v.apparaatNaam !== ap.naam || !apDetailState._hcUI || !Array.isArray(apDetailState._hcUI.programs)) return;
+  const progs = apDetailState._hcUI.programs;
+  const match = progs.find(p => v.programRegex.test(p.key)) || progs[0];
+  if (match) apDetailState._hcUI.programKey = match.key;
+  apDetailState._hcUI._voorKlaarOm = v.klaarOm;
+  _hcVoorselectie = null;
 }
 
 // Instellingen-sectie: koppelstatus + per Home Connect-toestel een dropdown om
@@ -1333,20 +1554,26 @@ async function bevestigPincode() {
       if (!apDetailState) throw new Error('Geen apparaat actief');
       const haId = hcHaIdVoor(apDetailState.ap);
       if (!haId) throw new Error('Apparaat niet gekoppeld');
-      const sub = action === 'hcstart' ? 'start' : 'stop';
+      const sub   = action === 'hcstart' ? 'start' : 'stop';
+      const extra = (action === 'hcstart' && apDetailState._hcStart) ? apDetailState._hcStart : {};
       const r = await fetch(apiUrl('/api/homeconnect?action=' + sub), {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ haId, pin })
+        body:    JSON.stringify({ haId, pin, ...extra })
       });
       const data = await r.json().catch(() => ({}));
       if (r.status === 401 && data.error === 'Ongeldige pincode') throw new Error('Ongeldige pincode');
       if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
       if (section)  section.style.display = 'none';
+      const heeftFinish = action === 'hcstart' && apDetailState._hcStart
+        && (apDetailState._hcStart.options || []).some(o => /FinishInRelative$/.test(o.key));
       if (statusEl) {
-        statusEl.textContent = action === 'hcstart' ? '✓ Programma gestart!' : '✓ Programma gestopt.';
+        statusEl.textContent = action !== 'hcstart' ? '✓ Programma gestopt.'
+          : heeftFinish ? '✓ Ingepland — de machine start zelf op tijd.' : '✓ Programma gestart!';
         statusEl.style.color = 'var(--green)';
       }
+      // Bied na een wasbeurt aan de droger erna in te plannen.
+      if (action === 'hcstart') bekijkDrogerKoppeling(apDetailState.ap);
       return;
     }
 
