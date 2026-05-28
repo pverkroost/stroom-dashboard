@@ -26,6 +26,7 @@
 - **#12** [S] Teruglevering stoppen bij negatieve prijs via Homey (vereist #11)
 - **#13** [L] Growatt via Home Assistant — volwaardige dagdata
 - **#15** [M] Vercel Pro upgrade — push-notificaties + cron-precisie
+- **#91** [L] QStash-planning wasmachine/droger via Home Connect — goedkoopste uur i.p.v. `FinishInRelative` — zie details
 
 ### Architectuur / refactors
 - **#37** [L] Abstracte omvormer-architectuur — `omvormers[]` per user — zie details
@@ -115,6 +116,33 @@ inline-script wordt nog toegestaan.
 
 Substantieel: ~50+ call-sites in `apparaten.js` alleen. Maakt de XSS-defense
 uit v2.61.0 echt waterdicht ipv best-effort.
+
+### #91 — QStash planning voor wasmachine en droger via Home Connect
+Momenteel gebruiken wasmachine/droger `FinishInRelative` via Home Connect — de
+machine kiest zélf het startmoment binnen het venster. Dit optimaliseert **niet**
+op de goedkoopste uren.
+
+**Gewenste situatie** — zelfde aanpak als de auto (QStash + Upstash Redis):
+- Gebruiker stelt "Klaar om"-tijd in
+- App berekent het goedkoopste startmoment op basis van EPEX-prijzen
+- QStash plant de Home Connect API-call op exact dat tijdstip
+- Op het geplande moment: `PUT /programs/active` via Home Connect
+
+**Verschil met auto:**
+- Auto gebruikt een Homey-webhook (aan/uit)
+- Wasmachine/droger gebruikt de Home Connect API (programma + opties)
+- Redis slaat op: `{ startTijd, stopTijd, haId, programKey, options, userId }`
+- `cronLaden.js` uitbreiden met Home Connect-support naast Homey
+
+**Vereist:**
+- Home Connect-tokens in Redis (✅ al gebouwd)
+- `getHomeConnectToken()` helper (✅ al gebouwd)
+- Uitbreiding `api/planLaden.js` voor `type: 'homeconnect'`
+- Uitbreiding `api/cronLaden.js` voor Home Connect-actie
+
+Voordeel boven `FinishInRelative`: de app stuurt op de écht goedkoopste uren
+(EPEX + zon), niet alleen "klaar vóór tijdstip X". Vereist wél dat "Remote Start"
+op het toestel aanstaat op het geplande moment.
 
 
 ## ✅ AFGEROND
