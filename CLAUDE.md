@@ -47,7 +47,18 @@ Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
 - **Growatt OpenAPI** — plant power voor 14 panelen op huis
 - **SolarEdge Monitoring API** — 8 panelen op garage/kantoor (overview, power per uur, energy per dag)
 - **Homey** (`<cloud-id>.connect.athom.com`) — slimme stekker bediening via webhooks
+- **Home Connect** (`api.home-connect.com`) — BSH-apparaten (Siemens/Bosch/Neff/Gaggenau) via OAuth2.
+  Wasmachine/droger: programma's + opties + start/inplannen (`FinishInRelative`). Oven/kookplaat: alleen-monitoring.
+  Vaatwasser wordt niet ondersteund via Home Connect. Volledige setup-instructie in `README.md` → *Home Connect*.
 - **Upstash Redis + QStash** — persistente laadplanning en scheduled triggers
+
+### Home Connect setup (kort)
+1. developer.home-connect.com → applicatie: OAuth = Authorization Code Grant Flow,
+   Redirect URI = `https://energieiq.nl/api/homeconnect/callback`, Scope = `IdentifyAppliance Monitor Control`.
+2. Vercel env: `HOMECONNECT_CLIENT_ID` + `HOMECONNECT_CLIENT_SECRET` (globaal), en `APP_URL` = `https://energieiq.nl`
+   (redirect-URI wordt hieruit afgeleid en moet exact matchen).
+3. Home Connect-app op telefoon: apparaten koppelen, "Remote Start" aanzetten, programma selecteren.
+4. Energie IQ → Instellingen → Home Connect → "Koppel Home Connect" → inloggen → apparaten koppelen aan Energie IQ-apparaten.
 
 ## Environment variables (Vercel)
 Alle in Settings → Environment Variables van het Vercel-project:

@@ -83,15 +83,37 @@ Client-side constanten in `js/config.js`:
 - Ga naar: Instellingen → Algemeen → Homey ID
 - Gebruik als `HOMEY_CLOUD_ID_{userId}`
 
-### Home Connect
-Voor het aansturen/monitoren van BSH-apparaten (Bosch/Siemens/Gaggenau/Neff) — wasmachine, droger, oven, kookplaat.
-- Registreer op https://developer.home-connect.com
-- Maak een applicatie aan met:
-  - **OAuth Flow**: Authorization Code Grant Flow
-  - **Redirect URI**: `https://energieiq.nl/api/homeconnect/callback` (moet exact matchen met `APP_URL`)
-  - **Scope**: `IdentifyAppliance Monitor Control`
-- Kopieer Client ID en Client Secret → gebruik als `HOMECONNECT_CLIENT_ID` en `HOMECONNECT_CLIENT_SECRET` (globaal, niet per user)
-- Koppelen gebeurt in de app via **Instellingen → Home Connect → Koppel Home Connect** (OAuth-login). Tokens worden per user in Upstash Redis bewaard (`homeconnect_tokens_<userId>`).
+### Home Connect (Siemens, Bosch, Neff, Gaggenau)
+Voor het aansturen/monitoren van BSH-apparaten.
+
+**1. Developer-applicatie aanmaken** op https://developer.home-connect.com (registreer een developer-account):
+- **Application ID**: `energie-iq` (of eigen naam)
+- **OAuth Flow**: Authorization Code Grant Flow
+- **Redirect URI**: `https://energieiq.nl/api/homeconnect/callback`
+- **Scope**: `IdentifyAppliance Monitor Control`
+
+**2. Credentials in Vercel** (Settings → Environment Variables):
+- `HOMECONNECT_CLIENT_ID` ← Client ID (globaal, niet per user)
+- `HOMECONNECT_CLIENT_SECRET` ← Client Secret (globaal, niet per user)
+- Zorg dat `APP_URL` = `https://energieiq.nl` (de redirect-URI wordt hieruit afgeleid en moet exact matchen)
+
+**3. In de Home Connect-app op je telefoon:**
+- Koppel je apparaten aan je account
+- Schakel "Remote Start" in per apparaat
+- Selecteer een programma op het apparaat zelf (nodig voor remote start)
+
+**4. In de Energie IQ-app:**
+- Ga naar **Instellingen → Home Connect**
+- Klik "Koppel Home Connect" en log in met je Siemens/Bosch-account
+- Koppel de gevonden apparaten aan de Energie IQ-apparaten
+
+Tokens worden per user in Upstash Redis bewaard (`homeconnect_tokens_<userId>`).
+
+| Apparaat | Ondersteuning |
+|---|---|
+| Wasmachine, droger | Volledig — programma's/opties kiezen + starten/inplannen |
+| Oven, kookplaat | Alleen-monitoring (API kan ze niet veilig op afstand starten) |
+| Vaatwasser | Niet via Home Connect — gebruik Homey of een slimme stekker |
 
 Programma's, opties (temperatuur, centrifuge, droogdoel…) en `FinishInRelative` ("klaar om") worden **volledig dynamisch** uit de API gehaald — geen hardcoded waarden, dus het werkt automatisch voor elk merk/model. Bij twee gekoppelde toestellen biedt de app na een wasbeurt aan de droger erna in te plannen (IntelligentDry).
 
