@@ -151,6 +151,120 @@ async function clearAuthFailures({ endpoint, ip }) {
   } catch {}
 }
 
+// ── Home Connect (BSH) OAuth2 + token-beheer ───────────────────────────────
+// Home Connect gebruikt OAuth2 Authorization Code Flow. Access tokens leven ~1
+// dag, refresh tokens ~60 dagen. We bewaren beide in Redis per user en
+// refreshen lazy zodra een access token (bijna) verlopen is.
+const HOMECONNECT_BASE      = 'https://api.home-connect.com';
+const HOMECONNECT_AUTH_URL  = `${HOMECONNECT_BASE}/security/oauth/authorize`;
+const HOMECONNECT_TOKEN_URL = `${HOMECONNECT_BASE}/security/oauth/token`;
+// Redirect-URI moet exact matchen met wat in de Home Connect developer-app is
+// geregistreerd. APP_URL is de productie-basis-URL (zelfde als QStash gebruikt).
+function homeConnectRedirectUri() {
+  const base = (process.env.APP_URL || 'https://energieiq.nl').replace(/\/$/, '');
+  return `${base}/api/homeconnect/callback`;
+}
+
+// CSRF-bescherming: bewaar een willekeurige `state` → userId kort in Redis en
+// verifieer hem in de callback. Voorkomt dat een aanvaller een vervalste
+// callback tokens aan een willekeurige user laat koppelen.
+function hcStateKey(state)  { return `homeconnect_state_${state}`; }
+function hcTokenKey(userId) { return `homeconnect_tokens_${userId}`; }
+
+async function storeHomeConnectState(state, userId) {
+  try { await getRedis().set(hcStateKey(state), userId, { ex: 600 }); } catch {}
+}
+// Eénmalig: lees + verwijder zodat een state niet hergebruikt kan worden.
+async function consumeHomeConnectState(state) {
+  if (!state) return null;
+  try {
+    const redis  = getRedis();
+    const userId = await redis.get(hcStateKey(state));
+    await redis.del(hcStateKey(state));
+    const s = userId == null ? null : userId.toString();
+    return VALID_USERS.includes(s) ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getHomeConnectTokens(userId) {
+  try {
+    const raw = await getRedis().get(hcTokenKey(userId));
+    if (!raw) return null;
+    return typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch {
+    return null;
+  }
+}
+
+async function storeHomeConnectTokens(userId, tokens) {
+  // TTL 60 dagen: matcht ongeveer de levensduur van het refresh token. Zo
+  // verdwijnt een ongebruikte koppeling vanzelf i.p.v. dood in Redis te blijven.
+  try { await getRedis().set(hcTokenKey(userId), JSON.stringify(tokens), { ex: 60 * 24 * 3600 }); } catch {}
+}
+
+// Wissel een autorisatie-code in voor tokens (callback) of ververs via
+// refresh_token. `params` bevat de grant-specifieke velden.
+async function homeConnectTokenRequest(params) {
+  const clientId     = process.env.HOMECONNECT_CLIENT_ID;
+  const clientSecret = process.env.HOMECONNECT_CLIENT_SECRET;
+  if (!clientId || !clientSecret) throw new Error('Home Connect niet geconfigureerd');
+
+  const body = new URLSearchParams({ client_id: clientId, client_secret: clientSecret, ...params });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const r = await fetch(HOMECONNECT_TOKEN_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      body:    body.toString(),
+      signal:  controller.signal,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error_description || data.error || `token endpoint ${r.status}`);
+    return {
+      access_token:  data.access_token,
+      refresh_token: data.refresh_token,
+      // Absolute expiry (ms). getHomeConnectToken refresht 30s vóór dit moment.
+      expires_at:    Date.now() + ((data.expires_in || 86400) * 1000),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function exchangeHomeConnectCode(code) {
+  return homeConnectTokenRequest({
+    grant_type:   'authorization_code',
+    code,
+    redirect_uri: homeConnectRedirectUri(),
+  });
+}
+
+// Geldig access token of null. Refresht + persisteert automatisch bij (bijna)
+// verlopen token. Bij een refresh-fout (revoked/verlopen koppeling) → null,
+// zodat de caller "Niet gekoppeld" kan tonen.
+async function getHomeConnectToken(userId) {
+  const tokens = await getHomeConnectTokens(userId);
+  if (!tokens || !tokens.refresh_token) return null;
+  if (tokens.access_token && tokens.expires_at && Date.now() < tokens.expires_at - 30_000) {
+    return tokens.access_token;
+  }
+  try {
+    const refreshed = await homeConnectTokenRequest({
+      grant_type:    'refresh_token',
+      refresh_token: tokens.refresh_token,
+    });
+    // Home Connect roteert het refresh token niet altijd mee — val terug op het oude.
+    if (!refreshed.refresh_token) refreshed.refresh_token = tokens.refresh_token;
+    await storeHomeConnectTokens(userId, refreshed);
+    return refreshed.access_token;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   setCors,
   handlePreflight,
@@ -163,4 +277,14 @@ module.exports = {
   ALLOWED_ORIGINS,
   VALID_USERS,
   getValidUserId,
+  // Home Connect
+  HOMECONNECT_BASE,
+  HOMECONNECT_AUTH_URL,
+  homeConnectRedirectUri,
+  storeHomeConnectState,
+  consumeHomeConnectState,
+  getHomeConnectTokens,
+  storeHomeConnectTokens,
+  exchangeHomeConnectCode,
+  getHomeConnectToken,
 };

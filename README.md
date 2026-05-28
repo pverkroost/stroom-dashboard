@@ -5,7 +5,8 @@ Persoonlijk dashboard voor een dynamisch stroomcontract. Combineert EPEX day-ahe
 ## Functionaliteit
 - **Vandaag / Morgen tab** — uurprijzen, totaalprijs en terugleverprijs in één grafiek, plus slimme inplanning per apparaat
 - **Zon tab** — live opwekking (SolarEdge + Growatt), opbrengst vandaag/gisteren/maand, en voorspelde opbrengst voor morgen op basis van Open-Meteo
-- **Apparaten** — auto (PHEV), warmtepomp, wasmachine/droger, vaatwasser, e-bikes, boiler, airco — elk met eigen vermogen en draaiuren
+- **Apparaten** — auto (PHEV), warmtepomp, wasmachine/droger, vaatwasser, e-bikes, boiler, airco, oven, kookplaat — elk met eigen vermogen en draaiuren
+- **Home Connect** — BSH-apparaten (wasmachine/droger starten op afstand, oven/kookplaat monitoring) via OAuth2-koppeling
 - **Auto laden** — automatische start/stop via Homey-webhook op het goedkoopste tijdvenster, gepland via QStash
 - **Teruglevering vs zelf verbruiken** — per uur advies op basis van zonne-voorspelling en stroomprijs
 
@@ -16,7 +17,7 @@ Persoonlijk dashboard voor een dynamisch stroomcontract. Combineert EPEX day-ahe
 | Backend | Vercel serverless (`api/*.js`) |
 | State | Upstash Redis (laadplanning per apparaat) |
 | Scheduling | Upstash QStash (vertraagde webhooks naar `/api/cronLaden`) |
-| Externe APIs | EnergyZero (EPEX), SolarEdge Monitoring, Growatt OpenAPI, Open-Meteo, Homey cloud webhooks |
+| Externe APIs | EnergyZero (EPEX), SolarEdge Monitoring, Growatt OpenAPI, Open-Meteo, Homey cloud webhooks, Home Connect (BSH) |
 
 ## Projectstructuur
 ```
@@ -33,6 +34,9 @@ Persoonlijk dashboard voor een dynamisch stroomcontract. Combineert EPEX day-ahe
 │   ├── growatt.js          Growatt plant power
 │   ├── solaredge.js        SolarEdge overview/power/energy
 │   ├── homey.js            Homey webhook proxy + connectivity check
+│   ├── homeconnect.js      Home Connect OAuth2 + appliance status/start/stop
+│   ├── homeconnect/
+│   │   └── callback.js     OAuth2 redirect-target (code → tokens in Redis)
 │   ├── planLaden.js        laadplanning aanmaken (QStash publish)
 │   └── cronLaden.js        QStash callback → Homey webhook (signature-verified)
 └── CLAUDE.md               instructies voor Claude (versie, deploy, tarieven)
@@ -46,8 +50,9 @@ In Vercel → Settings → Environment Variables:
 | `GROWATT_API_TOKEN` | Growatt OpenAPI token |
 | `SOLAREDGE_API_KEY` / `SOLAREDGE_SITE_ID` | SolarEdge Monitoring API |
 | `HOMEY_CLOUD_ID` | Homey cloud-id voor `<id>.connect.athom.com` |
-| `APP_PINCODE` | Pincode voor `/api/homey` POST |
-| `APP_URL` | Basis-URL voor QStash self-callbacks |
+| `APP_PINCODE` | Pincode voor `/api/homey` + `/api/homeconnect` POST |
+| `HOMECONNECT_CLIENT_ID` / `HOMECONNECT_CLIENT_SECRET` | Home Connect OAuth2 app-credentials (globaal, gedeeld) |
+| `APP_URL` | Basis-URL voor QStash self-callbacks én Home Connect redirect-URI |
 | `QSTASH_TOKEN` | Upstash QStash publish token |
 | `QSTASH_CURRENT_SIGNING_KEY` / `QSTASH_NEXT_SIGNING_KEY` | QStash signing keys voor signature verificatie op `/api/cronLaden` |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST |
@@ -77,6 +82,21 @@ Client-side constanten in `js/config.js`:
 - Open de Homey app
 - Ga naar: Instellingen → Algemeen → Homey ID
 - Gebruik als `HOMEY_CLOUD_ID_{userId}`
+
+### Home Connect
+Voor het aansturen/monitoren van BSH-apparaten (Bosch/Siemens/Gaggenau/Neff) — wasmachine, droger, oven, kookplaat.
+- Registreer op https://developer.home-connect.com
+- Maak een applicatie aan met:
+  - **OAuth Flow**: Authorization Code Grant Flow
+  - **Redirect URI**: `https://energieiq.nl/api/homeconnect/callback` (moet exact matchen met `APP_URL`)
+  - **Scope**: `IdentifyAppliance Monitor Control`
+- Kopieer Client ID en Client Secret → gebruik als `HOMECONNECT_CLIENT_ID` en `HOMECONNECT_CLIENT_SECRET` (globaal, niet per user)
+- Koppelen gebeurt in de app via **Instellingen → Home Connect → Koppel Home Connect** (OAuth-login). Tokens worden per user in Upstash Redis bewaard (`homeconnect_tokens_<userId>`).
+
+> **Let op — beperkingen van de Home Connect API:**
+> - **Wasmachine & droger**: starten/stoppen op afstand werkt, maar alleen als je op het toestel een programma kiest én "Remote Start" inschakelt. De app start het geselecteerde programma.
+> - **Oven**: vereist per keer fysiek inschakelen van Remote Start; daarom in deze app **alleen-monitoring** (geen startknop).
+> - **Kookplaat**: de API is voor kookplaten monitor-only — op afstand starten is niet mogelijk.
 
 ### Sepagreen tarieven
 - Login op mijn.sepagreen.nl

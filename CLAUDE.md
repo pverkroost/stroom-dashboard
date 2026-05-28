@@ -20,9 +20,12 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/growatt.js` — Growatt OpenAPI plant data
   - `api/solaredge.js` — SolarEdge Monitoring API (overview/power/energy)
   - `api/homey.js` — Homey cloud webhook proxy + connectivity check
+  - `api/homeconnect.js` — Home Connect (BSH) OAuth2 auth-redirect + appliance status/start/stop (pincode)
+  - `api/homeconnect/callback.js` — OAuth2 redirect-target: code → tokens in Redis (state-CSRF-verified)
   - `api/planLaden.js` — plant laad-actie via QStash (publishJSON met delay)
   - `api/cronLaden.js` — wordt door QStash aangeroepen om Homey-webhook te triggeren
-- **State**: laadplanningen in Upstash Redis (sleutel `laadplanning_<userId>_<apparaat>`, bv. `laadplanning_001_autophev`)
+- **State**: laadplanningen in Upstash Redis (sleutel `laadplanning_<userId>_<apparaat>`, bv. `laadplanning_001_autophev`).
+  Home Connect-tokens in `homeconnect_tokens_<userId>`, OAuth state-nonces in `homeconnect_state_<state>`.
 
 ## Multi-user (sinds v2.54.0)
 Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
@@ -59,6 +62,8 @@ Alle in Settings → Environment Variables van het Vercel-project:
 | `QSTASH_NEXT_SIGNING_KEY`     | Volgende QStash signing key (key rotation)               |
 | `UPSTASH_REDIS_REST_URL`      | Upstash Redis REST endpoint                              |
 | `UPSTASH_REDIS_REST_TOKEN`    | Upstash Redis REST token                                 |
+| `HOMECONNECT_CLIENT_ID`       | Home Connect (BSH) OAuth2 client id (gedeeld)            |
+| `HOMECONNECT_CLIENT_SECRET`   | Home Connect (BSH) OAuth2 client secret (gedeeld)        |
 
 **Per gebruiker (suffix = userId, bv. `_001`, `_002`):**
 

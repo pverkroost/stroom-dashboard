@@ -500,6 +500,186 @@ function toggleHandmatig() {
   renderApDetail();
 }
 
+// ── Home Connect (BSH) integratie ───────────────────────────────────────────
+// Status (gekoppeld?) en apparatenlijst worden lazy opgehaald en gecached. De
+// koppeling tussen een Home Connect-toestel (haId) en een Energie IQ-apparaat
+// wordt client-side in localStorage bewaard — net als de apparaat-volgorde,
+// zodat er geen extra schrijf-API nodig is.
+let _hcStatus     = null;   // { verbonden: bool } of null = nog niet opgehaald
+let _hcAppliances = null;   // [{ haId, name, brand, type, connected }] of null
+
+function hcMapping() {
+  try { return JSON.parse(localStorage.getItem('homeconnect_mapping') || '{}'); } catch { return {}; }
+}
+function setHcMapping(m) { localStorage.setItem('homeconnect_mapping', JSON.stringify(m)); }
+// haId voor een apparaat: eerst de client-side koppeling, anders de (statische)
+// haId uit de user-config.
+function hcHaIdVoor(ap) { return (ap && (hcMapping()[ap.naam] || ap.haId)) || null; }
+
+async function laadHcStatus(force = false) {
+  if (_hcStatus && !force) return _hcStatus;
+  try {
+    const r = await fetch(apiUrl('/api/homeconnect?action=status'));
+    _hcStatus = r.ok ? await r.json() : { verbonden: false };
+  } catch { _hcStatus = { verbonden: false }; }
+  return _hcStatus;
+}
+
+async function laadHcAppliances(force = false) {
+  if (_hcAppliances && !force) return _hcAppliances;
+  try {
+    const r = await fetch(apiUrl('/api/homeconnect?action=appliances'));
+    const d = await r.json().catch(() => ({}));
+    _hcAppliances = r.ok && Array.isArray(d.appliances) ? d.appliances : [];
+  } catch { _hcAppliances = []; }
+  return _hcAppliances;
+}
+
+function hcStatusBadge() {
+  if (_hcStatus == null) return 'Controleren…';
+  return _hcStatus.verbonden
+    ? '<span style="color:var(--green)">&#9679;</span> Verbonden'
+    : '<span style="color:var(--muted)">&#9675;</span> Niet gekoppeld';
+}
+
+// Start de OAuth-koppeling: volledige navigatie (geen fetch) zodat de redirect
+// naar Home Connect werkt.
+function koppelHomeConnect() { window.location.href = apiUrl('/api/homeconnect?action=auth'); }
+
+// Koppel/ontkoppel een Home Connect-toestel aan een Energie IQ-apparaat. Eén
+// toestel kan maar aan één apparaat hangen.
+function koppelHcAppliance(haId, apparaatNaam) {
+  const m = hcMapping();
+  Object.keys(m).forEach(k => { if (m[k] === haId) delete m[k]; });
+  if (apparaatNaam) m[apparaatNaam] = haId;
+  setHcMapping(m);
+  renderHomeConnect();
+}
+
+function hcActie(action) {
+  _homeyPendingAction = 'hc' + action; // 'hcstart' | 'hcstop'
+  const section  = document.getElementById('homeyPincodeSection');
+  const input    = document.getElementById('homeyPinInput');
+  const okBtn    = document.getElementById('homeyOkBtn');
+  const statusEl = document.getElementById('homeyStatus');
+  if (section)  section.style.display = 'block';
+  if (input)    { input.disabled = false; input.value = ''; input.focus(); }
+  if (okBtn)    { okBtn.disabled = false; okBtn.textContent = '✓'; }
+  if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--muted)'; }
+}
+
+// Gedeelde pincode-invoer (zelfde ids als de Homey-automatisering, die voor
+// Home Connect-apparaten niet rendert — dus geen dubbele ids).
+function pincodeSectieHtml() {
+  return '<div id="homeyPincodeSection" style="display:none;margin-top:10px">' +
+    '<div style="display:flex;gap:8px;align-items:center">' +
+      '<input type="password" id="homeyPinInput" placeholder="Pincode" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off"' +
+        ' style="flex:1;padding:16px;border-radius:10px;border:1.5px solid var(--border);font-size:22px;font-family:inherit;background:var(--card);color:var(--text);text-align:center;box-sizing:border-box"' +
+        ' onkeydown="if(event.key===\'Enter\')bevestigPincode()" onfocus="this.scrollIntoView({behavior:\'smooth\',block:\'center\'})">' +
+      '<button id="homeyOkBtn" onclick="bevestigPincode()" style="width:56px;height:56px;border-radius:10px;border:none;background:var(--green);color:white;font-size:24px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">✓</button>' +
+    '</div>' +
+  '</div>';
+}
+
+// Vult de Home Connect-sectie in het apparaat-detailpaneel. Async status →
+// re-render zodra bekend.
+function vulHcDetailSectie(ap) {
+  const el = document.getElementById('hcDetailSectie');
+  if (!el) return;
+  if (_hcStatus === null) {
+    el.innerHTML = '<div class="section" style="padding-top:8px"><div style="font-size:12px;color:var(--muted)">Home Connect controleren…</div></div>';
+    laadHcStatus().then(() => { if (apDetailState && apDetailState.ap === ap) vulHcDetailSectie(ap); });
+    return;
+  }
+  if (!_hcStatus.verbonden) {
+    el.innerHTML =
+      '<div class="section" style="padding-top:8px">' +
+        '<button class="ap-cta-btn ap-cta-groen" onclick="koppelHomeConnect()" style="margin-bottom:0">🔌 Koppel Home Connect</button>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:center">Nog niet gekoppeld met Home Connect.</div>' +
+      '</div>';
+    return;
+  }
+  const haId = hcHaIdVoor(ap);
+  if (!haId) {
+    el.innerHTML =
+      '<div class="section" style="padding-top:8px">' +
+        '<div style="font-size:12px;color:var(--muted);line-height:1.6">✅ Home Connect verbonden. Koppel dit apparaat aan een toestel via <b>Instellingen → Home Connect</b>.</div>' +
+      '</div>';
+    return;
+  }
+  if (!ap.homeConnectControl) {
+    // Oven / kookplaat: alleen-monitoring (zie users/<id>.js).
+    el.innerHTML =
+      '<div class="section" style="padding-top:8px">' +
+        '<div style="font-size:12px;color:var(--muted);line-height:1.6">📡 Gekoppeld met Home Connect (monitoring). Op afstand starten is voor dit toestel niet mogelijk.</div>' +
+      '</div>';
+    return;
+  }
+  el.innerHTML =
+    '<div class="section" style="padding-top:8px;padding-bottom:4px">' +
+      '<div style="display:flex;gap:8px">' +
+        '<button class="ap-cta-btn ap-cta-groen" onclick="hcActie(\'start\')" style="flex:1;margin-bottom:0">▶ Starten</button>' +
+        '<button class="ap-cta-btn ap-cta-wit" onclick="hcActie(\'stop\')" style="flex:1;margin-bottom:0">■ Stoppen</button>' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Start het op het apparaat gekozen programma. Vereist dat "Remote Start" op het toestel aanstaat.</div>' +
+      pincodeSectieHtml() +
+      '<div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>' +
+    '</div>';
+}
+
+// Instellingen-sectie: koppelstatus + per Home Connect-toestel een dropdown om
+// het aan een Energie IQ-apparaat te koppelen.
+async function renderHomeConnect() {
+  const card = document.getElementById('homeConnectCard');
+  if (!card) return;
+  const sectie = card.closest('.section');
+  if (!heeftIntegratie('homeConnect')) { if (sectie) sectie.style.display = 'none'; return; }
+  if (sectie) sectie.style.display = '';
+
+  const status = await laadHcStatus(true);
+  const badge = document.getElementById('hcIntegratieStatus');
+  if (badge) badge.innerHTML = hcStatusBadge();
+
+  if (!status.verbonden) {
+    card.innerHTML =
+      '<div class="tarief-row" style="align-items:center">' +
+        '<div><div class="tarief-key">Status</div><div style="font-size:10px;color:var(--muted)">wasmachine · droger · oven · kookplaat</div></div>' +
+        '<div style="text-align:right">' + hcStatusBadge() + '</div>' +
+      '</div>' +
+      '<button class="ap-cta-btn ap-cta-groen" onclick="koppelHomeConnect()" style="margin-top:10px">🔌 Koppel Home Connect</button>';
+    return;
+  }
+
+  const apps       = await laadHcAppliances(true);
+  const koppelbaar = APPARATEN.filter(a => a.homeConnect);
+  const m          = hcMapping();
+  const appliancesHtml = apps.length
+    ? apps.map(a => {
+        const huidige = Object.keys(m).find(k => m[k] === a.haId) || '';
+        const opts = ['<option value="">— niet gekoppeld —</option>']
+          .concat(koppelbaar.map(ap =>
+            '<option value="' + escapeHtml(ap.naam) + '"' + (ap.naam === huidige ? ' selected' : '') + '>' + escapeHtml(displayNaam(ap)) + '</option>'))
+          .join('');
+        const dot = a.connected ? '<span style="color:var(--green)">&#9679;</span>' : '<span style="color:var(--muted)">&#9675;</span>';
+        return '<div class="tarief-row" style="align-items:center;gap:8px">' +
+          '<div style="min-width:0;flex:1">' +
+            '<div class="tarief-key">' + dot + ' ' + escapeHtml([a.brand, a.name].filter(Boolean).join(' ')) + '</div>' +
+            (a.type ? '<div style="font-size:10px;color:var(--muted)">' + escapeHtml(a.type) + '</div>' : '') +
+          '</div>' +
+          '<select onchange="koppelHcAppliance(\'' + escapeHtml(a.haId) + '\', this.value)" style="font-size:12px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;max-width:50%;flex-shrink:0">' + opts + '</select>' +
+        '</div>';
+      }).join('')
+    : '<div class="tarief-row"><span style="font-size:11px;color:var(--muted)">Geen apparaten gevonden in je Home Connect account.</span></div>';
+
+  card.innerHTML =
+    '<div class="tarief-row" style="align-items:center">' +
+      '<div class="tarief-key">Status</div>' +
+      '<div style="text-align:right">' + hcStatusBadge() + '</div>' +
+    '</div>' +
+    appliancesHtml +
+    '<div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5">Oven en kookplaat zijn alleen-monitoring: Home Connect kan deze niet op afstand starten.</div>';
+}
+
 function renderApDetail() {
   if (!apDetailState) return;
   const { ap, planUren, besteStartIdx, currentStartIdx, maxIdx } = apDetailState;
@@ -509,6 +689,7 @@ function renderApDetail() {
   const totaalKwh = (uren * vermogen).toFixed(1);
 
   const heeftAutomatisering = !!ap.automatisering && heeftIntegratie('homey');
+  const heeftHomeConnect    = !!ap.homeConnect && heeftIntegratie('homeConnect');
   const apparaat           = apSleutel(naam);
   const heeftBatterij       = !!ap.batterij;
   const vpOpen             = !!apDetailState._vertrekplannerOpen;
@@ -592,21 +773,17 @@ function renderApDetail() {
           '<button class="ap-cta-btn ap-cta-groen" onclick="homeyActie(\'start\')" id="homeyStartBtn" style="flex:1;margin-bottom:0">⚡ Nu starten</button>' +
           '<button class="ap-cta-btn ap-cta-wit" onclick="homeyActie(\'stop\')" id="homeyStopBtn" style="flex:1;margin-bottom:0">■ Nu stoppen</button>' +
         '</div>' +
-        '<div id="homeyPincodeSection" style="display:none;margin-top:10px">' +
-          '<div style="display:flex;gap:8px;align-items:center">' +
-            '<input type="password" id="homeyPinInput" placeholder="Pincode" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off"' +
-              ' style="flex:1;padding:16px;border-radius:10px;border:1.5px solid var(--border);font-size:22px;font-family:inherit;background:var(--card);color:var(--text);text-align:center;box-sizing:border-box"' +
-              ' onkeydown="if(event.key===\'Enter\')bevestigPincode()" onfocus="this.scrollIntoView({behavior:\'smooth\',block:\'center\'})">' +
-            '<button id="homeyOkBtn" onclick="bevestigPincode()" style="width:56px;height:56px;border-radius:10px;border:none;background:var(--green);color:white;font-size:24px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">✓</button>' +
-          '</div>' +
-        '</div>' +
+        pincodeSectieHtml() +
         '<div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>' +
       '</div>'
-    : '<div class="section" style="padding-top:4px">' +
-        '<div style="font-size:12px;color:var(--muted);padding:4px 0;line-height:1.6">' +
-          '🔌 Automatisch inplannen nog niet beschikbaar voor dit apparaat.' +
-        '</div>' +
-      '</div>';
+    : heeftHomeConnect
+      // Home Connect-sectie (#hcDetailSectie hieronder) neemt het over.
+      ? ''
+      : '<div class="section" style="padding-top:4px">' +
+          '<div style="font-size:12px;color:var(--muted);padding:4px 0;line-height:1.6">' +
+            '🔌 Automatisch inplannen nog niet beschikbaar voor dit apparaat.' +
+          '</div>' +
+        '</div>';
 
   // Header: bij een bekende auto toont de header naam + kenteken, anders
   // generiek 'Auto'. Overige apparaten tonen gewoon hun apparaatnaam.
@@ -692,10 +869,14 @@ function renderApDetail() {
 
     // 5. DIRECT STARTEN / STOPPEN
     automatiseringSectie +
+
+    // 5a. HOME CONNECT — koppeling/status/start-stop (apart van Homey)
+    (heeftHomeConnect ? '<div id="hcDetailSectie"></div>' : '') +
     '<div style="padding-bottom:40px"></div>';
 
   if (vpOpen) herbereken();
   if (heeftAutomatisering) laadPlanningStatus(apparaat);
+  if (heeftHomeConnect) vulHcDetailSectie(ap);
 }
 
 function updateKostenWeergave(berekendeUren) {
@@ -1071,6 +1252,27 @@ async function bevestigPincode() {
         btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
       }
       if (statusEl) { statusEl.textContent = '✓ Planning geannuleerd'; statusEl.style.color = 'var(--green)'; }
+      return;
+    }
+
+    if (action === 'hcstart' || action === 'hcstop') {
+      if (!apDetailState) throw new Error('Geen apparaat actief');
+      const haId = hcHaIdVoor(apDetailState.ap);
+      if (!haId) throw new Error('Apparaat niet gekoppeld');
+      const sub = action === 'hcstart' ? 'start' : 'stop';
+      const r = await fetch(apiUrl('/api/homeconnect?action=' + sub), {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ haId, pin })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401 && data.error === 'Ongeldige pincode') throw new Error('Ongeldige pincode');
+      if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
+      if (section)  section.style.display = 'none';
+      if (statusEl) {
+        statusEl.textContent = action === 'hcstart' ? '✓ Programma gestart!' : '✓ Programma gestopt.';
+        statusEl.style.color = 'var(--green)';
+      }
       return;
     }
 

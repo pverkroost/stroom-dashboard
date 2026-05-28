@@ -280,6 +280,31 @@ document.addEventListener('visibilitychange', () => {
 });
 refreshOmvormerCapaciteit().then(veranderd => { if (veranderd) laadPrijzen().then(_markRefresh); });
 
+// Eenmalige feedback na de Home Connect OAuth-redirect (?homeconnect=...).
+// De callback-endpoint stuurt de gebruiker terug met deze querystring.
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const hc = params.get('homeconnect');
+  if (!hc) return;
+  const meldingen = {
+    gekoppeld: ['✓ Home Connect gekoppeld', 'var(--green)'],
+    geweigerd: ['Home Connect koppeling geweigerd', '#a32d2d'],
+    ongeldig:  ['Home Connect koppeling mislukt — sessie verlopen, probeer opnieuw', '#a32d2d'],
+    fout:      ['Home Connect koppeling mislukt', '#a32d2d'],
+  };
+  const [tekst, kleur] = meldingen[hc] || ['Home Connect', 'var(--muted)'];
+  const div = document.createElement('div');
+  div.textContent = tekst;
+  div.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:9999;background:var(--card);color:' + kleur + ';border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.15);max-width:90vw;text-align:center';
+  document.body.appendChild(div);
+  setTimeout(() => div.remove(), 4500);
+  // Strip de param zodat een refresh de melding niet herhaalt.
+  params.delete('homeconnect');
+  const qs = params.toString();
+  history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+  _hcStatus = null; // forceer verse status-fetch in instellingen
+})();
+
 
 function renderInstellingen() {
   const alleBronnen = [
@@ -288,6 +313,7 @@ function renderInstellingen() {
     { naam: 'Growatt OpenAPI', sub: null,             key: 'growatt',  integratie: 'growatt' },
     { naam: 'Open-Meteo',      sub: null,             key: 'openMeteo' },
     { naam: 'Homey',           sub: null,             key: 'homey', homey: true, integratie: 'homey' },
+    { naam: 'Home Connect',    sub: 'BSH wasmachine/droger/oven', key: 'homeConnect', homeConnect: true, integratie: 'homeConnect' },
   ];
   const bronnen = alleBronnen.filter(b => !b.integratie || heeftIntegratie(b.integratie));
   const card = document.getElementById('integratiesCard');
@@ -305,6 +331,10 @@ function renderInstellingen() {
           statusStr = '<span style="color:var(--muted)">○</span> Niet bereikbaar';
           kleurStr  = 'color:#a32d2d';
         }
+      } else if (b.homeConnect) {
+        // Status wordt na renderHomeConnect() in deze span bijgewerkt.
+        statusStr = '<span id="hcIntegratieStatus">' + hcStatusBadge() + '</span>';
+        if (_hcStatus && !_hcStatus.verbonden) kleurStr = 'color:var(--muted)';
       } else {
         const s = apiStatus[b.key];
         statusStr = !s   ? '⏳ Ophalen…'
@@ -392,6 +422,7 @@ function renderInstellingen() {
     zpCard.innerHTML = rows.join('');
   }
   if (typeof renderApparatenInstellingen === 'function') renderApparatenInstellingen();
+  if (typeof renderHomeConnect === 'function') renderHomeConnect();
   const gebruikerEl = document.getElementById('instGebruiker');
   const versieEl    = document.getElementById('instVersie');
   const updateEl    = document.getElementById('instLaatsteUpdate');
