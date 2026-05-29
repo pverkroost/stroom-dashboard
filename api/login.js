@@ -1,5 +1,5 @@
 // POST /api/login  — { email, wachtwoord } → eq_session-cookie + { success, userId }
-// Rate limit: 10 pogingen per IP per 15 min (applyGate). Generieke foutmelding
+// Rate limit: 10 pogingen per IP per 5 min (applyGate). Generieke foutmelding
 // bij mislukken zodat e-mailadressen niet te enumereren zijn.
 const bcrypt = require('bcryptjs');
 const { neon } = require('@neondatabase/serverless');
@@ -13,7 +13,12 @@ const DUMMY_HASH = '$2b$10$rUATvWmoTYE0iW7YUJUZrOiIRiKVxDyTUprScNK8sex3q1FycGrv.
 const GENERIEKE_FOUT = { error: 'E-mailadres of wachtwoord onjuist' };
 
 module.exports = async (req, res) => {
-  if (!(await applyGate(req, res, { endpoint: 'login', max: 10, windowSec: 15 * 60 }))) return;
+  if (!(await applyGate(req, res, {
+    endpoint:  'login',
+    max:       10,
+    windowSec: 5 * 60,
+    message:   'Te veel verzoeken — probeer over 5 minuten opnieuw',
+  }))) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { email, wachtwoord } = req.body || {};

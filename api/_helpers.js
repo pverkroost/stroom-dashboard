@@ -86,13 +86,13 @@ async function rateLimit({ endpoint, ip, max, windowSec }) {
 
 // Convenience wrapper: pas CORS toe, handle preflight, rate-limit.
 // Geeft true terug als de request mag doorgaan; false bij early-return (response al verstuurd).
-async function applyGate(req, res, { endpoint, max, windowSec }) {
+async function applyGate(req, res, { endpoint, max, windowSec, message }) {
   setCors(req, res);
   if (handlePreflight(req, res)) return false;
 
   const { ok } = await rateLimit({ endpoint, ip: getClientIp(req), max, windowSec });
   if (!ok) {
-    res.status(429).json({ error: 'Te veel verzoeken — probeer over een minuut opnieuw' });
+    res.status(429).json({ error: message || 'Te veel verzoeken — probeer over een minuut opnieuw' });
     return false;
   }
   return true;
