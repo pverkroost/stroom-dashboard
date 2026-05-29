@@ -20,6 +20,9 @@
 - **#9** [M] Push-notificaties "goedkoopste uur over 20 min" (vereist #15)
 - **#10** [M] Onboarding-uitleg API keys + contractdata in instellingen
 - **#16** [M] Meer niet-favoriete apparaten met eigen actiekaart
+- **#41** [M] Wachtwoord wijzigen in instellingen — sectie "Beveiliging" + `POST /api/changePassword` — zie details
+
+> ⚠️ Nummer #41 botst met een afgerond item (v2.64.0, `setInterval` visibility-pauze). Overweeg te hernummeren.
 
 ### Integraties (hardware/services)
 - **#11** [L] HomeWizard P1 slimme meter — blokkeert #6 en #13
@@ -99,6 +102,28 @@ ondersteund, klantportaal, goede Vercel-integratie via webhooks.
 
 **Volgorde:** vereist #19 eerst — zonder echte user-identiteit kan een
 `premium`-vlag niet betrouwbaar aan een betaling gekoppeld worden.
+
+### #41 — Wachtwoord wijzigen in instellingen tab
+Gebruiker kan zijn wachtwoord wijzigen via de instellingen-tab in de app.
+
+**UI** — nieuwe sectie "Beveiliging" in de instellingen-tab:
+- Invoerveld huidig wachtwoord
+- Invoerveld nieuw wachtwoord
+- Invoerveld nieuw wachtwoord bevestigen
+- Knop "Wachtwoord wijzigen"
+
+**API** — `POST /api/changePassword`:
+- `requireSession()`-check (gebruiker moet ingelogd zijn)
+- Valideer huidig wachtwoord via `bcrypt.compare`
+- Valideer nieuw wachtwoord: minimaal 8 tekens
+- Valideer nieuw wachtwoord === bevestiging
+- Hash nieuw wachtwoord via bcrypt (cost 10)
+- `UPDATE app_user SET wachtwoord_hash = $1 WHERE id = $2` (id uit sessie)
+- Rate limiting: max 5 pogingen per IP per 15 minuten
+- Generieke foutmelding bij verkeerd huidig wachtwoord
+
+Bouwt voort op de auth-implementatie uit v2.72.0 (`lib/auth.js` `requireSession`,
+`api/_helpers.js` rate-limit-helpers, Neon-tabel `app_user`).
 
 ### #90 — CSP `'unsafe-inline'` weghalen
 Huidige CSP staat `script-src 'self' 'unsafe-inline'` toe omdat overal in
