@@ -24,8 +24,23 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/homeconnect/callback.js` — OAuth2 redirect-target: code → tokens in Redis (state-CSRF-verified)
   - `api/planLaden.js` — plant laad-actie via QStash (publishJSON met delay)
   - `api/cronLaden.js` — wordt door QStash aangeroepen om Homey-webhook te triggeren
+  - `api/login.js` / `api/logout.js` / `api/me.js` — auth (bcrypt + HMAC sessie-cookie)
+  - `api/db/migrate.js` — maakt `app_user`-tabel in Neon (idempotent)
+- **Auth-libs** (root `lib/`, gedeeld door api): `lib/session.js` (HMAC encode/decode + `eq_session`-cookie),
+  `lib/auth.js` (`getSession`/`requireSession` uit request-cookie).
 - **State**: laadplanningen in Upstash Redis (sleutel `laadplanning_<userId>_<apparaat>`, bv. `laadplanning_001_autophev`).
   Home Connect-tokens in `homeconnect_tokens_<userId>`, OAuth state-nonces in `homeconnect_state_<state>`.
+  Gebruikers (email + bcrypt-hash + userId) in Neon PostgreSQL tabel `app_user`.
+
+## Auth (sinds v2.72.0)
+Echte login met e-mail + wachtwoord i.p.v. de rauwe `?u=`-parameter. Stateless:
+na login zet `/api/login` een HMAC-ondertekende `HttpOnly` cookie `eq_session`
+(30 dagen) met `{ uid, email, userId }`. `getValidUserId` (in `api/_helpers.js`)
+leest eerst die sessie, valt anders terug op `?u=` (backwards-compat tijdens de
+transitie — niet meteen verwijderen). `js/bootstrap.js` doet bij laden `GET /api/me`:
+401 → login-overlay, 200 → laadt `users/<id>.js` + app-modules. Pincode
+(`APP_PINCODE_<id>`) blijft apart vereist voor gevoelige acties. Wachtwoorden:
+bcrypt (cost 10) in Neon-tabel `app_user`. Nieuwe gebruiker: `node scripts/create-user.mjs`.
 
 ## Multi-user (sinds v2.54.0)
 Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
@@ -75,6 +90,8 @@ Alle in Settings → Environment Variables van het Vercel-project:
 | `UPSTASH_REDIS_REST_TOKEN`    | Upstash Redis REST token                                 |
 | `HOMECONNECT_CLIENT_ID`       | Home Connect (BSH) OAuth2 client id (gedeeld)            |
 | `HOMECONNECT_CLIENT_SECRET`   | Home Connect (BSH) OAuth2 client secret (gedeeld)        |
+| `DATABASE_URL`                | Neon PostgreSQL connection string (via Vercel↔Neon-integratie) |
+| `SESSION_SECRET`              | HMAC-secret voor `eq_session`-cookie — min. 32 tekens, sterk random |
 
 **Per gebruiker (suffix = userId, bv. `_001`, `_002`):**
 

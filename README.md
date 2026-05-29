@@ -56,6 +56,35 @@ In Vercel → Settings → Environment Variables:
 | `QSTASH_TOKEN` | Upstash QStash publish token |
 | `QSTASH_CURRENT_SIGNING_KEY` / `QSTASH_NEXT_SIGNING_KEY` | QStash signing keys voor signature verificatie op `/api/cronLaden` |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST |
+| `DATABASE_URL` | Neon PostgreSQL connection string (automatisch gezet door de Vercel ↔ Neon-integratie) |
+| `SESSION_SECRET` | Sterk random secret voor HMAC-ondertekening van de sessie-cookie — **minimaal 32 tekens**. Genereer met `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+
+## Login / authenticatie
+Gebruikers loggen in met e-mail + wachtwoord; er wordt geen `?u=`-parameter meer
+gebruikt voor normale toegang (de `?u=`-fallback blijft tijdelijk bestaan voor
+backwards-compatibiliteit). Auth is **stateless**: na een geslaagde login zet de
+server een HMAC-ondertekende, `HttpOnly` cookie `eq_session` (30 dagen geldig) met
+`{ uid, email, userId }`. Elke `/api/*`-call leidt de `userId` uit die cookie af
+(`getValidUserId` in `api/_helpers.js`); bij geen geldige sessie valt hij terug op
+`?u=`. De pincode (`APP_PINCODE_<id>`) blijft apart vereist voor gevoelige acties
+(laden starten/inplannen, Home Connect start/stop).
+
+| Endpoint | Functie |
+|---|---|
+| `POST /api/login` | `{ email, wachtwoord }` → zet `eq_session`-cookie (rate-limit 10/15min/IP) |
+| `POST /api/logout` | wist de cookie |
+| `GET /api/me` | huidige sessie `{ uid, email, userId }` of `401` |
+| `GET /api/db/migrate` | maakt de `app_user`-tabel aan (idempotent) |
+
+Wachtwoorden worden gehasht opgeslagen (bcrypt, cost 10) in de Neon-tabel `app_user`.
+
+**Eerste keer opzetten:**
+1. Zet `DATABASE_URL` (via Vercel ↔ Neon) en `SESSION_SECRET` in Vercel → redeploy.
+2. Draai de migratie eenmalig: `curl https://energieiq.nl/api/db/migrate`.
+3. Maak gebruikers aan met het script (lokaal, met `DATABASE_URL` in de env):
+   ```
+   node scripts/create-user.mjs pieter@example.com <wachtwoord> "Pieter" 001
+   ```
 
 Client-side constanten in `js/config.js`:
 - `LAT` / `LON` — locatie voor Open-Meteo

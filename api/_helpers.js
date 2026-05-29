@@ -2,6 +2,7 @@
 // Bevat: CORS-lockdown, rate-limiting via Upstash Redis, IP-extraction.
 
 const { Redis } = require('@upstash/redis');
+const { getSession } = require('../lib/auth');
 
 const ALLOWED_ORIGINS = [
   'https://energieiq.nl',
@@ -14,10 +15,15 @@ const ALLOWED_ORIGINS = [
 // fallback voor onbekende of ontbrekende ?u waardes.
 const VALID_USERS = ['001', '002'];
 
-// Veilige userId-extractie uit query of body. Onbekend/missend → VALID_USERS[0].
-// Vervangt de 5 verschillende `veiligUserId` varianten die voorheen door alle
-// endpoints heen gekopieerd waren.
+// Veilige userId-extractie. Volgorde:
+//  1. Geldige eq_session-cookie → session.userId (echte auth, niet te spoofen).
+//  2. Fallback op ?u= / body.u (backwards-compat tijdens de auth-transitie).
+// Onbekend/missend → VALID_USERS[0]. getSession() gooit nooit (vangt o.a. een
+// ontbrekend SESSION_SECRET af), dus de fallback blijft altijd werken.
 function getValidUserId(req) {
+  const session = getSession(req);
+  if (session && VALID_USERS.includes(session.userId)) return session.userId;
+
   const raw = (req.query?.u || req.body?.u || VALID_USERS[0]).toString();
   return VALID_USERS.includes(raw) ? raw : VALID_USERS[0];
 }

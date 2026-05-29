@@ -461,6 +461,16 @@ function renderInstellingen() {
   }
 }
 
+// Uitloggen: wis de sessie-cookie server-side en strip een eventuele legacy ?u=
+// uit de URL zodat na de reload de login-overlay verschijnt i.p.v. de app opnieuw
+// in legacy-modus te laden.
+async function uitloggen() {
+  try {
+    await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+  } catch {}
+  window.location.href = window.location.pathname;
+}
+
 function toggleUurOverzicht() {
   uurOverzichtOpen = !uurOverzichtOpen;
   const lijst  = document.getElementById('urenLijst');

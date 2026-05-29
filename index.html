@@ -220,10 +220,14 @@
     </div>
   </div>
 
+  <div class="section" style="padding-bottom:32px">
+    <button onclick="uitloggen()" style="width:100%;padding:12px;background:var(--card);color:#a32d2d;border:1px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">Uitloggen</button>
+  </div>
+
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.71.1</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.72.0</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -236,33 +240,36 @@
   <div id="apDetailBody"></div>
 </div>
 
+<!-- Login-overlay: getoond door js/bootstrap.js wanneer /api/me geen geldige
+     sessie geeft. Submit gaat via window._eqDoeLogin (POST /api/login). -->
+<div id="loginOverlay" style="display:none;position:fixed;inset:0;z-index:10000;background:#eef2ec;align-items:center;justify-content:center;padding:20px">
+  <form onsubmit="return _eqDoeLogin(event)" style="width:100%;max-width:340px;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.12);padding:28px 24px">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:22px;font-weight:700;color:#1a6e47">Energie IQ</div>
+      <div style="font-size:13px;color:#6b7280;margin-top:4px">Log in om verder te gaan</div>
+    </div>
+    <label for="loginEmail" style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px">E-mailadres</label>
+    <input id="loginEmail" type="email" autocomplete="username" required
+      style="width:100%;box-sizing:border-box;padding:11px 12px;margin-bottom:14px;border:1px solid #d1d5db;border-radius:10px;font-size:15px">
+    <label for="loginWachtwoord" style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px">Wachtwoord</label>
+    <input id="loginWachtwoord" type="password" autocomplete="current-password" required
+      style="width:100%;box-sizing:border-box;padding:11px 12px;margin-bottom:6px;border:1px solid #d1d5db;border-radius:10px;font-size:15px">
+    <div id="loginFout" style="display:none;color:#a32d2d;font-size:13px;margin:8px 0 0"></div>
+    <button id="loginBtn" type="submit"
+      style="width:100%;margin-top:16px;padding:12px;background:#1a6e47;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Inloggen</button>
+  </form>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-  // APP_VERSION = single source voor de versie-stamp en cache-bust querystrings
-  // die js/app.js gebruikt (ev-database.json, kilowatt-meta.json, footer-stamp).
-  // Bij bumpen blijft index.html nog de plek voor de `?v=...` script-tags want
-  // die moeten letterlijk in de HTML staan om de browser te bereiken vóór JS draait.
-  window.APP_VERSION = '2.71.1';
+  // APP_VERSION = single source voor de versie-stamp en cache-bust querystrings.
+  // js/bootstrap.js gebruikt dit om de user-config + app-modules met `?v=` te laden
+  // (vroeger statische script-tags). Het moet vóór bootstrap.js gezet worden.
+  window.APP_VERSION = '2.72.0';
 </script>
-<script>
-  // Multi-user: laad users/<id>.js synchroon vóór de rest. Ongeldige/onbekende
-  // ?u-waarden vallen terug op '001'. document.write blokkeert het parsen tot
-  // de injected script tag geladen is — zodat window.CONFIG er staat tegen
-  // de tijd dat js/config.js draait.
-  (function() {
-    // Houd deze lijst in sync met VALID_USERS in api/_helpers.js — bij toevoegen
-    // van een nieuwe user moeten beide plekken bijgewerkt worden. Frontend kan
-    // niet uit api/ requiren omdat dit blok inline in de HTML moet draaien.
-    var GELDIGE_USERS = ['001', '002'];
-    var raw = new URLSearchParams(window.location.search).get('u') || '001';
-    var userId = GELDIGE_USERS.indexOf(raw) >= 0 ? raw : '001';
-    document.write('<script src="users/' + userId + '.js?v=' + window.APP_VERSION + '"><\/script>');
-  })();
-</script>
-<script src="js/config.js?v=2.71.1"></script>
-<script src="js/solar.js?v=2.71.1"></script>
-<script src="js/prijzen.js?v=2.71.1"></script>
-<script src="js/apparaten.js?v=2.71.1"></script>
-<script src="js/app.js?v=2.71.1"></script>
+<!-- bootstrap.js bepaalt de gebruiker (echte sessie via /api/me, of legacy ?u=)
+     en laadt daarna pas users/<id>.js + js/config|solar|prijzen|apparaten|app.js.
+     Zonder geldige sessie toont het de #loginOverlay hierboven. -->
+<script src="js/bootstrap.js?v=2.72.0"></script>
 </body>
 </html>
