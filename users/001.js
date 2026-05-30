@@ -10,8 +10,8 @@
       homeConnect: true,
     },
     tarieven: {
-      opslag:            0.03073, // € per kWh excl. btw
-      eb:                0.09161, // energiebelasting € per kWh excl. btw
+      opslag:            0.02508, // € per kWh excl. btw (jaarnota 2025/2026)
+      eb:                0.11618, // energiebelasting € per kWh excl. btw (gewogen gem. jaarnota 2025/2026)
       btw:               1.21,
       vasteKostenPerDag: 1.35,    // € per dag excl. btw
       teruglevering:     0.0353,  // afslag bij teruglevering € per kWh excl. btw
