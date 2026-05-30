@@ -79,13 +79,16 @@ Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
   Geen auth; URL-id's zijn raadbaar (volgt #19 in backlog).
 
 ## Auto / Kenteken
-Voor het laad-apparaat "Auto" worden voertuigspecs opgehaald op basis van kenteken:
-- **RDW Open Data API** voor kenteken-lookup (gratis, geen API-key nodig).
-- **`ev-database.json`** met EV/PHEV-specs (~50 modellen) voor accucapaciteit en max laadvermogen.
-- Bij meerdere matches: **variant-selectie** door de gebruiker.
-- **Laadtype-selectie**: gewone stekker / laadpaal 1-fase / 3-fase / anders.
-- Werkelijk laadvermogen: `werkelijkKw = Math.min(autoMaxKw, laadtypeKw)`.
-- Resultaat opgeslagen in `localStorage` onder `autoConfig_${userId}`.
+Voertuigspecs voor het laad-apparaat "Auto" via kenteken-lookup, **server-side in `api/kenteken.js`**:
+- **RDW Open Data** (geen API-key): basisdata (merk/handelsbenaming) + brandstofdata voor PHEV/BEV-detectie.
+- **`ev-database.json`** — eigen curated database (~66 PHEV/EV-modellen populair in NL), match op
+  `rdwHandelsbenaming`; heeft **altijd voorrang** bij conflict met externe bronnen.
+- **KilowattApp open-ev-data** (`kilowatt-ev-data.json`, 1300+ BEVs) — fallback voor onbekende
+  BEVs, alleen voor non-PHEV (MIT-licentie, attributie vereist in Integraties-tab).
+- Bij meerdere varianten: response `meerdereVarianten: true` → frontend toont dropdown.
+- **Laadtype-selectie** (stekker / laadpaal 1- of 3-fase / anders): `werkelijkKw = Math.min(autoMaxKw, laadtypeKw)`.
+- Frontend bewaart de keuze in `localStorage` onder `autoConfig_${userId}`.
+- Volledige bron-/matchvolgorde-details: zie `README.md` → *Kenteken lookup*.
 
 ## Externe APIs
 - **EnergyZero** (`api.energyzero.nl/v1/energyprices`) — EPEX day-ahead prijzen, excl. btw

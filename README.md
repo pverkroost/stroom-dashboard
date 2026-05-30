@@ -71,7 +71,7 @@ server een HMAC-ondertekende, `HttpOnly` cookie `eq_session` (30 dagen geldig) m
 
 | Endpoint | Functie |
 |---|---|
-| `POST /api/login` | `{ email, wachtwoord }` → zet `eq_session`-cookie (rate-limit 10/15min/IP) |
+| `POST /api/login` | `{ email, wachtwoord }` → zet `eq_session`-cookie (rate-limit 10/5min/IP) |
 | `POST /api/logout` | wist de cookie |
 | `GET /api/me` | huidige sessie `{ uid, email, userId }` of `401` |
 | `GET /api/db/migrate` | maakt de `app_user`-tabel aan (idempotent) |
@@ -90,6 +90,21 @@ Client-side constanten in `js/config.js`:
 - `LAT` / `LON` — locatie voor Open-Meteo
 - `GROWATT_PEAK_KW` / `SOLAREDGE_PEAK_KW` — piekvermogens
 - `APPARATEN` — apparatenlijst met vermogen en draaiuren
+
+## Security
+Centraal in `api/_helpers.js`, gedeeld door alle endpoints:
+- **Rate limiting** — sliding window via Upstash Redis. Login: 10 pogingen per IP per 5 min.
+  Fail-open bij Redis-storing zodat een Upstash-uitval de app niet platlegt.
+- **Brute-force lockout op pincode-endpoints** — failures per IP+endpoint in een 15-min window;
+  5+ fails → 5 min lockout, 10+ fails → 1 u lockout. Een juiste pincode wist de teller.
+- **CORS-lockdown** — alleen `https://energieiq.nl` en `https://stroom-dashboard.vercel.app`
+  krijgen een `Access-Control-Allow-Origin`-header.
+- **QStash signature-verificatie** — `/api/cronLaden` valideert calls met de QStash signing keys.
+- **OAuth CSRF** — Home Connect-koppeling gebruikt een éénmalige `state`-nonce in Redis.
+- **XSS** — `escapeHtml()` in `js/config.js` voor alle 3rd-party/user-data richting `innerHTML`.
+- **Login-hardening** — generieke foutmelding (geen e-mail-enumeratie) + timing-egalisatie
+  via dummy bcrypt-compare. Wachtwoorden: bcrypt cost 10.
+- **ESLint** geconfigureerd, 0 errors.
 
 ## How to get API credentials
 
