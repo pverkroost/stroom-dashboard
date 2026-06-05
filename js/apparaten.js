@@ -1270,16 +1270,15 @@ function renderApDetail() {
       '</div>'
     : '') +
 
-    // 2. BESTE TIJD — gewone tekstregel, geen kaart, geen ster. Niet bij Home
-    //    Connect: dat toont de goedkoopste tijd in het eigen Slim inplannen-blok.
-    (!heeftHomeConnect
-      ? '<div style="padding:14px 16px 4px;font-size:14px;font-weight:500;color:var(--text)">' +
-          '<span id="besteTijdInfoDiv">' + besteSimpleStr + '</span>' +
-        '</div>'
-      : '') +
+    // 2. BESTE TIJD — gewone tekstregel, geen kaart, geen ster. Prijsinformatie:
+    //    altijd tonen, ook voor Home Connect.
+    '<div style="padding:14px 16px 4px;font-size:14px;font-weight:500;color:var(--text)">' +
+      '<span id="besteTijdInfoDiv">' + besteSimpleStr + '</span>' +
+    '</div>' +
 
-    // 2a. TIJDLIJN SLIDER — visuele scrubber over alle uren met prijs-mini-bars
-    (!heeftHomeConnect && berekendeUren >= 0.25 ? bouwTijdlijnHtml(planUren, currentStartIdx, besteIdxBer, berekendeBlok, maxIdx) : '') +
+    // 2a. TIJDLIJN SLIDER — visuele scrubber over alle uren met prijs-mini-bars.
+    //    Prijsinformatie: altijd tonen, ook voor Home Connect.
+    (berekendeUren >= 0.25 ? bouwTijdlijnHtml(planUren, currentStartIdx, besteIdxBer, berekendeBlok, maxIdx) : '') +
 
     // 3. PLAN DIT IN — direct onder beste tijd, alleen bij automatisering
     (heeftAutomatisering
