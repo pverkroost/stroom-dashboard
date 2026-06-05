@@ -116,8 +116,16 @@ Voertuigspecs voor het laad-apparaat "Auto" via kenteken-lookup, **server-side i
 - **Droger-chaining**: na het inplannen van de wasmachine biedt de UI aan de droger
   aansluitend in te plannen.
 - Timing via `FinishInRelative` — de machine bepaalt zelf het startmoment zodat het
-  programma op het gekozen tijdstip klaar is.
-- Prijsoptimalisatie-variant via QStash (starten op goedkoopste moment) is nog te bouwen — backlog #40.
+  programma op het gekozen tijdstip klaar is. Blijft als directe-start fallback.
+- **Slim inplannen op goedkoopste EPEX-uur (sinds v2.73.0, #91)**: zelfde QStash-patroon
+  als de auto, maar `type:'homeconnect'`. `api/planLaden.js` berekent niets zelf —
+  de frontend zoekt het goedkoopste blok (`berekenGoedkoopsteBlok`, evt. begrensd door
+  een "klaar om"-deadline) en POST't `{ type:'homeconnect', apparaat, haId, programKey,
+  options, startTijd }`. Eén QStash-bericht (geen stop, machine stopt zelf) → op het
+  geplande moment doet `api/cronLaden.js` `PUT /programs/active`. Status in Redis
+  (`gepland`/`gestart`/`fout`); 409 = "Remote Start staat uit" → definitieve fout
+  (geen QStash-retry), overige fouten → 502 zodat QStash retry't. Annuleren = DELETE
+  (QStash-message + Redis wissen). Na het inplannen van de was: droger-chaining-knop.
 
 ## Environment variables (Vercel)
 Alle in Settings → Environment Variables van het Vercel-project:

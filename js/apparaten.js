@@ -828,14 +828,19 @@ function renderHcProgUI(ap) {
     else if (ui.options) html += hcOptiesHtml(ui.options);
   }
 
+  // Slim inplannen op het goedkoopste EPEX-moment (QStash) — alleen zinvol als er
+  // een programma gekozen is. Staat náást de directe FinishInRelative-start.
+  if (ui.programKey) html += hcPlanBlokHtml();
+
   html +=
     '<div style="display:flex;gap:8px;margin-top:14px">' +
-      '<button class="ap-cta-btn ap-cta-groen" onclick="hcStarten()" style="flex:1;margin-bottom:0"' + (ui.programKey ? '' : ' disabled') + '>▶ Inplannen / starten</button>' +
+      '<button class="ap-cta-btn ap-cta-groen" onclick="hcStarten()" style="flex:1;margin-bottom:0"' + (ui.programKey ? '' : ' disabled') + '>▶ Direct / FinishInRelative</button>' +
       '<button class="ap-cta-btn ap-cta-wit" onclick="hcActie(\'stop\')" style="flex:1;margin-bottom:0">■ Stoppen</button>' +
     '</div>' +
     '<div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Vereist dat "Remote Start" op het toestel aanstaat.</div>';
 
   wrap.innerHTML = html;
+  if (ui.programKey) { renderHcPlanBlok(ap); hcLaadPlanningStatus(ap); }
 }
 
 function _hcKlaarOmSeconden(hhmm, maxStr) {
@@ -849,11 +854,12 @@ function _hcKlaarOmSeconden(hhmm, maxStr) {
   return sec;
 }
 
-// Verzamel programKey + gekozen opties (incl. FinishInRelative) en open de
-// pincode-prompt; bevestigPincode('hcstart') verstuurt de PUT.
-function hcStarten() {
-  if (!apDetailState || !apDetailState._hcUI || !apDetailState._hcUI.programKey) return;
-  const ui = apDetailState._hcUI;
+// Verzamel de gekozen programma-opties uit de UI (exclusief tijd-opties zoals
+// FinishInRelative — die worden apart afgehandeld). Gedeeld door de directe start
+// (FinishInRelative) en de QStash-planning (start op goedkoopste EPEX-moment).
+function _hcVerzamelOpties() {
+  const ui = apDetailState && apDetailState._hcUI;
+  if (!ui) return [];
   const opts = [];
   (ui.options || []).forEach((o, i) => {
     if (_hcIsTijdOptie(o.key)) return;
@@ -868,6 +874,15 @@ function hcStarten() {
     if (typeof v === 'number' && Number.isNaN(v)) return;
     opts.push({ key: elc.dataset.key, value: v });
   });
+  return opts;
+}
+
+// Verzamel programKey + gekozen opties (incl. FinishInRelative) en open de
+// pincode-prompt; bevestigPincode('hcstart') verstuurt de PUT.
+function hcStarten() {
+  if (!apDetailState || !apDetailState._hcUI || !apDetailState._hcUI.programKey) return;
+  const ui = apDetailState._hcUI;
+  const opts = _hcVerzamelOpties();
   const klaar = document.getElementById('hcKlaarOm');
   if (klaar && klaar.value) {
     const sec = _hcKlaarOmSeconden(klaar.value, klaar.dataset.max);
@@ -875,6 +890,141 @@ function hcStarten() {
   }
   apDetailState._hcStart = { programKey: ui.programKey, options: opts };
   hcActie('start');
+}
+
+// ── QStash-planning: start op het goedkoopste EPEX-moment ───────────────────
+// Anders dan FinishInRelative (machine kiest zelf de start) plant dit een QStash-
+// bericht dat het programma op het goedkoopste uur start. Zoekt het goedkoopste
+// blok van programma-duur (ap.uren), optioneel begrensd door een "klaar om"-deadline.
+function hcGoedkoopsteBlok(ap, klaarOmHHMM) {
+  const planUren = apDetailState && apDetailState.planUren;
+  if (!planUren || !planUren.length) return null;
+  const uren = ap.uren || 2;
+  const kw   = ap.vermogen || 1.5;
+  let gefilterd = planUren;
+
+  if (klaarOmHHMM) {
+    const [h, m] = klaarOmHHMM.split(':').map(Number);
+    if (!Number.isNaN(h)) {
+      const deadline = getTodayStart(); deadline.setHours(h, m || 0, 0, 0);
+      if (deadline <= new Date()) deadline.setDate(deadline.getDate() + 1);
+      const aantalBlok = Math.ceil(uren);
+      let lastValidIdx = -1;
+      planUren.forEach((p, i) => {
+        if (new Date(p.tijd.getTime() + aantalBlok * 3600000) <= deadline) lastValidIdx = i;
+      });
+      if (lastValidIdx < 0) return { geenMoment: true };
+      gefilterd = planUren.slice(0, lastValidIdx + aantalBlok);
+    }
+  }
+
+  const res = berekenGoedkoopsteBlok(uren, kw, gefilterd);
+  if (!res) return { geenMoment: true };
+  const eff = effectieveKosten(uren, kw, gefilterd, res.startIndex) ?? res.kosten;
+  return { startTijd: res.startTijd, eindDatum: res.eindDatum, kosten: eff };
+}
+
+// HTML voor het slim-inplannen blok (deadline + goedkoopste blok + knop + status).
+function hcPlanBlokHtml() {
+  return '<div id="hcPlanBlok" style="margin-top:14px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--card)">' +
+    '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">💸 Slim inplannen — start op goedkoopste stroom</div>' +
+    '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Klaar om (uiterlijk)</label>' +
+    '<input type="time" id="hcPlanKlaarOm" value="' + _hcDefaultKlaarOm() + '" oninput="hcHerberekenGoedkoopste()" style="' + _hcSelectStyle + '">' +
+    '<div id="hcPlanGoedkoopste" style="font-size:12px;color:var(--text);margin-top:8px;line-height:1.5"></div>' +
+    '<button id="hcPlanBtn" class="ap-cta-btn ap-cta-groen" onclick="hcPlanInladen()" style="margin-top:10px;margin-bottom:0">📅 Plan in op goedkoopste moment</button>' +
+    '<div id="hcPlanStatus" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(59,109,17,0.08);font-size:12px;color:#27500a;text-align:center"></div>' +
+  '</div>';
+}
+
+function hcHerberekenGoedkoopste() {
+  if (apDetailState) renderHcPlanBlok(apDetailState.ap);
+}
+
+// Vul het goedkoopste-blok regel + knopstaat; bewaar het gekozen startmoment.
+function renderHcPlanBlok(ap) {
+  if (!document.getElementById('hcPlanBlok') || !apDetailState) return;
+  const klaarOm = document.getElementById('hcPlanKlaarOm')?.value || _hcDefaultKlaarOm();
+  const res = hcGoedkoopsteBlok(ap, klaarOm);
+  const regelEl = document.getElementById('hcPlanGoedkoopste');
+  const btn     = document.getElementById('hcPlanBtn');
+
+  let regel, kanPlannen = false;
+  if (!res) regel = '<span style="color:var(--muted)">Prijzen nog niet beschikbaar</span>';
+  else if (res.geenMoment) regel = '<span style="color:#a32d2d">⚠️ Geen geschikt moment vóór ' + escapeHtml(klaarOm) + '</span>';
+  else {
+    regel = 'Goedkoopste start: <b>' + dagHStr(res.startTijd) + '–' + hStr(res.eindDatum) + '</b> · verwachte kosten € ' + res.kosten.toFixed(2);
+    kanPlannen = true;
+  }
+  if (regelEl) regelEl.innerHTML = regel;
+  apDetailState._hcPlan = kanPlannen ? { startTijd: res.startTijd } : null;
+  // Knop alleen uitschakelen als er niets te plannen valt én er nog geen actieve planning is.
+  if (btn && !apDetailState._hcPlanActief) btn.disabled = !kanPlannen;
+}
+
+// Lees de actieve Home Connect-planning uit /api/planLaden en toon de status.
+async function hcLaadPlanningStatus(ap) {
+  const apparaat = apSleutel(ap.naam);
+  const statusEl = document.getElementById('hcPlanStatus');
+  const btn      = document.getElementById('hcPlanBtn');
+  if (!statusEl) return;
+  try {
+    const r    = await fetch(apiUrl('/api/planLaden?apparaat=' + apparaat));
+    const data = await r.json();
+    if (!apDetailState || apDetailState.ap !== ap) return; // paneel gewisseld
+    if (data.actief && data.type === 'homeconnect') {
+      apDetailState._hcPlanActief = true;
+      const start = new Date(data.startTijd);
+      let txt, kleurC = '#27500a';
+      if (data.status === 'gestart')      txt = '<span style="color:var(--green)">&#9679;</span> Gestart ✓';
+      else if (data.status === 'fout')  { txt = '⚠️ Fout: ' + escapeHtml(data.fout || 'Remote Start niet aan'); kleurC = '#a32d2d'; }
+      else                                txt = '<span style="color:var(--green)">&#9679;</span> Gepland voor ' + dagHMStr(start);
+      statusEl.style.display = 'block';
+      statusEl.style.color   = kleurC;
+      statusEl.innerHTML = txt + '&nbsp;<button onclick="hcAnnuleerPlanning()" style="margin-left:6px;font-size:11px;border:none;background:none;color:#a32d2d;cursor:pointer;padding:0;text-decoration:underline">Annuleren</button>';
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Ingepland — wijzig'; }
+    } else {
+      apDetailState._hcPlanActief = false;
+      statusEl.style.display = 'none';
+      if (btn) btn.textContent = '📅 Plan in op goedkoopste moment';
+    }
+  } catch {}
+}
+
+// Inplannen-knop: bij actieve planning eerst annuleren (wijzigen), anders pincode
+// vragen en in bevestigPincode('hcplan') POSTen naar /api/planLaden.
+function hcPlanInladen() {
+  if (!apDetailState || !apDetailState._hcUI || !apDetailState._hcUI.programKey) return;
+  if (apDetailState._hcPlanActief) { hcAnnuleerPlanning(); return; }
+  const plan = apDetailState._hcPlan;
+  if (!plan || !plan.startTijd) return;
+  apDetailState._hcPlanReq = {
+    programKey: apDetailState._hcUI.programKey,
+    options:    _hcVerzamelOpties(),
+    startTijd:  new Date(plan.startTijd).toISOString(),
+  };
+  hcActie('plan'); // → _homeyPendingAction = 'hcplan'
+}
+
+async function hcAnnuleerPlanning() {
+  if (!apDetailState) return;
+  const cachedPin = apDetailState._cachedPlanPin;
+  if (!cachedPin) { hcActie('annuleer'); return; } // → 'hcannuleer', pincode-prompt
+  const apparaat = apSleutel(apDetailState.ap.naam);
+  try {
+    const r = await fetch(apiUrl('/api/planLaden?apparaat=' + apparaat), {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ pin: cachedPin })
+    });
+    const data = await r.json();
+    if (r.status === 401) { wisCachedPlanPin(); return hcAnnuleerPlanning(); }
+    if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
+    apDetailState._hcPlanActief = false;
+    hcLaadPlanningStatus(apDetailState.ap);
+  } catch (e) {
+    const statusEl = document.getElementById('hcPlanStatus');
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = '#a32d2d'; statusEl.textContent = '✗ ' + e.message; }
+  }
 }
 
 // ── Washer → dryer chaining (IntelligentDry) ────────────────────────────────
@@ -1547,6 +1697,53 @@ async function bevestigPincode() {
         btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
       }
       if (statusEl) { statusEl.textContent = '✓ Planning geannuleerd'; statusEl.style.color = 'var(--green)'; }
+      return;
+    }
+
+    if (action === 'hcplan') {
+      if (!apDetailState) throw new Error('Geen apparaat actief');
+      const ap   = apDetailState.ap;
+      const haId = hcHaIdVoor(ap);
+      if (!haId) throw new Error('Apparaat niet gekoppeld');
+      const apparaat = apSleutel(ap.naam);
+      const planReq  = apDetailState._hcPlanReq || {};
+      const r = await fetch(apiUrl('/api/planLaden'), {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ type: 'homeconnect', apparaat, haId, programKey: planReq.programKey, options: planReq.options || [], startTijd: planReq.startTijd, pin })
+      });
+      const data = await r.json();
+      if (r.status === 401) throw new Error('Ongeldige pincode');
+      if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
+
+      cachePlanPin(pin); // herbruikbaar voor annuleren; wipt na 5min
+      apDetailState._hcPlanActief = true;
+      if (section)  section.style.display = 'none';
+      if (statusEl) { statusEl.textContent = '✓ Ingepland op het goedkoopste moment.'; statusEl.style.color = 'var(--green)'; }
+      await hcLaadPlanningStatus(ap);
+      // Bied na de was aan de droger aansluitend in te plannen.
+      bekijkDrogerKoppeling(ap);
+      return;
+    }
+
+    if (action === 'hcannuleer') {
+      if (!apDetailState) throw new Error('Geen apparaat actief');
+      const ap       = apDetailState.ap;
+      const apparaat = apSleutel(ap.naam);
+      const r = await fetch(apiUrl('/api/planLaden?apparaat=' + apparaat), {
+        method:  'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ pin })
+      });
+      const data = await r.json();
+      if (r.status === 401) throw new Error('Ongeldige pincode');
+      if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
+
+      cachePlanPin(pin);
+      apDetailState._hcPlanActief = false;
+      if (section)  section.style.display = 'none';
+      if (statusEl) { statusEl.textContent = '✓ Planning geannuleerd'; statusEl.style.color = 'var(--green)'; }
+      await hcLaadPlanningStatus(ap);
       return;
     }
 

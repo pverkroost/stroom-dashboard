@@ -1,11 +1,92 @@
 const { Redis } = require('@upstash/redis');
 const { Receiver } = require('@upstash/qstash');
-const { VALID_USERS } = require('./_helpers');
+const { VALID_USERS, HOMECONNECT_BASE, getHomeConnectToken } = require('./_helpers');
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
+
+// Home Connect API verwacht dit Accept-type; zonder komt er een 406 terug.
+const HC_ACCEPT = 'application/vnd.bsh.sdk.v1+json';
+
+function geldigHaId(id)      { return typeof id === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(id); }
+function geldigProgramKey(k) { return typeof k === 'string' && /^[A-Za-z0-9._-]{1,80}$/.test(k); }
+
+// Geauthenticeerde Home Connect-call met 8s timeout (binnen de 10s functietimeout).
+async function hcFetch(path, token, { method = 'GET', body } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const headers = { Authorization: `Bearer ${token}`, Accept: HC_ACCEPT };
+    if (body) headers['Content-Type'] = HC_ACCEPT;
+    return await fetch(`${HOMECONNECT_BASE}${path}`, {
+      method, headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Werk de Redis-planning bij met nieuwe status (gestart/fout). Frisse TTL van 6u
+// zodat de frontend de status nog kan tonen; daarna ruimt Redis de row op.
+async function updateHcStatus(userId, apparaat, planning, status, reden) {
+  try {
+    const nieuw = { ...planning, status };
+    if (reden) nieuw.fout = reden; else delete nieuw.fout;
+    await redis.set(sleutel(userId, apparaat), JSON.stringify(nieuw), { ex: 6 * 3600 });
+  } catch {}
+}
+
+// type:'homeconnect' QStash-bericht → start het programma via de Home Connect API.
+// Body is QStash-signature-geverifieerd, dus haId/programKey komen van onze eigen
+// planLaden — toch nog format-valideren vóór ze in een API-pad belanden.
+async function voerHomeConnectUit(res, { userId, apparaat, body }) {
+  const { haId, programKey, options } = body;
+  if (!geldigHaId(haId) || !geldigProgramKey(programKey)) {
+    return res.status(400).json({ error: 'Ongeldig haId of programKey' });
+  }
+
+  // Planning nog actief? Gebruiker kan tussentijds geannuleerd hebben.
+  const data = await redis.get(sleutel(userId, apparaat));
+  if (!data) return res.json({ actie: 'geannuleerd', reden: 'planning niet meer actief' });
+  const planning = typeof data === 'string' ? JSON.parse(data) : data;
+
+  const token = await getHomeConnectToken(userId);
+  if (!token) {
+    await updateHcStatus(userId, apparaat, planning, 'fout', 'Niet gekoppeld met Home Connect');
+    return res.status(401).json({ error: 'Niet gekoppeld' });
+  }
+
+  let r;
+  try {
+    r = await hcFetch(`/api/homeappliances/${encodeURIComponent(haId)}/programs/active`, token, {
+      method: 'PUT',
+      body:   { data: { key: programKey, options: Array.isArray(options) ? options : [] } },
+    });
+  } catch (e) {
+    // Transient: laat status 'gepland' staan zodat QStash kan retryen.
+    return res.status(502).json({ error: 'Home Connect timeout/fout: ' + e.message });
+  }
+
+  if (!r.ok) {
+    const d   = await r.json().catch(() => ({}));
+    const msg = d?.error?.value || d?.error?.description || `Starten faalde (${r.status})`;
+    if (r.status === 409) {
+      // 409 = meestal "Remote Start staat uit" — definitief, retry helpt niet.
+      // Sla de fout op en geef 2xx terug zodat QStash niet blijft retryen.
+      await updateHcStatus(userId, apparaat, planning, 'fout', msg);
+      return res.json({ actie: 'fout', reden: msg });
+    }
+    // Overige fouten: 502 zodat QStash het bericht opnieuw aflevert.
+    return res.status(502).json({ error: msg });
+  }
+
+  await updateHcStatus(userId, apparaat, planning, 'gestart', null);
+  return res.json({ actie: 'gestart', apparaat, programKey });
+}
 
 // Homey webhook namen per apparaat — voeg hier toe voor elk apparaat met automatisering: true.
 // Sleutel = apSleutel(ap.naam) uit js/apparaten.js (lowercase, alleen a-z0-9, max 20 chars).
@@ -68,11 +149,8 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'Invalid JSON' });
   }
 
-  const { actie, apparaat, userId: rawUserId } = body;
+  const { actie, apparaat, type, userId: rawUserId } = body;
   if (!actie || !apparaat) return res.status(400).json({ error: 'actie en apparaat verplicht' });
-
-  const webhooks = WEBHOOKS[apparaat];
-  if (!webhooks) return res.status(400).json({ error: 'Onbekend apparaat: ' + apparaat });
 
   // Geen fallback naar 001: bij ontbrekende/ongeldige userId is de body-signature
   // wel correct maar de inhoud niet matchend met onze user-lijst — return expliciet 400
@@ -82,6 +160,16 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'Onbekende userId: ' + rawUserIdStr });
   }
   const userId = rawUserIdStr;
+
+  // Home Connect-planning (wasmachine/droger): PUT het programma naar de Home
+  // Connect API i.p.v. een Homey-webhook. Eigen apparaat-namelijst (geen WEBHOOKS).
+  if (type === 'homeconnect') {
+    return await voerHomeConnectUit(res, { userId, apparaat, body });
+  }
+
+  const webhooks = WEBHOOKS[apparaat];
+  if (!webhooks) return res.status(400).json({ error: 'Onbekend apparaat: ' + apparaat });
+
   const homeyCloudId = process.env[`HOMEY_CLOUD_ID_${userId}`];
 
   if (!homeyCloudId) {
