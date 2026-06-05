@@ -948,30 +948,72 @@ function hcHerberekenGoedkoopste() {
   // (bv. na programma-keuze of opties laden).
   const klaar = document.getElementById('hcKlaarOm');
   if (klaar && apDetailState._hcUI) apDetailState._hcUI._klaarOm = klaar.value;
+  // Deadline gewijzigd → terug naar het automatisch berekende goedkoopste blok.
+  apDetailState._hcHandmatigeStart = null;
+  renderHcPlanBlok(apDetailState.ap);
+}
+
+// Neem de met de prijsslider geselecteerde starttijd over als gepland startmoment.
+// Overschrijft de automatisch berekende goedkoopste start in het Slim inplannen-blok.
+function hcNeemSliderTijdOver() {
+  if (!apDetailState) return;
+  const sel = getSelStartActual();
+  if (!sel) return;
+  apDetailState._hcHandmatigeStart = { date: sel, idx: apDetailState.currentStartIdx };
+  renderHcPlanBlok(apDetailState.ap);
+  const blok = document.getElementById('hcPlanBlok');
+  if (blok) blok.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Verwerp de handmatig overgenomen tijd → terug naar het goedkoopste blok.
+function hcHerstelGoedkoopste() {
+  if (!apDetailState) return;
+  apDetailState._hcHandmatigeStart = null;
   renderHcPlanBlok(apDetailState.ap);
 }
 
 // Vul het goedkoopste-blok regel + knopstaat; bewaar het gekozen startmoment.
+// Toont óf het automatisch berekende goedkoopste blok, óf — als de gebruiker een
+// tijd met de slider overnam (_hcHandmatigeStart) — dat handmatig gekozen venster.
 function renderHcPlanBlok(ap) {
   if (!document.getElementById('hcPlanBlok') || !apDetailState) return;
-  // Deadline uit het gedeelde "Klaar om"-veld; ontbreekt dat (programma zonder
-  // FinishInRelative-optie), dan zoeken we de globaal goedkoopste tijd.
-  const klaarOm = document.getElementById('hcKlaarOm')?.value || null;
-  const res = hcGoedkoopsteBlok(ap, klaarOm);
   const regelEl = document.getElementById('hcPlanGoedkoopste');
   const btn     = document.getElementById('hcPlanBtn');
+  const hand    = apDetailState._hcHandmatigeStart;
 
   let regel, kanPlannen = false;
-  if (!res) regel = '<span style="color:var(--muted)">Prijzen nog niet beschikbaar</span>';
-  else if (res.geenMoment) regel = '<span style="color:#a32d2d">⚠️ Geen geschikt moment vóór ' + escapeHtml(klaarOm || '') + '</span>';
-  else {
-    regel = 'Goedkoopste start: <b>' + dagHStr(res.startTijd) + '–' + hStr(res.eindDatum) + '</b> · verwachte kosten € ' + res.kosten.toFixed(2);
+
+  if (hand && hand.date) {
+    // Handmatig overgenomen slider-tijd.
+    const uren     = ap.uren || 2;
+    const kw       = ap.vermogen || 1.5;
+    const planUren = apDetailState.planUren || [];
+    const eind     = new Date(hand.date.getTime() + Math.ceil(uren) * 3600000);
+    const eff      = effectieveKosten(uren, kw, planUren, hand.idx) ?? berekenKostenVanaf(uren, kw, planUren, hand.idx);
+    regel = 'Gekozen start: <b>' + dagHMStrPlain(hand.date) + '–' + hMStr(eind) + '</b> · verwachte kosten € ' + (eff ?? 0).toFixed(2) +
+      ' <button onclick="hcHerstelGoedkoopste()" style="margin-left:4px;font-size:11px;border:none;background:none;color:#27500a;cursor:pointer;padding:0;text-decoration:underline">↺ goedkoopste</button>';
+    apDetailState._hcPlan = { startTijd: hand.date };
     kanPlannen = true;
+  } else {
+    // Automatisch berekend goedkoopste blok. Deadline uit het gedeelde "Klaar om"-
+    // veld; ontbreekt dat, dan zoeken we de globaal goedkoopste tijd.
+    const klaarOm = document.getElementById('hcKlaarOm')?.value || null;
+    const res = hcGoedkoopsteBlok(ap, klaarOm);
+    if (!res) regel = '<span style="color:var(--muted)">Prijzen nog niet beschikbaar</span>';
+    else if (res.geenMoment) regel = '<span style="color:#a32d2d">⚠️ Geen geschikt moment vóór ' + escapeHtml(klaarOm || '') + '</span>';
+    else {
+      regel = 'Goedkoopste start: <b>' + dagHStr(res.startTijd) + '–' + hStr(res.eindDatum) + '</b> · verwachte kosten € ' + res.kosten.toFixed(2);
+      kanPlannen = true;
+    }
+    apDetailState._hcPlan = kanPlannen ? { startTijd: res.startTijd } : null;
   }
+
   if (regelEl) regelEl.innerHTML = regel;
-  apDetailState._hcPlan = kanPlannen ? { startTijd: res.startTijd } : null;
   // Knop alleen uitschakelen als er niets te plannen valt én er nog geen actieve planning is.
-  if (btn && !apDetailState._hcPlanActief) btn.disabled = !kanPlannen;
+  if (btn && !apDetailState._hcPlanActief) {
+    btn.disabled = !kanPlannen;
+    btn.textContent = (hand && hand.date) ? '📅 Plan in op gekozen tijd' : '📅 Plan in op goedkoopste moment';
+  }
 }
 
 // Lees de actieve Home Connect-planning uit /api/planLaden en toon de status.
@@ -998,7 +1040,8 @@ async function hcLaadPlanningStatus(ap) {
     } else {
       apDetailState._hcPlanActief = false;
       statusEl.style.display = 'none';
-      if (btn) btn.textContent = '📅 Plan in op goedkoopste moment';
+      const hand = apDetailState._hcHandmatigeStart;
+      if (btn) btn.textContent = (hand && hand.date) ? '📅 Plan in op gekozen tijd' : '📅 Plan in op goedkoopste moment';
     }
   } catch {}
 }
@@ -1279,6 +1322,15 @@ function renderApDetail() {
     // 2a. TIJDLIJN SLIDER — visuele scrubber over alle uren met prijs-mini-bars.
     //    Prijsinformatie: altijd tonen, ook voor Home Connect.
     (berekendeUren >= 0.25 ? bouwTijdlijnHtml(planUren, currentStartIdx, besteIdxBer, berekendeBlok, maxIdx) : '') +
+
+    // 2b. OVERNEMEN — alleen Home Connect: neem de met de slider geselecteerde
+    //    tijd over als gepland startmoment in het Slim inplannen-blok. (Voor
+    //    Homey-apparaten stuurt de slider de planning al rechtstreeks aan.)
+    (heeftHomeConnect && berekendeUren >= 0.25
+      ? '<div style="padding:0 16px 8px;text-align:center">' +
+          '<button onclick="hcNeemSliderTijdOver()" style="border:1.5px solid #639922;background:none;color:#27500a;border-radius:8px;font-size:12px;font-weight:600;padding:7px 14px;cursor:pointer;font-family:inherit">↑ Deze tijd overnemen</button>' +
+        '</div>'
+      : '') +
 
     // 3. PLAN DIT IN — direct onder beste tijd, alleen bij automatisering
     (heeftAutomatisering
