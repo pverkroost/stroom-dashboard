@@ -801,8 +801,8 @@ function hcOptiesHtml(options) {
   if (finish) {
     html += '<div style="margin-top:12px">' +
       '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Klaar om</label>' +
-      '<input type="time" id="hcKlaarOm" value="' + _hcDefaultKlaarOm() + '" data-finishkey="' + escapeHtml(finish.key) + '"' + (finish.max != null ? ' data-max="' + finish.max + '"' : '') + ' style="' + _hcSelectStyle + '">' +
-      '<div style="font-size:10px;color:var(--muted);margin-top:4px">De machine plant zelf de start zodat hij klaar is op deze tijd.</div>' +
+      '<input type="time" id="hcKlaarOm" value="' + _hcDefaultKlaarOm() + '" data-finishkey="' + escapeHtml(finish.key) + '"' + (finish.max != null ? ' data-max="' + finish.max + '"' : '') + ' oninput="hcHerberekenGoedkoopste()" style="' + _hcSelectStyle + '">' +
+      '<div style="font-size:10px;color:var(--muted);margin-top:4px">Uiterste tijd waarop het programma klaar moet zijn. Geldt voor beide opties hieronder.</div>' +
     '</div>';
   }
   return html;
@@ -924,13 +924,12 @@ function hcGoedkoopsteBlok(ap, klaarOmHHMM) {
   return { startTijd: res.startTijd, eindDatum: res.eindDatum, kosten: eff };
 }
 
-// HTML voor het slim-inplannen blok (deadline + goedkoopste blok + knop + status).
+// HTML voor het slim-inplannen blok (goedkoopste blok + knop + status). De
+// deadline komt uit het gedeelde "Klaar om"-veld (#hcKlaarOm) van de opties.
 function hcPlanBlokHtml() {
   return '<div id="hcPlanBlok" style="margin-top:14px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--card)">' +
-    '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">💸 Slim inplannen — start op goedkoopste stroom</div>' +
-    '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Klaar om (uiterlijk)</label>' +
-    '<input type="time" id="hcPlanKlaarOm" value="' + _hcDefaultKlaarOm() + '" oninput="hcHerberekenGoedkoopste()" style="' + _hcSelectStyle + '">' +
-    '<div id="hcPlanGoedkoopste" style="font-size:12px;color:var(--text);margin-top:8px;line-height:1.5"></div>' +
+    '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px">💸 Slim inplannen — start op goedkoopste stroom</div>' +
+    '<div id="hcPlanGoedkoopste" style="font-size:12px;color:var(--text);line-height:1.5"></div>' +
     '<button id="hcPlanBtn" class="ap-cta-btn ap-cta-groen" onclick="hcPlanInladen()" style="margin-top:10px;margin-bottom:0">📅 Plan in op goedkoopste moment</button>' +
     '<div id="hcPlanStatus" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(59,109,17,0.08);font-size:12px;color:#27500a;text-align:center"></div>' +
   '</div>';
@@ -943,14 +942,16 @@ function hcHerberekenGoedkoopste() {
 // Vul het goedkoopste-blok regel + knopstaat; bewaar het gekozen startmoment.
 function renderHcPlanBlok(ap) {
   if (!document.getElementById('hcPlanBlok') || !apDetailState) return;
-  const klaarOm = document.getElementById('hcPlanKlaarOm')?.value || _hcDefaultKlaarOm();
+  // Deadline uit het gedeelde "Klaar om"-veld; ontbreekt dat (programma zonder
+  // FinishInRelative-optie), dan zoeken we de globaal goedkoopste tijd.
+  const klaarOm = document.getElementById('hcKlaarOm')?.value || null;
   const res = hcGoedkoopsteBlok(ap, klaarOm);
   const regelEl = document.getElementById('hcPlanGoedkoopste');
   const btn     = document.getElementById('hcPlanBtn');
 
   let regel, kanPlannen = false;
   if (!res) regel = '<span style="color:var(--muted)">Prijzen nog niet beschikbaar</span>';
-  else if (res.geenMoment) regel = '<span style="color:#a32d2d">⚠️ Geen geschikt moment vóór ' + escapeHtml(klaarOm) + '</span>';
+  else if (res.geenMoment) regel = '<span style="color:#a32d2d">⚠️ Geen geschikt moment vóór ' + escapeHtml(klaarOm || '') + '</span>';
   else {
     regel = 'Goedkoopste start: <b>' + dagHStr(res.startTijd) + '–' + hStr(res.eindDatum) + '</b> · verwachte kosten € ' + res.kosten.toFixed(2);
     kanPlannen = true;
