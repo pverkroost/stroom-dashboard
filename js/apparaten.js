@@ -788,23 +788,17 @@ function hcOptieControlHtml(o, i) {
   return '<div ' + attrs + ' style="font-size:12px;color:var(--muted)">' + (o.default != null ? escapeHtml(String(o.default)) : '—') + '</div>';
 }
 
+// Programma-opties (zonder tijd-opties zoals FinishInRelative — die zitten in de
+// gedeelde "Klaar om"-picker bovenaan, zie renderHcProgUI).
 function hcOptiesHtml(options) {
-  const finish = options.find(o => /FinishInRelative$/.test(o.key));
   let html = '';
   options.forEach((o, i) => {
-    if (_hcIsTijdOptie(o.key)) return; // FinishInRelative apart als "Klaar om"
+    if (_hcIsTijdOptie(o.key)) return;
     html += '<div style="margin-top:10px">' +
       '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">' + escapeHtml(o.name) + (o.unit ? ' (' + escapeHtml(o.unit) + ')' : '') + '</label>' +
       hcOptieControlHtml(o, i) +
     '</div>';
   });
-  if (finish) {
-    html += '<div style="margin-top:12px">' +
-      '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Klaar om</label>' +
-      '<input type="time" id="hcKlaarOm" value="' + _hcDefaultKlaarOm() + '" data-finishkey="' + escapeHtml(finish.key) + '"' + (finish.max != null ? ' data-max="' + finish.max + '"' : '') + ' oninput="hcHerberekenGoedkoopste()" style="' + _hcSelectStyle + '">' +
-      '<div style="font-size:10px;color:var(--muted);margin-top:4px">Uiterste tijd waarop het programma klaar moet zijn. Geldt voor beide opties hieronder.</div>' +
-    '</div>';
-  }
   return html;
 }
 
@@ -819,10 +813,19 @@ function renderHcProgUI(ap) {
   const progOpts = ['<option value="">— kies programma —</option>']
     .concat(ui.programs.map(p => '<option value="' + escapeHtml(p.key) + '"' + (p.key === ui.programKey ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>')).join('');
 
+  // 1. "Klaar om" tijdpicker — bovenaan, de énige tijdpicker. Gedeeld door zowel
+  //    het Slim inplannen-blok als de Direct/FinishInRelative-knop.
   let html =
-    '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Programma</label>' +
-    '<select onchange="kiesHcProgramma(this.value)" style="' + _hcSelectStyle + '">' + progOpts + '</select>';
+    '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">' + escapeHtml(ap.klaarOmTekst || 'Klaar om') + '</label>' +
+    '<input type="time" id="hcKlaarOm" value="' + escapeHtml(ui._klaarOm || _hcDefaultKlaarOm()) + '" oninput="hcHerberekenGoedkoopste()" style="' + _hcSelectStyle + '">' +
+    '<div style="font-size:10px;color:var(--muted);margin-top:4px">Uiterste tijd waarop het programma klaar moet zijn.</div>';
 
+  // 2. Programma-dropdown
+  html +=
+    '<div style="margin-top:12px"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Programma</label>' +
+    '<select onchange="kiesHcProgramma(this.value)" style="' + _hcSelectStyle + '">' + progOpts + '</select></div>';
+
+  // 3. Programma-opties (zonder tijd-opties)
   if (ui.programKey) {
     if (ui.ladenOpties) html += '<div style="font-size:12px;color:var(--muted);margin-top:10px">Opties laden…</div>';
     else if (ui.options) html += hcOptiesHtml(ui.options);
@@ -883,10 +886,14 @@ function hcStarten() {
   if (!apDetailState || !apDetailState._hcUI || !apDetailState._hcUI.programKey) return;
   const ui = apDetailState._hcUI;
   const opts = _hcVerzamelOpties();
-  const klaar = document.getElementById('hcKlaarOm');
-  if (klaar && klaar.value) {
-    const sec = _hcKlaarOmSeconden(klaar.value, klaar.dataset.max);
-    if (sec != null) opts.push({ key: klaar.dataset.finishkey, value: sec });
+  // FinishInRelative-key/-max komen uit de programma-opties; de tijd uit de
+  // gedeelde "Klaar om"-picker. Heeft het programma geen FinishInRelative, dan
+  // start het direct (geen tijd-optie toevoegen).
+  const finish = (ui.options || []).find(o => /FinishInRelative$/.test(o.key));
+  const klaar  = document.getElementById('hcKlaarOm');
+  if (finish && klaar && klaar.value) {
+    const sec = _hcKlaarOmSeconden(klaar.value, finish.max != null ? String(finish.max) : null);
+    if (sec != null) opts.push({ key: finish.key, value: sec });
   }
   apDetailState._hcStart = { programKey: ui.programKey, options: opts };
   hcActie('start');
@@ -936,7 +943,12 @@ function hcPlanBlokHtml() {
 }
 
 function hcHerberekenGoedkoopste() {
-  if (apDetailState) renderHcPlanBlok(apDetailState.ap);
+  if (!apDetailState) return;
+  // Bewaar de ingevoerde "Klaar om" zodat hij niet reset bij een re-render
+  // (bv. na programma-keuze of opties laden).
+  const klaar = document.getElementById('hcKlaarOm');
+  if (klaar && apDetailState._hcUI) apDetailState._hcUI._klaarOm = klaar.value;
+  renderHcPlanBlok(apDetailState.ap);
 }
 
 // Vul het goedkoopste-blok regel + knopstaat; bewaar het gekozen startmoment.
@@ -1258,13 +1270,16 @@ function renderApDetail() {
       '</div>'
     : '') +
 
-    // 2. BESTE TIJD — gewone tekstregel, geen kaart, geen ster
-    '<div style="padding:14px 16px 4px;font-size:14px;font-weight:500;color:var(--text)">' +
-      '<span id="besteTijdInfoDiv">' + besteSimpleStr + '</span>' +
-    '</div>' +
+    // 2. BESTE TIJD — gewone tekstregel, geen kaart, geen ster. Niet bij Home
+    //    Connect: dat toont de goedkoopste tijd in het eigen Slim inplannen-blok.
+    (!heeftHomeConnect
+      ? '<div style="padding:14px 16px 4px;font-size:14px;font-weight:500;color:var(--text)">' +
+          '<span id="besteTijdInfoDiv">' + besteSimpleStr + '</span>' +
+        '</div>'
+      : '') +
 
     // 2a. TIJDLIJN SLIDER — visuele scrubber over alle uren met prijs-mini-bars
-    (berekendeUren >= 0.25 ? bouwTijdlijnHtml(planUren, currentStartIdx, besteIdxBer, berekendeBlok, maxIdx) : '') +
+    (!heeftHomeConnect && berekendeUren >= 0.25 ? bouwTijdlijnHtml(planUren, currentStartIdx, besteIdxBer, berekendeBlok, maxIdx) : '') +
 
     // 3. PLAN DIT IN — direct onder beste tijd, alleen bij automatisering
     (heeftAutomatisering
@@ -1274,14 +1289,18 @@ function renderApDetail() {
         '</div>'
       : '') +
 
-    // 4. TOGGLE KNOPPEN — generieke "Inplannen" sectie + Handmatig wijzigen
-    '<div style="display:flex;gap:8px;padding:6px 16px 4px">' +
-      '<button onclick="toggleVertrekplanner()" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid ' + (vpOpen ? '#639922' : 'var(--border)') + ';background:' + (vpOpen ? 'rgba(59,109,17,0.06)' : 'transparent') + ';color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px">' + (ap.korteTekst || '🕐 Inplannen') + ' ' + (vpOpen ? '▲' : '▼') + '</button>' +
-      '<button onclick="toggleHandmatig()" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid ' + (handmatigOpen ? '#639922' : 'var(--border)') + ';background:' + (handmatigOpen ? 'rgba(59,109,17,0.06)' : 'transparent') + ';color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px">✏️ Handmatig wijzigen ' + (handmatigOpen ? '▲' : '▼') + '</button>' +
-    '</div>' +
+    // 4. TOGGLE KNOPPEN + 4a/4b content — generieke Homey/batterij-planning. Niet
+    //    bij Home Connect: die heeft één "Klaar om"-picker in het eigen blok (5a),
+    //    deze sectie zou een tweede tijdpicker tonen.
+    (!heeftHomeConnect
+      ? '<div style="display:flex;gap:8px;padding:6px 16px 4px">' +
+          '<button onclick="toggleVertrekplanner()" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid ' + (vpOpen ? '#639922' : 'var(--border)') + ';background:' + (vpOpen ? 'rgba(59,109,17,0.06)' : 'transparent') + ';color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px">' + (ap.korteTekst || '🕐 Inplannen') + ' ' + (vpOpen ? '▲' : '▼') + '</button>' +
+          '<button onclick="toggleHandmatig()" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid ' + (handmatigOpen ? '#639922' : 'var(--border)') + ';background:' + (handmatigOpen ? 'rgba(59,109,17,0.06)' : 'transparent') + ';color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px">✏️ Handmatig wijzigen ' + (handmatigOpen ? '▲' : '▼') + '</button>' +
+        '</div>'
+      : '') +
 
     // 4a. INPLANNEN content — label uit ap.klaarOmTekst
-    (vpOpen
+    (!heeftHomeConnect && vpOpen
       ? '<div class="section" style="padding-top:4px;padding-bottom:4px;max-width:100%;overflow:hidden">' +
           '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
             '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">' + (ap.klaarOmTekst || 'Klaar om') + '</label>' +
@@ -1294,7 +1313,7 @@ function renderApDetail() {
       : '') +
 
     // 4b. HANDMATIG WIJZIGEN content
-    (handmatigOpen
+    (!heeftHomeConnect && handmatigOpen
       ? '<div class="section" style="padding-top:4px;padding-bottom:4px;max-width:100%;overflow:hidden">' +
           '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
             '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Geselecteerde starttijd</label>' +
