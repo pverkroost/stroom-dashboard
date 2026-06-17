@@ -50,6 +50,7 @@ In Vercel → Settings → Environment Variables:
 | `GROWATT_API_TOKEN` | Growatt OpenAPI token |
 | `SOLAREDGE_API_KEY` / `SOLAREDGE_SITE_ID` | SolarEdge Monitoring API |
 | `HOMEY_CLOUD_ID` | Homey cloud-id voor `<id>.connect.athom.com` |
+| `HOMEWIZARD_PUSH_TOKEN_<userId>` | Lange random secret die de Homey-flow meestuurt bij de P1-push naar `/api/homewizard` (#11) |
 | `APP_PINCODE` | Pincode voor `/api/homey` + `/api/homeconnect` POST |
 | `HOMECONNECT_CLIENT_ID` / `HOMECONNECT_CLIENT_SECRET` | Home Connect OAuth2 app-credentials (globaal, gedeeld) |
 | `APP_URL` | Basis-URL voor QStash self-callbacks én Home Connect redirect-URI |
@@ -174,6 +175,30 @@ Programma's, opties (temperatuur, centrifuge, droogdoel…) en `FinishInRelative
 ### HomeWizard P1 Meter
 - IP adres vinden via router DHCP tabel of HomeWizard app → apparaat → tandwiel
 - Lokale API: `http://[ip-adres]/api/v1/data` (geen authenticatie nodig)
+
+### HomeWizard P1 via Homey (live verbruik/teruglevering, #11)
+De P1-meter heeft alleen een **lokale** API (thuisnetwerk) en is dus niet direct
+bereikbaar vanuit Vercel. Daarom pusht een Homey-flow de meetwaarde periodiek naar
+`/api/homewizard`, dat hem in Upstash Redis cachet (`homewizard_<userId>`, TTL 10 min).
+De Zon-tab toont op de tegel **"Live verbruik"** het actuele net-vermogen
+(positief = verbruik uit het net, negatief = teruglevering, in groen).
+
+**Setup:**
+1. Installeer in Homey de **HomeWizard Energy**-app en koppel de P1-meter.
+2. Maak een flow die elke **1–5 min** draait (trigger: tijd/interval of "measure_power gewijzigd").
+3. Voeg een **"Maak een HTTP-request"**-actie toe:
+   - Methode: `POST`
+   - URL: `https://energieiq.nl/api/homewizard`
+   - Header: `Content-Type: application/json`
+   - Body: `{ "userId": "001", "token": "<HOMEWIZARD_PUSH_TOKEN_001>", "vermogenW": [measure_power], "importKwh": [meter_power.imported], "exportKwh": [meter_power.exported] }`
+     (`importKwh`/`exportKwh` zijn optioneel; `[…]` zijn Homey-flow-tags van de P1-tegel.)
+
+**Auth-keuze:** een aparte, lange gedeelde secret `HOMEWIZARD_PUSH_TOKEN_<userId>`
+(in Vercel env vars) in plaats van de interactieve `APP_PINCODE`. De pincode is kort
+(brute-force-gevoelig) en wordt voor gevoelige bedien-acties gebruikt; hem in elke
+push (om de paar minuten) meesturen is onwenselijk. Een lange random push-token is
+de gangbare machine-to-machine ingest-aanpak en wordt eenmalig in de Homey-flow gezet.
+Genereer er een met bv. `openssl rand -hex 32`.
 
 ### Kenteken lookup (RDW + EV database)
 

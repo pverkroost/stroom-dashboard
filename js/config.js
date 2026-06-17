@@ -43,7 +43,7 @@ const APPARATEN = window.CONFIG.apparaten;
 // expliciete `integraties` velden in hun config (zie users/*.js), dus voor hen
 // geen gedragsverandering. Gebruik heeftIntegratie() om secties te gaten.
 const INTEGRATIES = Object.assign(
-  { solarEdge: false, growatt: false, homey: false, homeConnect: false },
+  { solarEdge: false, growatt: false, homey: false, homeConnect: false, homewizard: false },
   window.CONFIG.integraties || {}
 );
 function heeftIntegratie(naam) { return INTEGRATIES[naam] === true; }

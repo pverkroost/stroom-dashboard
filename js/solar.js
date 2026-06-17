@@ -78,6 +78,48 @@ async function fetchGrowatt() {
   };
 }
 
+// HomeWizard P1 live net-uitwisseling (#11). Vermogen wordt door een Homey-flow
+// naar /api/homewizard gepusht en gecachet in Redis; hier alleen ophalen. Bij
+// stale/lege response → null zodat renderHomeWizard "geen live data" toont.
+async function fetchHomeWizard() {
+  if (!heeftIntegratie('homewizard')) return null;
+  const res = await fetch(apiUrl('/api/homewizard')).catch(() => null);
+  if (!res?.ok) return null;
+  const data = await res.json().catch(() => null);
+  if (!data || data.stale || typeof data.vermogenW !== 'number') return null;
+  return data;
+}
+
+// Tegel "Live verbruik": positief vermogenW = verbruik uit het net, negatief =
+// teruglevering (groen). Gegate op heeftIntegratie('homewizard') zodat users
+// zonder P1 (bv. 002) de tegel niet zien.
+function renderHomeWizard() {
+  const sectie = document.getElementById('zonLiveVerbruikSection');
+  if (!sectie) return;
+  if (!heeftIntegratie('homewizard')) { sectie.style.display = 'none'; return; }
+  sectie.style.display = '';
+
+  const valEl = document.getElementById('hwLiveVal');
+  const subEl = document.getElementById('hwLiveSub');
+  if (!valEl || !subEl) return;
+
+  if (!homewizardLive || typeof homewizardLive.vermogenW !== 'number') {
+    valEl.textContent   = '—';
+    valEl.style.color   = '';
+    subEl.textContent   = 'Geen live data (Homey/P1 offline?)';
+    return;
+  }
+
+  const w           = homewizardLive.vermogenW;
+  const teruglevert = w < 0;
+  const watt        = Math.abs(Math.round(w));
+  valEl.innerHTML   = `${teruglevert ? 'Teruglevering' : 'Verbruik'}: ${watt} <small style="font-size:13px;color:var(--muted);font-weight:400">W</small>`;
+  valEl.style.color = teruglevert ? '#3b6d11' : '';
+
+  const bij = homewizardLive.updatedAt ? `bijgewerkt ${uurStr(new Date(homewizardLive.updatedAt))}` : '';
+  subEl.textContent = bij;
+}
+
 async function fetchSolarData() {
   // SOLAR_SOURCES bevat alleen solaredge — Growatt is afzonderlijk geladen
   // door js/app.js (in Promise.all), niet via deze fallback-loop. Loop blijft
@@ -244,6 +286,7 @@ function renderZonTab() {
   document.getElementById('zonGisterenKwh').innerHTML = gist !== null ? `${gist.toFixed(2)} <small style="${smZ}">kWh</small>` : '—';
   document.getElementById('zonMaandKwh').innerHTML    = solarVandaag ? `${maand.toFixed(1)} <small style="${smZ}">kWh</small>` : '—';
 
+  renderHomeWizard();
   renderZonChart();
   renderTerugleverAdvies();
 }

@@ -4,6 +4,7 @@ let uurOverzichtOpen = false;
 let solarVandaag = null, solarMorgen = null;
 let isZonTab = false, isInstTab = false, zonChart = null, voorspellingChart = null;
 let openMeteoVandaag = null, growattVandaag = null;
+let homewizardLive = null;
 
 /**
  * Status-tracking per API-bron. Magische keys voorheen verspreid; nu één
@@ -92,12 +93,13 @@ function switchTab(newTab) {
 async function laadPrijzen() {
   document.getElementById('lastUpdate').textContent = 'Ophalen...';
   try {
-    const [vandaag, morgen, solar, openMeteo, growatt] = await Promise.all([
+    const [vandaag, morgen, solar, openMeteo, growatt, homewizard] = await Promise.all([
       fetchPrijzen(0),
       fetchPrijzen(1).catch(() => null),
       fetchSolarData().catch(() => null),
       fetchOpenMeteo().catch(() => null),
-      fetchGrowatt().catch(() => null)
+      fetchGrowatt().catch(() => null),
+      fetchHomeWizard().catch(() => null)
     ]);
     const nu = new Date();
     const upd = (key, ok) => apiStatus[key] = { ok, tijd: ok ? nu : (apiStatus[key]?.tijd ?? null) };
@@ -108,6 +110,7 @@ async function laadPrijzen() {
     openMeteoVandaag = openMeteo?.vandaag?.length ? { hourly: openMeteo.vandaag } : null;
     solarMorgen      = openMeteo?.morgen?.length  ? { hourly: openMeteo.morgen  } : null;
     growattVandaag   = growatt;
+    homewizardLive   = homewizard;
     if (isZonTab) {
       resetZonCanvassen();
       renderZonTab(0);

@@ -8,6 +8,7 @@
       growatt:     true,
       homey:       true,
       homeConnect: true,
+      homewizard:  true,
     },
     tarieven: {
       opslag:            0.02508, // € per kWh excl. btw (jaarnota 2025/2026)

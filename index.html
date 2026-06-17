@@ -94,6 +94,16 @@
     </div>
   </div>
 
+  <!-- Live verbruik/teruglevering via HomeWizard P1 (Homey-push, #11). Alleen
+       getoond als de user de homewizard-integratie heeft. -->
+  <div class="section" id="zonLiveVerbruikSection" style="display:none">
+    <div class="section-title">⚡ Live verbruik</div>
+    <div class="card" style="grid-column:1/-1">
+      <div class="card-val" id="hwLiveVal">—</div>
+      <div class="card-time" id="hwLiveSub">wachten op data…</div>
+    </div>
+  </div>
+
   <!-- Morgen: Verwachte opbrengst · Piek · Zonne-uren -->
   <div id="zonMorgenCards" class="cards" style="display:none">
     <div class="card">
@@ -227,7 +237,7 @@
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.73.4</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.74.0</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -265,11 +275,11 @@
   // APP_VERSION = single source voor de versie-stamp en cache-bust querystrings.
   // js/bootstrap.js gebruikt dit om de user-config + app-modules met `?v=` te laden
   // (vroeger statische script-tags). Het moet vóór bootstrap.js gezet worden.
-  window.APP_VERSION = '2.73.4';
+  window.APP_VERSION = '2.74.0';
 </script>
 <!-- bootstrap.js bepaalt de gebruiker (echte sessie via /api/me, of legacy ?u=)
      en laadt daarna pas users/<id>.js + js/config|solar|prijzen|apparaten|app.js.
      Zonder geldige sessie toont het de #loginOverlay hierboven. -->
-<script src="js/bootstrap.js?v=2.73.4"></script>
+<script src="js/bootstrap.js?v=2.74.0"></script>
 </body>
 </html>

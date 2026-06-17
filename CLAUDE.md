@@ -20,6 +20,7 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/growatt.js` — Growatt OpenAPI plant data
   - `api/solaredge.js` — SolarEdge Monitoring API (overview/power/energy)
   - `api/homey.js` — Homey cloud webhook proxy + connectivity check
+  - `api/homewizard.js` — HomeWizard P1 live verbruik/teruglevering: POST (Homey-push, gedeelde push-token) cachet in Redis, GET levert aan de frontend
   - `api/homeconnect.js` — Home Connect (BSH) OAuth2 auth-redirect + appliance status/start/stop (pincode)
   - `api/homeconnect/callback.js` — OAuth2 redirect-target: code → tokens in Redis (state-CSRF-verified)
   - `api/planLaden.js` — plant laad-actie via QStash (publishJSON met delay)
@@ -30,6 +31,7 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   `lib/auth.js` (`getSession`/`requireSession` uit request-cookie).
 - **State**: laadplanningen in Upstash Redis (sleutel `laadplanning_<userId>_<apparaat>`, bv. `laadplanning_001_autophev`).
   Home Connect-tokens in `homeconnect_tokens_<userId>`, OAuth state-nonces in `homeconnect_state_<state>`.
+  HomeWizard P1 live meetwaarde in `homewizard_<userId>` (`{ vermogenW, importKwh?, exportKwh?, updatedAt }`, TTL 600s).
   Gebruikers (email + bcrypt-hash + userId) in Neon PostgreSQL tabel `app_user`.
 
 ## Auth (sinds v2.72.0)
@@ -154,6 +156,7 @@ Alle in Settings → Environment Variables van het Vercel-project:
 | `SOLAREDGE_SITE_ID_<NNN>`     | SolarEdge site ID per user                               |
 | `HOMEY_CLOUD_ID_<NNN>`        | Homey cloud-id per user                                  |
 | `APP_PINCODE_<NNN>`           | Pincode voor `/api/homey` POST + `/api/planLaden` POST   |
+| `HOMEWIZARD_PUSH_TOKEN_<NNN>` | Gedeelde secret die de Homey-flow meestuurt bij de P1-push naar `/api/homewizard` POST |
 
 ### Vercel env vars setup (overgang naar genummerde suffixen)
 
