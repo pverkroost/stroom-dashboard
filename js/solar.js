@@ -305,6 +305,11 @@ function toUurRanges(uren) {
   ).join(', ');
 }
 
+// Eén adaptieve statusregel i.p.v. de vroegere drie tijdvenster-blokken: combineert
+// het live netvermogen (HomeWizard P1, homewizardLive.vermogenW) met de huidige
+// EPEX-prijs en de goedkoopste komende uren tot één actie-advies. Verbruiks- en
+// terugleverprijs komen uit de bestaande prijscache (cacheVandaag, p.totaal/p.terug)
+// — die zijn al via de prijsformule berekend, niet opnieuw uitrekenen.
 let _terugleverRendering = false;
 function renderTerugleverAdvies() {
   const el = document.getElementById('zonTerugleverContent');
@@ -313,81 +318,82 @@ function renderTerugleverAdvies() {
   _terugleverRendering = true;
   el.innerHTML = ''; // expliciet leegmaken voordat we vullen — voorkomt residual content
 
-  if (!cacheVandaag || !openMeteoVandaag?.hourly?.length) {
-    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Prijsdata of zonverwachting niet beschikbaar</div>';
-    _terugleverRendering = false;
-    return;
+  const klaar = () => { _terugleverRendering = false; };
+
+  // Statuskaartje: kop + (optioneel) actie-advies. Alle dynamische tekst wordt
+  // ge-escaped voordat ze in innerHTML belandt.
+  const card = (icon, kleur, kop, actie) => `<div class="advies-card" style="grid-column:1/-1">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span style="font-size:18px;flex-shrink:0">${icon}</span>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:${kleur}">${kop}</div>
+          ${actie ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">${actie}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+
+  // Huidige uur-prijs uit de cache (verbruiks- én terugleverprijs zitten er al in).
+  const nu        = new Date();
+  const huidigUur = nu.getHours();
+  const huidig    = (cacheVandaag || []).find(p => p.tijd.getHours() === huidigUur);
+
+  if (!huidig) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Prijsdata niet beschikbaar</div>';
+    return klaar();
   }
 
-  // Dedupliceer op uur (DST-overgang kan dubbele h=2 of h=3 entries opleveren)
-  const gezienUren = new Set();
-  const zonnige = [];
-  for (const p of cacheVandaag) {
-    const h = p.tijd.getHours();
-    if (gezienUren.has(h)) continue;
-    gezienUren.add(h);
-    const watt = openMeteoVandaag.hourly.find(e => e.hour === h)?.watt ?? 0;
-    if (watt < 50) continue;
-    const terug = p.terug ?? 0;
-    zonnige.push({ h, watt, totaal: p.totaal, terug, beterZelf: p.totaal > terug });
+  const verbruiksprijs = huidig.totaal;      // € per kWh uit het net
+  const terugprijs     = huidig.terug ?? 0;  // € per kWh bij teruglevering
+
+  // Live netvermogen. fetchHomeWizard levert null bij stale/ontbrekende data,
+  // dus homewizardLive is óf een geldig object óf null.
+  const vermogenW = (homewizardLive && typeof homewizardLive.vermogenW === 'number')
+    ? homewizardLive.vermogenW : null;
+  const DREMPEL_W = 30; // onder deze |W| beschouwen we het net als "in balans"
+
+  // ── Geen live data of net in balans → neutrale status zonder actie-advies ──
+  if (vermogenW === null || Math.abs(vermogenW) < DREMPEL_W) {
+    el.innerHTML = card('ℹ️', 'var(--text)',
+      'Geen actueel verbruik bekend',
+      escapeHtml(`Huidige stroomprijs € ${verbruiksprijs.toFixed(3)}/kWh.`));
+    return klaar();
   }
 
-  if (!zonnige.length) {
-    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Geen noemenswaardige zonproductie vandaag</div>';
-    _terugleverRendering = false;
-    return;
+  // ── Teruglevering: vermogenW negatief = je levert terug aan het net ──
+  if (vermogenW < 0) {
+    const kw       = (Math.abs(vermogenW) / 1000).toFixed(1);
+    const verschil = Math.max(0, verbruiksprijs - terugprijs);
+    el.innerHTML = card('☀️', '#3b6d11',
+      escapeHtml(`Je levert nu ~${kw} kW terug voor € ${terugprijs.toFixed(3)}/kWh. `
+        + `Zelf gebruiken is € ${verschil.toFixed(3)}/kWh meer waard.`),
+      'Zet nu een flexibel apparaat aan (wasmachine, droger of de auto laden) om je eigen zon te gebruiken.');
+    return klaar();
   }
 
-  const groepen = [];
-  let huidig = null;
-  for (const z of zonnige) {
-    if (!huidig || huidig.beterZelf !== z.beterZelf || z.h !== huidig.tot + 1) {
-      huidig = { beterZelf: z.beterZelf, van: z.h, tot: z.h, items: [z] };
-      groepen.push(huidig);
-    } else {
-      huidig.tot = z.h;
-      huidig.items.push(z);
-    }
+  // ── Verbruik uit het net: vermogenW positief ──
+  const watt = Math.round(vermogenW);
+  // Goedkoopste komende uur (huidig + resterende uren vandaag + morgen).
+  const vooruit = (typeof getPrijzenVooruit === 'function') ? getPrijzenVooruit() : [];
+  let goedkoopste = null;
+  for (const p of vooruit) {
+    if (!goedkoopste || p.totaal < goedkoopste.totaal) goedkoopste = p;
   }
 
-  const html = groepen.map(g => {
-    const tijdStr  = `${String(g.van).padStart(2,'0')}:00–${String(g.tot + 1).padStart(2,'0')}:00`;
-    const gemV     = g.items.reduce((s, z) => s + z.totaal, 0) / g.items.length;
-    const gemT     = g.items.reduce((s, z) => s + z.terug,  0) / g.items.length;
-    const verschil = Math.abs(gemV - gemT);
-    if (g.beterZelf) {
-      return `<div class="advies-card" style="grid-column:1/-1">
-        <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
-          <span style="font-size:16px;flex-shrink:0">🏠</span>
-          <div>
-            <div style="font-size:11px;font-weight:600">Zelf verbruiken · ${tijdStr}</div>
-            <div style="font-size:10px;color:var(--muted)">bespaar ~ € ${verschil.toFixed(3)}/kWh vs terugleveren</div>
-          </div>
-        </div>
-        <div class="advies-vergelijk">
-          <div class="av-rij"><span class="av-label">Verbruiksprijs</span><span class="av-prijs beste">€ ${gemV.toFixed(3)}/kWh</span></div>
-          <div class="av-rij"><span class="av-label">Terugleververgoeding</span><span class="av-prijs">€ ${gemT.toFixed(3)}/kWh</span></div>
-        </div>
-      </div>`;
-    } else {
-      return `<div class="advies-card" style="grid-column:1/-1">
-        <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
-          <span style="font-size:16px;flex-shrink:0">⚡</span>
-          <div>
-            <div style="font-size:11px;font-weight:600">Terugleveren · ${tijdStr}</div>
-            <div style="font-size:10px;color:var(--muted)">teruglevering ~ € ${verschil.toFixed(3)}/kWh meer dan verbruiksprijs</div>
-          </div>
-        </div>
-        <div class="advies-vergelijk">
-          <div class="av-rij"><span class="av-label">Terugleververgoeding</span><span class="av-prijs beste">€ ${gemT.toFixed(3)}/kWh</span></div>
-          <div class="av-rij"><span class="av-label">Verbruiksprijs</span><span class="av-prijs">€ ${gemV.toFixed(3)}/kWh</span></div>
-        </div>
-      </div>`;
-    }
-  }).join('');
+  const MARGE = 0.01; // pas "wachten" adviseren bij ≥ 1 ct/kWh winst
+  let actie;
+  if (goedkoopste
+      && goedkoopste.tijd.getTime() !== huidig.tijd.getTime()
+      && (verbruiksprijs - goedkoopste.totaal) >= MARGE) {
+    actie = escapeHtml(`Wacht met grote apparaten — rond ${dagHStrPlain(goedkoopste.tijd)} `
+      + `is stroom goedkoper (€ ${goedkoopste.totaal.toFixed(3)}/kWh).`);
+  } else {
+    actie = 'Dit is een gunstig moment om apparaten te laten draaien.';
+  }
 
-  el.innerHTML = html;
-  _terugleverRendering = false;
+  el.innerHTML = card('⚡', 'var(--text)',
+    escapeHtml(`Je verbruikt nu ~${watt} W uit het net à € ${verbruiksprijs.toFixed(3)}/kWh.`),
+    actie);
+  return klaar();
 }
 
 // Custom plugin: stippelrand voor bars met borderDash property
