@@ -469,7 +469,7 @@ function renderInstellingen() {
 // in legacy-modus te laden.
 async function uitloggen() {
   try {
-    await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+    await fetch('/api/auth?action=logout', { method: 'POST', credentials: 'same-origin' });
   } catch {}
   window.location.href = window.location.pathname;
 }

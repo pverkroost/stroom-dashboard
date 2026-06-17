@@ -237,7 +237,7 @@
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.74.0</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.74.1</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -250,8 +250,8 @@
   <div id="apDetailBody"></div>
 </div>
 
-<!-- Login-overlay: getoond door js/bootstrap.js wanneer /api/me geen geldige
-     sessie geeft. Submit gaat via window._eqDoeLogin (POST /api/login). -->
+<!-- Login-overlay: getoond door js/bootstrap.js wanneer /api/auth?action=me geen
+     geldige sessie geeft. Submit gaat via window._eqDoeLogin (POST /api/auth?action=login). -->
 <div id="loginOverlay" style="display:none;position:fixed;inset:0;z-index:10000;background:#eef2ec;align-items:center;justify-content:center;padding:20px">
   <form onsubmit="return _eqDoeLogin(event)" style="width:100%;max-width:340px;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.12);padding:28px 24px">
     <div style="text-align:center;margin-bottom:20px">
@@ -275,11 +275,11 @@
   // APP_VERSION = single source voor de versie-stamp en cache-bust querystrings.
   // js/bootstrap.js gebruikt dit om de user-config + app-modules met `?v=` te laden
   // (vroeger statische script-tags). Het moet vóór bootstrap.js gezet worden.
-  window.APP_VERSION = '2.74.0';
+  window.APP_VERSION = '2.74.1';
 </script>
-<!-- bootstrap.js bepaalt de gebruiker (echte sessie via /api/me, of legacy ?u=)
+<!-- bootstrap.js bepaalt de gebruiker (echte sessie via /api/auth?action=me, of legacy ?u=)
      en laadt daarna pas users/<id>.js + js/config|solar|prijzen|apparaten|app.js.
      Zonder geldige sessie toont het de #loginOverlay hierboven. -->
-<script src="js/bootstrap.js?v=2.74.0"></script>
+<script src="js/bootstrap.js?v=2.74.1"></script>
 </body>
 </html>

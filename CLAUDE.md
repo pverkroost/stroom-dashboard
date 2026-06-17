@@ -25,7 +25,8 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/homeconnect/callback.js` — OAuth2 redirect-target: code → tokens in Redis (state-CSRF-verified)
   - `api/planLaden.js` — plant laad-actie via QStash (publishJSON met delay)
   - `api/cronLaden.js` — wordt door QStash aangeroepen om Homey-webhook te triggeren
-  - `api/login.js` / `api/logout.js` / `api/me.js` — auth (bcrypt + HMAC sessie-cookie)
+  - `api/auth.js` — login/logout/me samengevoegd in één function (routing via `?action=`),
+    om onder de Vercel Hobby 12-functie-limiet te blijven (bcrypt + HMAC sessie-cookie)
   - `api/db/migrate.js` — maakt `app_user`-tabel in Neon (idempotent)
 - **Auth-libs** (root `lib/`, gedeeld door api): `lib/session.js` (HMAC encode/decode + `eq_session`-cookie),
   `lib/auth.js` (`getSession`/`requireSession` uit request-cookie).
@@ -35,18 +36,21 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   Gebruikers (email + bcrypt-hash + userId) in Neon PostgreSQL tabel `app_user`.
 
 ## Auth (sinds v2.72.0)
-Echte login met e-mail + wachtwoord i.p.v. de rauwe `?u=`-parameter. Stateless:
-na login zet `/api/login` een HMAC-ondertekende `HttpOnly` cookie `eq_session`
-(30 dagen) met `{ uid, email, userId }`. `getValidUserId` (in `api/_helpers.js`)
-leest eerst die sessie, valt anders terug op `?u=` (backwards-compat tijdens de
-transitie — niet meteen verwijderen). `js/bootstrap.js` doet bij laden `GET /api/me`:
-401 → login-overlay, 200 → laadt `users/<id>.js` + app-modules. Pincode
-(`APP_PINCODE_<id>`) blijft apart vereist voor gevoelige acties. Wachtwoorden:
-bcrypt (cost 10) in Neon-tabel `app_user`. Nieuwe gebruiker: `node scripts/create-user.mjs`.
-Rate limiting op `/api/login`: 10 pogingen per IP per 5 min (`applyGate`, sliding window
-via Upstash). Generieke foutmelding (geen e-mail-enumeratie) + timing-egalisatie met
-dummy bcrypt-compare. Uitloggen via knop in de Instellingen-tab → `POST /api/logout`
-(wist `eq_session`). `SESSION_SECRET` env var vereist (min. 32 tekens).
+Echte login met e-mail + wachtwoord i.p.v. de rauwe `?u=`-parameter. Login, logout
+en me zitten sinds v2.74.1 in één function `api/auth.js` (routing via `?action=login`
+/`logout`/`me`) om onder de Vercel Hobby 12-functie-limiet te blijven; de beveiliging
+per actie is ongewijzigd. Stateless: na login zet `POST /api/auth?action=login` een
+HMAC-ondertekende `HttpOnly` cookie `eq_session` (30 dagen) met `{ uid, email, userId }`.
+`getValidUserId` (in `api/_helpers.js`) leest eerst die sessie, valt anders terug op
+`?u=` (backwards-compat tijdens de transitie — niet meteen verwijderen). `js/bootstrap.js`
+doet bij laden `GET /api/auth?action=me`: 401 → login-overlay, 200 → laadt `users/<id>.js`
++ app-modules. Pincode (`APP_PINCODE_<id>`) blijft apart vereist voor gevoelige acties.
+Wachtwoorden: bcrypt (cost 10) in Neon-tabel `app_user`. Nieuwe gebruiker:
+`node scripts/create-user.mjs`. Rate limiting op de login-actie: 10 pogingen per IP per
+5 min (`applyGate`, sliding window via Upstash). Generieke foutmelding (geen e-mail-
+enumeratie) + timing-egalisatie met dummy bcrypt-compare. Uitloggen via knop in de
+Instellingen-tab → `POST /api/auth?action=logout` (wist `eq_session`). `SESSION_SECRET`
+env var vereist (min. 32 tekens).
 
 ## Security
 Gecentraliseerd in `api/_helpers.js` (gedeeld door alle endpoints):

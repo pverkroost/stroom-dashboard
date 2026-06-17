@@ -4,7 +4,7 @@
 // Volgorde:
 //  1. Expliciete ?u= in de URL → legacy-modus, auth overgeslagen (backwards-compat
 //     tijdens de transitie naar echte login).
-//  2. Anders → GET /api/me. 200 → start app met session.userId. 401 → login-overlay.
+//  2. Anders → GET /api/auth?action=me. 200 → start app met session.userId. 401 → login-overlay.
 (function () {
   var GELDIGE_USERS = ['001', '002'];
 
@@ -52,7 +52,7 @@
     if (fout) fout.style.display = 'none';
     if (btn) { btn.disabled = true; btn.textContent = 'Bezig…'; }
     try {
-      var r = await fetch('/api/login', {
+      var r = await fetch('/api/auth?action=login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
@@ -85,7 +85,7 @@
       return;
     }
     try {
-      var r = await fetch('/api/me', { credentials: 'same-origin' });
+      var r = await fetch('/api/auth?action=me', { credentials: 'same-origin' });
       if (r.ok) {
         var session = await r.json();
         startApp(GELDIGE_USERS.indexOf(session.userId) >= 0 ? session.userId : '001');

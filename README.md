@@ -31,8 +31,10 @@ Persoonlijk dashboard voor een dynamisch stroomcontract. Combineert EPEX day-ahe
 │   ├── solar.js            SolarEdge + Growatt + Open-Meteo
 │   └── apparaten.js        slim-inplannen logica + UI
 ├── api/                    Vercel serverless functions
+│   ├── auth.js             login/logout/me (routing via ?action=)
 │   ├── growatt.js          Growatt plant power
 │   ├── solaredge.js        SolarEdge overview/power/energy
+│   ├── homewizard.js       HomeWizard P1 live verbruik (Homey-push → Redis)
 │   ├── homey.js            Homey webhook proxy + connectivity check
 │   ├── homeconnect.js      Home Connect OAuth2 + appliance status/start/stop
 │   ├── homeconnect/
@@ -70,11 +72,14 @@ server een HMAC-ondertekende, `HttpOnly` cookie `eq_session` (30 dagen geldig) m
 `?u=`. De pincode (`APP_PINCODE_<id>`) blijft apart vereist voor gevoelige acties
 (laden starten/inplannen, Home Connect start/stop).
 
+Login, logout en me zitten in één serverless function `api/auth.js` (routing via
+`?action=`) om onder de Vercel Hobby 12-functie-limiet te blijven.
+
 | Endpoint | Functie |
 |---|---|
-| `POST /api/login` | `{ email, wachtwoord }` → zet `eq_session`-cookie (rate-limit 10/5min/IP) |
-| `POST /api/logout` | wist de cookie |
-| `GET /api/me` | huidige sessie `{ uid, email, userId }` of `401` |
+| `POST /api/auth?action=login` | `{ email, wachtwoord }` → zet `eq_session`-cookie (rate-limit 10/5min/IP) |
+| `POST /api/auth?action=logout` | wist de cookie |
+| `GET /api/auth?action=me` | huidige sessie `{ uid, email, userId }` of `401` |
 | `GET /api/db/migrate` | maakt de `app_user`-tabel aan (idempotent) |
 
 Wachtwoorden worden gehasht opgeslagen (bcrypt, cost 10) in de Neon-tabel `app_user`.
