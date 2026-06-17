@@ -292,20 +292,6 @@ function renderZonTab() {
   renderTerugleverAdvies();
 }
 
-function toUurRanges(uren) {
-  if (!uren.length) return '';
-  const ranges = [];
-  let start = uren[0], last = uren[0];
-  for (let i = 1; i < uren.length; i++) {
-    if (uren[i] === last + 1) { last = uren[i]; }
-    else { ranges.push([start, last]); start = last = uren[i]; }
-  }
-  ranges.push([start, last]);
-  return ranges.map(([s, e]) =>
-    `${String(s).padStart(2,'0')}:00–${String(e + 1).padStart(2,'0')}:00`
-  ).join(', ');
-}
-
 // Eén adaptieve statusregel i.p.v. de vroegere drie tijdvenster-blokken: combineert
 // het live netvermogen (HomeWizard P1, homewizardLive.vermogenW) met de huidige
 // EPEX-prijs en de goedkoopste komende uren tot één actie-advies. Verbruiks- en
