@@ -48,6 +48,12 @@ const INTEGRATIES = Object.assign(
 );
 function heeftIntegratie(naam) { return INTEGRATIES[naam] === true; }
 
+// HomeWizard P1 teken-conventie. Default false (standaard HomeWizard: negatief
+// vermogenW = teruglevering). Op true draait alleen de richting-interpretatie om
+// voor meters die teruglevering positief doorgeven; de getoonde absolute waarde
+// blijft gelijk. Fallback false zodat users zonder de vlag niet breken.
+const HOMEWIZARD_VERMOGEN_INVERTEREN = window.CONFIG.homewizardVermogenInverteren === true;
+
 const SOLAR_SOURCES = [
   { name: 'SolarEdge', type: 'solaredge' },
   // { name: 'Growatt', type: 'growatt' },

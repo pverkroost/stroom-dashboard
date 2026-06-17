@@ -237,7 +237,7 @@
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.75.0</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.75.1</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -275,11 +275,11 @@
   // APP_VERSION = single source voor de versie-stamp en cache-bust querystrings.
   // js/bootstrap.js gebruikt dit om de user-config + app-modules met `?v=` te laden
   // (vroeger statische script-tags). Het moet vóór bootstrap.js gezet worden.
-  window.APP_VERSION = '2.75.0';
+  window.APP_VERSION = '2.75.1';
 </script>
 <!-- bootstrap.js bepaalt de gebruiker (echte sessie via /api/auth?action=me, of legacy ?u=)
      en laadt daarna pas users/<id>.js + js/config|solar|prijzen|apparaten|app.js.
      Zonder geldige sessie toont het de #loginOverlay hierboven. -->
-<script src="js/bootstrap.js?v=2.75.0"></script>
+<script src="js/bootstrap.js?v=2.75.1"></script>
 </body>
 </html>

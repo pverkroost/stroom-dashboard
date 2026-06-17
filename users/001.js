@@ -10,6 +10,11 @@
       homeConnect: true,
       homewizard:  true,
     },
+    // HomeWizard P1 teken-conventie. Default false = standaard HomeWizard:
+    // negatief vermogenW = teruglevering, positief = verbruik uit het net. Zet op
+    // true als jouw meter teruglevering juist positief doorgeeft (omkeert alleen
+    // de richting-interpretatie, niet de getoonde absolute waarde).
+    homewizardVermogenInverteren: false,
     tarieven: {
       opslag:            0.02508, // € per kWh excl. btw (jaarnota 2025/2026)
       eb:                0.11618, // energiebelasting € per kWh excl. btw (gewogen gem. jaarnota 2025/2026)

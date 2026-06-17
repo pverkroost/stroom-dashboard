@@ -92,7 +92,8 @@ async function fetchHomeWizard() {
 
 // Tegel "Live verbruik": positief vermogenW = verbruik uit het net, negatief =
 // teruglevering (groen). Gegate op heeftIntegratie('homewizard') zodat users
-// zonder P1 (bv. 002) de tegel niet zien.
+// zonder P1 (bv. 002) de tegel niet zien. De teken-conventie is omkeerbaar via
+// HOMEWIZARD_VERMOGEN_INVERTEREN (zelfde normalisatie als de statusregel).
 function renderHomeWizard() {
   const sectie = document.getElementById('zonLiveVerbruikSection');
   if (!sectie) return;
@@ -110,9 +111,9 @@ function renderHomeWizard() {
     return;
   }
 
-  const w           = homewizardLive.vermogenW;
-  const teruglevert = w < 0;
-  const watt        = Math.abs(Math.round(w));
+  const nettoW      = HOMEWIZARD_VERMOGEN_INVERTEREN ? -homewizardLive.vermogenW : homewizardLive.vermogenW;
+  const teruglevert = nettoW < 0;
+  const watt        = Math.abs(Math.round(nettoW));
   valEl.innerHTML   = `${teruglevert ? 'Teruglevering' : 'Verbruik'}: ${watt} <small style="font-size:13px;color:var(--muted);font-weight:400">W</small>`;
   valEl.style.color = teruglevert ? '#3b6d11' : '';
 
@@ -349,19 +350,25 @@ function renderTerugleverAdvies() {
   // dus homewizardLive is óf een geldig object óf null.
   const vermogenW = (homewizardLive && typeof homewizardLive.vermogenW === 'number')
     ? homewizardLive.vermogenW : null;
+  // Normaliseer naar de conventie "negatief = teruglevering, positief = verbruik".
+  // Sommige meters geven teruglevering juist positief door → omkeren via de
+  // config-vlag (HOMEWIZARD_VERMOGEN_INVERTEREN). Alleen de richting draait om;
+  // de getoonde absolute waarde blijft gelijk.
+  const nettoW = vermogenW === null ? null
+    : (HOMEWIZARD_VERMOGEN_INVERTEREN ? -vermogenW : vermogenW);
   const DREMPEL_W = 30; // onder deze |W| beschouwen we het net als "in balans"
 
   // ── Geen live data of net in balans → neutrale status zonder actie-advies ──
-  if (vermogenW === null || Math.abs(vermogenW) < DREMPEL_W) {
+  if (nettoW === null || Math.abs(nettoW) < DREMPEL_W) {
     el.innerHTML = card('ℹ️', 'var(--text)',
       'Geen actueel verbruik bekend',
       escapeHtml(`Huidige stroomprijs € ${verbruiksprijs.toFixed(3)}/kWh.`));
     return klaar();
   }
 
-  // ── Teruglevering: vermogenW negatief = je levert terug aan het net ──
-  if (vermogenW < 0) {
-    const kw       = (Math.abs(vermogenW) / 1000).toFixed(1);
+  // ── Teruglevering: nettoW negatief = je levert terug aan het net ──
+  if (nettoW < 0) {
+    const kw       = (Math.abs(nettoW) / 1000).toFixed(1);
     const verschil = Math.max(0, verbruiksprijs - terugprijs);
     el.innerHTML = card('☀️', '#3b6d11',
       escapeHtml(`Je levert nu ~${kw} kW terug voor € ${terugprijs.toFixed(3)}/kWh. `
@@ -370,8 +377,8 @@ function renderTerugleverAdvies() {
     return klaar();
   }
 
-  // ── Verbruik uit het net: vermogenW positief ──
-  const watt = Math.round(vermogenW);
+  // ── Verbruik uit het net: nettoW positief ──
+  const watt = Math.round(nettoW);
   // Goedkoopste komende uur (huidig + resterende uren vandaag + morgen).
   const vooruit = (typeof getPrijzenVooruit === 'function') ? getPrijzenVooruit() : [];
   let goedkoopste = null;
