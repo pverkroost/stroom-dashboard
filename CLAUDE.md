@@ -28,7 +28,8 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/auth.js` — login/logout/me samengevoegd in één function (routing via `?action=`),
     om onder de Vercel Hobby 12-functie-limiet te blijven (bcrypt + HMAC sessie-cookie).
     Sinds v2.76.0 ook `?action=schema` (GET/POST weekschema snelkaarten, tabel `user_schedule`)
-  - `api/db/migrate.js` — maakt `app_user`- en `user_schedule`-tabel in Neon (idempotent)
+  - `api/db/migrate.js` — maakt `app_user`- en `user_schedule`-tabel in Neon (idempotent).
+    Vereist `MIGRATE_SECRET` (Bearer-header of `?secret=`), anders 401 — zie *Security*
 - **Auth-libs** (root `lib/`, gedeeld door api): `lib/session.js` (HMAC encode/decode + `eq_session`-cookie),
   `lib/auth.js` (`getSession`/`requireSession` uit request-cookie).
 - **State**: laadplanningen in Upstash Redis (sleutel `laadplanning_<userId>_<apparaat>`, bv. `laadplanning_001_autophev`).
@@ -71,7 +72,8 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
   `POST /api/auth?action=schema` `{ schema: { <apSleutel>: { <dag>: 'HH:MM' } } }`
   (sessie vereist, vervangt per apparaat, rate limit 30/min/IP). Bewust op `api/auth.js`
   gehangen: geen 12e function verbruiken (#97), en de Neon-client + sessie-check zaten daar al.
-  Na deploy éénmalig `GET /api/db/migrate` aanroepen voor de nieuwe tabel.
+  Na deploy éénmalig `GET /api/db/migrate` aanroepen voor de nieuwe tabel (met `MIGRATE_SECRET`,
+  zie *Security*).
 - **Auto**: SoC is onbekend → de kaart rekent altijd met de volle `ap.uren`. "Plan in via
   Homey" opent het bestaande detailpaneel met het berekende blok voorgeselecteerd en start
   de bestaande `planInladen`-flow (pincode). De vaatwasser heeft geen aansturing: puur advies.
@@ -91,6 +93,11 @@ Gecentraliseerd in `api/_helpers.js` (gedeeld door alle endpoints):
   krijgen een `Access-Control-Allow-Origin`-header (`ALLOWED_ORIGINS`).
 - **QStash signature-verificatie**: `cronLaden` valideert binnenkomende calls via
   `@upstash/qstash` Receiver (current + next signing key).
+- **Migrate-endpoint achter token**: `GET /api/db/migrate` vereist `MIGRATE_SECRET` (env var,
+  min. 32 tekens) via `Authorization: Bearer <token>` of `?secret=<token>`; timing-safe
+  vergelijking, 401 zonder schema-info, 503 (fail-closed) als de var ontbreekt. Rate limit
+  5/min/IP + dezelfde brute-force-lockout als de pincode-endpoints. Aanroepen:
+  `curl -H "Authorization: Bearer $MIGRATE_SECRET" https://energieiq.nl/api/db/migrate`
 - **Home Connect OAuth CSRF**: `state`-nonce in Redis, éénmalig consumeerbaar in de callback.
 - **XSS**: `escapeHtml()` in `js/config.js` voor alle 3rd-party/user-data die naar `innerHTML` gaat.
 - **ESLint** geconfigureerd, 0 errors.
@@ -178,6 +185,7 @@ Alle in Settings → Environment Variables van het Vercel-project:
 | `HOMECONNECT_CLIENT_SECRET`   | Home Connect (BSH) OAuth2 client secret (gedeeld)        |
 | `DATABASE_URL`                | Neon PostgreSQL connection string (via Vercel↔Neon-integratie) |
 | `SESSION_SECRET`              | HMAC-secret voor `eq_session`-cookie — min. 32 tekens, sterk random |
+| `MIGRATE_SECRET`              | Token voor `/api/db/migrate` — min. 32 tekens, sterk random (≠ SESSION_SECRET) |
 
 **Per gebruiker (suffix = userId, bv. `_001`, `_002`):**
 

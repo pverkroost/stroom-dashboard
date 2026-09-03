@@ -61,6 +61,7 @@ In Vercel → Settings → Environment Variables:
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST |
 | `DATABASE_URL` | Neon PostgreSQL connection string (automatisch gezet door de Vercel ↔ Neon-integratie) |
 | `SESSION_SECRET` | Sterk random secret voor HMAC-ondertekening van de sessie-cookie — **minimaal 32 tekens**. Genereer met `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `MIGRATE_SECRET` | Token voor `/api/db/migrate` — **minimaal 32 tekens**, zelfde generator als `SESSION_SECRET` (maar een andere waarde). Zonder deze var weigert het endpoint (503) |
 
 ## Login / authenticatie
 Gebruikers loggen in met e-mail + wachtwoord; er wordt geen `?u=`-parameter meer
@@ -80,13 +81,19 @@ Login, logout en me zitten in één serverless function `api/auth.js` (routing v
 | `POST /api/auth?action=login` | `{ email, wachtwoord }` → zet `eq_session`-cookie (rate-limit 10/5min/IP) |
 | `POST /api/auth?action=logout` | wist de cookie |
 | `GET /api/auth?action=me` | huidige sessie `{ uid, email, userId }` of `401` |
-| `GET /api/db/migrate` | maakt de `app_user`-tabel aan (idempotent) |
+| `GET /api/db/migrate` | maakt de tabellen `app_user` + `user_schedule` aan (idempotent). **Vereist `MIGRATE_SECRET`**: `Authorization: Bearer <token>`-header of `?secret=<token>`; anders `401`. Rate-limit 5/min/IP + brute-force-lockout |
 
 Wachtwoorden worden gehasht opgeslagen (bcrypt, cost 10) in de Neon-tabel `app_user`.
 
 **Eerste keer opzetten:**
-1. Zet `DATABASE_URL` (via Vercel ↔ Neon) en `SESSION_SECRET` in Vercel → redeploy.
-2. Draai de migratie eenmalig: `curl https://energieiq.nl/api/db/migrate`.
+1. Zet `DATABASE_URL` (via Vercel ↔ Neon), `SESSION_SECRET` en `MIGRATE_SECRET` in Vercel → redeploy.
+2. Draai de migratie eenmalig, met de token uit `MIGRATE_SECRET`:
+   ```
+   curl -H "Authorization: Bearer <MIGRATE_SECRET>" https://energieiq.nl/api/db/migrate
+   ```
+   Vanuit de browser kan het ook: `https://energieiq.nl/api/db/migrate?secret=<MIGRATE_SECRET>`.
+   Verwacht antwoord: `{"success":true,"message":"Database klaar (app_user + user_schedule)"}`.
+   Bij nieuwe tabellen in een latere versie: dezelfde call nog een keer (idempotent).
 3. Maak gebruikers aan met het script (lokaal, met `DATABASE_URL` in de env):
    ```
    node scripts/create-user.mjs pieter@example.com <wachtwoord> "Pieter" 001
