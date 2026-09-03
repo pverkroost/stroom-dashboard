@@ -17,18 +17,22 @@
 - **#6** [M] "Vandaag bespaard"-widget (vereist #11)
 - **#7** [M] Inzichten-tab voor prijsdata (context ipv focus)
 - **#8** [S] Solar contextueel — alleen tonen als relevant voor de actie
-- **#9** [M] Push-notificaties "goedkoopste uur over 20 min" (vereist #15)
+- **#9** [M] Push-notificaties "goedkoopste uur over 20 min" (vereist #15) — uitgewerkt in #97 + #98
 - **#10** [M] Onboarding-uitleg API keys + contractdata in instellingen
 - **#16** [M] Meer niet-favoriete apparaten met eigen actiekaart
 - **#41** [M] Wachtwoord wijzigen in instellingen — sectie "Beveiliging" + `POST /api/changePassword` — zie details
+- **#97** [L] Push-notificaties deel 1: PWA-fundament + Web Push infra (`manifest.json`, `sw.js`, `api/push.js` met `?action=` routing, `js/push.js`, Instellingen-UI). Vereist VAPID-keys + env vars `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`/`PUSH_SECRET`. Let op Vercel 12-functielimiet (na `push.js` = 12/12). Uitwerking van #9 — zie details
+- **#98** [M] Push-notificaties deel 2: slimme trigger via Homey (P1 negatief + verliesgevende/negatieve EPEX-prijs → `api/push?action=send`) met Redis-cooldown tegen spam. Vervolg op #97
+- **#99** [M] iOS Shortcut widget-endpoint (read-only): `?action=widget` aan bestaand endpoint (NIET nieuw i.v.m. functielimiet), auth via read-only `WIDGET_TOKEN_<id>`, geeft per apparaat het goedkoopste tijdvenster terug. Bedien-acties blijven achter pincode
 
 > ⚠️ Nummer #41 botst met een afgerond item (v2.64.0, `setInterval` visibility-pauze). Overweeg te hernummeren.
 
 ### Integraties (hardware/services)
 - **#11** [L] HomeWizard P1 slimme meter — blokkeert #6 en #13
-- **#12** [S] Teruglevering stoppen bij negatieve prijs via Homey (vereist #11)
+- **#12** [S] ⏸️ GEPARKEERD — Teruglevering stoppen bij negatieve prijs: omvormer terugregelen niet haalbaar via cloud-API's (SolarEdge/Growatt vereisen lokale Modbus TCP). Alternatief: overschot opmaken via eigen apparaten + push-melding (#98). Alleen zinvol met Home Assistant/Modbus — zie details
 - **#13** [L] Growatt via Home Assistant — volwaardige dagdata
 - **#15** [M] Vercel Pro upgrade — push-notificaties + cron-precisie
+- **#96** [M] MELCloud-integratie Mitsubishi Ecodan warmtepomp — koelen/warm water op zonneoverschot via (onofficiële) MELCloud API; eerst haalbaarheid onderzoeken
 
 ### Architectuur / refactors
 - **#37** [L] Abstracte omvormer-architectuur — `omvormers[]` per user — zie details
@@ -43,13 +47,18 @@
 ### Tests & validatie
 - **#61b** [M] Test framework opzetten (Jest/Vitest) + coverage op `berekenPrijs`, `berekenGoedkoopsteBlok`, `bepaalBrandstoftype`
 - **#88** [M] ev-database JSON-schema in CI tegen typo's
+- **#95** [S] TEST (geen code): teken-test P1 overdag bij zon — teruglevering moet negatief `vermogenW` geven. Zo niet → `homewizardVermogenInverteren: true` in `users/001.js`. (Vlag al gebouwd in v2.75.1)
+
+### Docs & configuratie
+- **#93** [S] Docs: tariefverificatie-notitie in `CLAUDE.md` (Sepa Green tarieven wijzigen maandelijks, contractvoorwaarden art. 2.1.1) + salderingsregels (stroom per uur, energiebelasting per jaar). Geen versie-bump
+- **#94** [S] Veld `tarievenGeverifieerdOp: "YYYY-MM-DD"` in `users/<id>.js` + tonen in Instellingen; reminder om tarieven periodiek te verifiëren tegen mijn.sepagreen.nl
 
 ### Multi-user / commercieel
 - **#19** [XL] Multi-tenant SaaS (Clerk/Supabase auth + Redis-config per user) — zie details
 - **#39** [XL] Lemon Squeezy freemium-betaalmuur (vereist #19) — zie details
 
 ### Nice-to-have
-- Warmtepomp via API (Daikin/Mitsubishi/Nibe/Vaillant/Bosch)
+- Warmtepomp via API — uitgewerkt als #96 (Mitsubishi Ecodan via MELCloud)
 - Boiler via Homey
 - "Volledig gratis op zon"-badge als solar > apparaatverbruik
 - Geselecteerd-uur-lijn doortrekken op Morgen + Zon tab
@@ -57,13 +66,39 @@
 ### Open vragen
 - HomeWizard P1 aanschaffen? (€29, blokkeert #11 + #12)
 - Welke netbeheerder? (Enexis-portal check uitgesteld)
-- Welk merk warmtepomp?
+- Welk merk warmtepomp? → Mitsubishi Ecodan (zie #96)
 - Dakrichting/hoek panelen? (verbetert Open-Meteo nauwkeurigheid)
 - API Client (OAuth2) in Homey — weggooien of bewaren?
 - `HOMEY_TOKEN` env var — nog gebruikt of dood?
 
 
+## 🚫 BEWUST NIET BOUWEN
+
+Afgewogen en afgewezen; hier vastgelegd zodat het niet opnieuw onderzocht wordt.
+
+- **Rain Bird beregening op zonneoverschot** — afgewezen: systeem werkt op leidingdruk,
+  verwaarloosbaar verbruik, geen ROI. Heroverwegen alleen bij een beregeningspomp.
+- **Omvormer export-limiet via cloud** — niet mogelijk: SolarEdge en Growatt vereisen
+  lokale Modbus TCP, de cloud-API's zijn alleen-lezen (zie #12).
+
+
 ## 📖 DETAILS (uitgebreide context)
+
+### #12 — Teruglevering stoppen bij verlies (geparkeerd)
+Oorspronkelijk idee: bij negatieve/verliesgevende EPEX-prijs de omvormer
+terugregelen zodat er niet tegen verlies wordt teruggeleverd.
+
+**Conclusie:** niet haalbaar via de cloud-API's. SolarEdge Monitoring API en
+Growatt OpenAPI zijn alleen-lezen; een export-limiet instellen vereist lokale
+Modbus TCP op de omvormer (bv. via Home Assistant met SolarEdge Modbus /
+Growatt Modbus-integratie).
+
+**Aanbevolen alternatief:** het overschot opmaken met eigen apparaten (auto,
+wasmachine/droger, later warmtepomp #96) en een push-melding sturen zodra P1
+negatief is én de prijs verliesgevend (#98).
+
+**Status:** geparkeerd — alleen zinvol als er ooit Home Assistant/Modbus komt
+(hangt samen met #13).
 
 ### #19 — Multi-tenant SaaS
 Echte SaaS-architectuur wanneer 5+ gebruikers. Auth via Clerk of Supabase,
@@ -141,11 +176,30 @@ inline-script wordt nog toegestaan.
 Substantieel: ~50+ call-sites in `apparaten.js` alleen. Maakt de XSS-defense
 uit v2.61.0 echt waterdicht ipv best-effort.
 
+### #97 — Push-notificaties deel 1: PWA-fundament + Web Push
+Uitwerking van #9. Bestanden: `manifest.json`, `sw.js` (service worker,
+push-event → notificatie), `api/push.js` met `?action=` routing (subscribe /
+unsubscribe / send, zelfde patroon als `api/auth.js`), `js/push.js`
+(permission-flow + subscription naar backend) en een Instellingen-UI om
+meldingen aan/uit te zetten.
+
+**Vereist:** VAPID-keypair + env vars `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+`VAPID_SUBJECT` en `PUSH_SECRET` (auth voor de send-actie vanuit Homey).
+Subscriptions per user in Redis.
+
+**Let op:** Vercel Hobby staat 12 serverless functions toe; na `api/push.js`
+zit het project op 12/12. Elk volgend endpoint moet dus als `?action=` op een
+bestaande function (zie ook #99).
+
+Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
+
 
 ## ✅ AFGEROND
 
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
+
+**v2.75.2** — #92 dode functie toUurRanges verwijderd uit solar.js (508ce9b)
 
 **v2.73.0** — Slim inplannen wasmachine/droger
 - **#91** QStash-planning wasmachine/droger via Home Connect op het goedkoopste
