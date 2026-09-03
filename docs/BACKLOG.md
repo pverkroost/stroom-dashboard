@@ -14,7 +14,7 @@
 - **#72** [S] `js/config.js` schema-validatie van `window.CONFIG`
 
 ### Nieuwe features
-- **#6** [M] "Vandaag bespaard"-widget (vereist #11)
+- **#6** [M] "Vandaag bespaard"-widget (vereist #11 — afgerond in v2.74.0)
 - **#7** [M] Inzichten-tab voor prijsdata (context ipv focus)
 - **#8** [S] Solar contextueel — alleen tonen als relevant voor de actie
 - **#9** [M] Push-notificaties "goedkoopste uur over 20 min" (vereist #15) — uitgewerkt in #97 + #98
@@ -28,7 +28,6 @@
 > ⚠️ Nummer #41 botst met een afgerond item (v2.64.0, `setInterval` visibility-pauze). Overweeg te hernummeren.
 
 ### Integraties (hardware/services)
-- **#11** [L] HomeWizard P1 slimme meter — blokkeert #6 en #13
 - **#12** [S] ⏸️ GEPARKEERD — Teruglevering stoppen bij negatieve prijs: omvormer terugregelen niet haalbaar via cloud-API's (SolarEdge/Growatt vereisen lokale Modbus TCP). Alternatief: overschot opmaken via eigen apparaten + push-melding (#98). Alleen zinvol met Home Assistant/Modbus — zie details
 - **#13** [L] Growatt via Home Assistant — volwaardige dagdata
 - **#15** [M] Vercel Pro upgrade — push-notificaties + cron-precisie
@@ -64,7 +63,7 @@
 - Geselecteerd-uur-lijn doortrekken op Morgen + Zon tab
 
 ### Open vragen
-- HomeWizard P1 aanschaffen? (€29, blokkeert #11 + #12)
+- ~~HomeWizard P1 aanschaffen?~~ → beantwoord: aangeschaft en geïntegreerd (#11, v2.74.0)
 - Welke netbeheerder? (Enexis-portal check uitgesteld)
 - Welk merk warmtepomp? → Mitsubishi Ecodan (zie #96)
 - Dakrichting/hoek panelen? (verbetert Open-Meteo nauwkeurigheid)
@@ -200,6 +199,16 @@ Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
 **v2.75.2** — #92 dode functie toUurRanges verwijderd uit solar.js (508ce9b)
+
+**v2.75.1** — omkeerbare P1-vermogen teken-interpretatie via config-vlag `homewizardVermogenInverteren`
+
+**v2.75.0** — adaptieve teruglever/verbruik-statusregel op Zon-tab o.b.v. live P1 (verving de 3 losse "zelf verbruiken"-blokken)
+
+**v2.74.1** — login/logout/me samengevoegd tot `api/auth.js` i.v.m. Vercel Hobby 12-functielimiet
+
+**v2.74.0** — HomeWizard P1
+- **#11** HomeWizard P1 live verbruik/teruglevering via Homey-push naar Redis
+  (`api/homewizard.js`, Zon-tab live-tegel) (7ae80f6)
 
 **v2.73.0** — Slim inplannen wasmachine/droger
 - **#91** QStash-planning wasmachine/droger via Home Connect op het goedkoopste
