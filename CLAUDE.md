@@ -15,7 +15,9 @@ Bij elke aanpassing aan `index.html` of de bijbehorende `js/`/`css/` bestanden:
 Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke commit message die beschrijft wat er gewijzigd is. Vercel deployt automatisch vanuit `main`.
 
 ## Architectuur
-- **Frontend**: vanilla JS + Chart.js, geserveerd vanuit de repo-root (`index.html`, `css/`, `js/`)
+- **Frontend**: vanilla JS + Chart.js, geserveerd vanuit de repo-root (`index.html`, `css/`, `js/`).
+  PWA-basis sinds v2.76.2: `manifest.json` + `icons/` (standalone homescreen-app, opent op de
+  hoofdtab). Bewust geen service worker — offline/push komt met backlog #97.
 - **Backend**: serverless functies in `api/` (Vercel)
   - `api/growatt.js` — Growatt OpenAPI plant data
   - `api/solaredge.js` — SolarEdge Monitoring API (overview/power/energy)

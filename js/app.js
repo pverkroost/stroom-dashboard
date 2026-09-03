@@ -289,6 +289,29 @@ document.addEventListener('visibilitychange', () => {
     laadPrijzen().then(_markRefresh);
   }
 });
+
+// ── Startgedrag (homescreen-PWA) ──────────────────────────────────────────
+// De app start altijd op de hoofdtab: index.html toont #mainContent en tab-0
+// standaard en er wordt géén laatst-actieve tab onthouden. Twee aanvullingen
+// zodat de snelkaarten ("Nu bij het apparaat") ook echt als eerste in beeld
+// staan:
+//  1. Bij laden naar boven scrollen — browsers herstellen anders de vorige
+//     scrollpositie bij een reload.
+//  2. Een standalone-app op iOS wordt vaak niet herladen maar hervat. Komt de
+//     app na ≥ 30 min achtergrond terug op de Zon-/Instellingen-tab, dan springen
+//     we terug naar de hoofdtab (tenzij het detailpaneel open staat).
+const _TERUG_NAAR_HOOFDTAB_MS = 30 * 60 * 1000;
+let _verborgenSinds = 0;
+try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch {}
+window.scrollTo(0, 0);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { _verborgenSinds = Date.now(); return; }
+  const langWeg = _verborgenSinds && Date.now() - _verborgenSinds >= _TERUG_NAAR_HOOFDTAB_MS;
+  _verborgenSinds = 0;
+  if (!langWeg || apDetailState) return;
+  if (isZonTab || isInstTab) switchTab(0);
+  window.scrollTo(0, 0);
+});
 refreshOmvormerCapaciteit().then(veranderd => { if (veranderd) laadPrijzen().then(_markRefresh); });
 
 // Eenmalige feedback na de Home Connect OAuth-redirect (?homeconnect=...).

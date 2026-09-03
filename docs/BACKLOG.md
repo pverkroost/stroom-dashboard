@@ -198,6 +198,13 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.76.2** — Homescreen-PWA opent op de snelkaarten
+- PWA-basis: `manifest.json` (standalone, start_url `/`, groen thema) + iconen 192/512/180
+  in `icons/`, gelinkt in `index.html` naast de bestaande iOS-meta-tags. Geen service
+  worker (komt met #97). App start altijd op de hoofdtab en scrollt naar boven; na ≥ 30 min
+  achtergrond springt een hervatte app terug naar de hoofdtab zodat "Nu bij het apparaat"
+  direct in beeld staat.
+
 **v2.76.1** — Snelkaarten vereenvoudigd
 - **#101** Snelkaarten "Nu bij het apparaat" glanceable gemaakt: aanzettijd ("Nu" / "HH:MM")
   is het grote element, bedrag/zon-%/tijdvenster weg, deadline alleen nog als kleine
