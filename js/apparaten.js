@@ -189,6 +189,61 @@ function berekenGoedkoopsteBlok(uren, vermogenKw, prijzenLijst) {
   };
 }
 
+// "HH:MM" → Date: vandaag, of morgen als dat tijdstip al voorbij is. Gedeeld door
+// de vertrekplanner (herbereken), Home Connect (hcGoedkoopsteBlok) en de
+// snelkaart-overrule. null bij een onbruikbare waarde.
+function deadlineVanHHMM(hhmm) {
+  if (!hhmm || typeof hhmm !== 'string') return null;
+  const [h, m] = hhmm.split(':').map(Number);
+  if (Number.isNaN(h)) return null;
+  const d = getTodayStart(); d.setHours(h, m || 0, 0, 0);
+  if (d <= new Date()) d.setDate(d.getDate() + 1);
+  return d;
+}
+
+// Gedeelde deadline-helper (v2.76.0): goedkoopste blok dat vóór `deadline` (Date)
+// klaar is. Vervangt de gedupliceerde filter-logica in herbereken() en
+// hcGoedkoopsteBlok() en voedt de snelkaarten (js/weekschema.js).
+//  - uren/vermogenKw: bloklengte (Math.ceil) en vermogen — de caller bepaalt of
+//    dat de volle ap.uren is (snelkaart, Home Connect) of de rest-laadtijd uit de
+//    batterij-slider (vertrekplanner).
+//  - prijzenLijst: getPrijzenVooruit() — uur-slots vanaf het huidige uur.
+// Resultaat: { haalbaar:false, wachtOpMorgen } of
+//   { haalbaar:true, startIndex, startTijd, eindTijd, kosten (effectief, met zon),
+//     kostenNetto, besparing (t.o.v. nu starten), aantalBlok, wachtOpMorgen }.
+// wachtOpMorgen = deadline ligt voorbij de bekende prijzen én morgen-prijzen zijn
+// nog niet binnen (vóór ~14:00) — de UI toont dan "wacht op morgen-prijzen".
+function berekenBlokVoorDeadline(uren, vermogenKw, deadline, prijzenLijst) {
+  if (!prijzenLijst || !prijzenLijst.length) return { haalbaar: false, wachtOpMorgen: !cacheMorgen };
+  if (!(deadline instanceof Date) || Number.isNaN(deadline.getTime())) return { haalbaar: false, wachtOpMorgen: false };
+  const aantalBlok  = Math.ceil(uren);
+  const deadlineMs  = deadline.getTime();
+  const horizonEind = prijzenLijst[prijzenLijst.length - 1].tijd.getTime() + 3600000;
+  const wachtOpMorgen = !cacheMorgen && deadlineMs > horizonEind;
+
+  // Laatste startpositie waarvandaan het hele blok vóór de deadline eindigt.
+  let lastValidIdx = -1;
+  prijzenLijst.forEach((p, i) => {
+    if (p.tijd.getTime() + aantalBlok * 3600000 <= deadlineMs) lastValidIdx = i;
+  });
+  if (lastValidIdx < 0) return { haalbaar: false, wachtOpMorgen };
+
+  const gefilterd = prijzenLijst.slice(0, lastValidIdx + aantalBlok);
+  const res = berekenGoedkoopsteBlok(uren, vermogenKw, gefilterd);
+  if (!res) return { haalbaar: false, wachtOpMorgen };
+
+  const eindTijd = new Date(res.startTijd.getTime() + aantalBlok * 3600000);
+  const kosten   = effectieveKosten(uren, vermogenKw, gefilterd, res.startIndex) ?? res.kosten;
+  const kostenNu = effectieveKosten(uren, vermogenKw, prijzenLijst, 0, true)
+                 ?? berekenKostenVanaf(uren, vermogenKw, prijzenLijst, 0, true);
+  const besparing = (res.startIndex > 0 && kostenNu != null) ? Math.max(0, kostenNu - kosten) : 0;
+  return {
+    haalbaar: true, wachtOpMorgen,
+    startIndex: res.startIndex, startTijd: res.startTijd, eindTijd,
+    kosten, kostenNetto: res.kosten, besparing, aantalBlok,
+  };
+}
+
 // Zoek aaneengesloten was+droog blok met laagste gecombineerde effectieve prijs
 function berekenComboBlok(uren1, kw1, uren2, kw2, prijzenLijst) {
   const totaal = uren1 + uren2;
@@ -327,6 +382,8 @@ function sluitApDetail() {
   document.body.style.overflow = '';
   wisCachedPlanPin(); // verlaat-detail = einde "sessie" voor de plain pincode
   apDetailState = null;
+  // Snelkaarten (js/weekschema.js): planningsstatus op de auto-kaart verversen.
+  if (typeof snelkaartNaDetailSluiten === 'function') snelkaartNaDetailSluiten();
 }
 
 // Pincode-cache TTL: 5min na laatste set. Voorkomt dat een tab die open blijft
@@ -908,26 +965,19 @@ function hcGoedkoopsteBlok(ap, klaarOmHHMM) {
   if (!planUren || !planUren.length) return null;
   const uren = ap.uren || 2;
   const kw   = ap.vermogen || 1.5;
-  let gefilterd = planUren;
 
-  if (klaarOmHHMM) {
-    const [h, m] = klaarOmHHMM.split(':').map(Number);
-    if (!Number.isNaN(h)) {
-      const deadline = getTodayStart(); deadline.setHours(h, m || 0, 0, 0);
-      if (deadline <= new Date()) deadline.setDate(deadline.getDate() + 1);
-      const aantalBlok = Math.ceil(uren);
-      let lastValidIdx = -1;
-      planUren.forEach((p, i) => {
-        if (new Date(p.tijd.getTime() + aantalBlok * 3600000) <= deadline) lastValidIdx = i;
-      });
-      if (lastValidIdx < 0) return { geenMoment: true };
-      gefilterd = planUren.slice(0, lastValidIdx + aantalBlok);
-    }
+  // Met deadline: gedeelde helper (zelfde filter als de vertrekplanner).
+  const deadline = deadlineVanHHMM(klaarOmHHMM);
+  if (deadline) {
+    const b = berekenBlokVoorDeadline(uren, kw, deadline, planUren);
+    if (!b.haalbaar) return { geenMoment: true };
+    return { startTijd: b.startTijd, eindDatum: b.eindTijd, kosten: b.kosten };
   }
 
-  const res = berekenGoedkoopsteBlok(uren, kw, gefilterd);
+  // Zonder (bruikbare) deadline: absolute goedkoopste blok over alle planUren.
+  const res = berekenGoedkoopsteBlok(uren, kw, planUren);
   if (!res) return { geenMoment: true };
-  const eff = effectieveKosten(uren, kw, gefilterd, res.startIndex) ?? res.kosten;
+  const eff = effectieveKosten(uren, kw, planUren, res.startIndex) ?? res.kosten;
   return { startTijd: res.startTijd, eindDatum: res.eindDatum, kosten: eff };
 }
 
@@ -1498,32 +1548,17 @@ function herbereken() {
     return;
   }
 
-  // Vertrekmoment: vandaag, of morgen als het uur al voorbij is
-  const [uurV, minV] = tijdEl.value.split(':').map(Number);
-  const vertrekDatum = getTodayStart(); vertrekDatum.setHours(uurV, minV, 0, 0);
-  if (vertrekDatum <= new Date()) vertrekDatum.setDate(vertrekDatum.getDate() + 1);
-
-  // Laatste startpositie waarvandaan het hele blok vóór vertrek eindigt
-  let lastValidIdx = -1;
-  planUren.forEach((p, i) => {
-    const eind = new Date(p.tijd.getTime() + aantalBlok * 3600000);
-    if (eind <= vertrekDatum) lastValidIdx = i;
-  });
-
-  if (lastValidIdx < 0 || lastValidIdx + aantalBlok > planUren.length) {
-    resultEl.innerHTML = '<div class="advies-status later" style="margin-top:0">⚠️ Geen geschikt moment beschikbaar vóór ' + tijdEl.value + '</div>';
+  // Vertrekmoment: vandaag, of morgen als het uur al voorbij is. Blok-zoektocht
+  // via de gedeelde deadline-helper (zelfde logica als Home Connect + snelkaarten).
+  const vertrekDatum = deadlineVanHHMM(tijdEl.value);
+  const res = vertrekDatum ? berekenBlokVoorDeadline(berekendeUren, ap.vermogen, vertrekDatum, planUren) : { haalbaar: false };
+  if (!res.haalbaar) {
+    resultEl.innerHTML = '<div class="advies-status later" style="margin-top:0">⚠️ Geen geschikt moment beschikbaar vóór ' + escapeHtml(tijdEl.value) + '</div>';
     return;
   }
 
-  const gefilterd = planUren.slice(0, lastValidIdx + aantalBlok);
-  const res = berekenGoedkoopsteBlok(berekendeUren, ap.vermogen, gefilterd);
-  if (!res) {
-    resultEl.innerHTML = '<div class="advies-status later" style="margin-top:0">⚠️ Geen geschikt moment gevonden</div>';
-    return;
-  }
-
-  const eindDat  = new Date(new Date(res.startTijd).getTime() + aantalBlok * 3600000);
-  const effVP    = effectieveKosten(berekendeUren, ap.vermogen, gefilterd, res.startIndex) ?? res.kosten;
+  const eindDat  = res.eindTijd;
+  const effVP    = res.kosten;
   const dekVPPct = Math.round(gemSolarDekking(res.startIndex, aantalBlok, ap.vermogen, planUren) * 100);
   apDetailState._vertrekAdviesIdx = res.startIndex;
 
@@ -1887,6 +1922,10 @@ async function bevestigPincode() {
 function renderLaadadvies() {
   const container     = document.getElementById('laadadviesContainer');
   const containerMeer = document.getElementById('meerApparatenContainer');
+
+  // Snelkaarten (js/weekschema.js) draaien mee op elk render-moment van dit
+  // overzicht: updateApparaatKaarten, laadPrijzen en de hoofdtak van switchTab.
+  if (typeof renderSnelkaarten === 'function') renderSnelkaarten();
 
   const titleEl = document.getElementById('laadadviesTitle');
   if (titleEl) titleEl.textContent = 'Slim inplannen';

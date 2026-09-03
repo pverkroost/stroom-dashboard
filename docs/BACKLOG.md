@@ -198,6 +198,16 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.76.0** — Weekschema-snelkaarten
+- **#100** Twee snelkaarten bovenaan de hoofdtab (vaatwasser "klaar om", auto "vertrek om"):
+  aanbevolen startmoment o.b.v. een vast weekschema per weekdag, met kosten/zon/besparing,
+  sessie-overrule van de deadline en (auto) de bestaande inplan-actie via Homey. Weekschema
+  in Neon (`user_schedule`, `GET/POST /api/auth?action=schema`, migratie in `api/db/migrate.js`)
+  + beheer in Instellingen → Weekschema; defaults per apparaat in `users/<id>.js`.
+  Refactor: gedeelde `berekenBlokVoorDeadline()` + `deadlineVanHHMM()` vervangen de
+  gedupliceerde deadline-logica in `herbereken()` en `hcGoedkoopsteBlok()`.
+  Nieuw bestand `js/weekschema.js`. Geen bestaand open item dekte dit.
+
 **v2.75.2** — #92 dode functie toUurRanges verwijderd uit solar.js (508ce9b)
 
 **v2.75.1** — omkeerbare P1-vermogen teken-interpretatie via config-vlag `homewizardVermogenInverteren`

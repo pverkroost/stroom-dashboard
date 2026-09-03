@@ -87,6 +87,23 @@ body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif; ba
 .tarief-key { color:var(--muted); }
 
 .advies-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+/* Snelkaarten (weekschema-gestuurd advies bovenaan de hoofdtab, v2.76.0) — hergebruikt .card */
+.snelkaart-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.snelkaart { display:flex; flex-direction:column; gap:3px; }
+.snelkaart .card-val { font-size:16px; line-height:1.25; }
+.snelkaart .card-val.nu { color:#27500a; }
+.snelkaart-link { font-size:11px; color:var(--green); background:none; border:none; padding:0; cursor:pointer; font-family:inherit; text-decoration:underline; align-self:flex-start; }
+.snelkaart-overrule { display:flex; align-items:center; gap:6px; margin-top:4px; }
+.snelkaart-overrule input[type=time] { flex:1; min-width:0; padding:6px 8px; border-radius:8px; border:1px solid var(--border); font-size:14px; background:var(--card); color:var(--text); font-family:inherit; box-sizing:border-box; }
+.snelkaart-btn { margin-top:6px; width:100%; padding:8px; border-radius:8px; border:none; background:var(--green); color:white; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
+.snelkaart-btn.wit { background:var(--card); color:var(--green); border:1.5px solid var(--green); }
+.snelkaart-info { font-size:10px; color:var(--muted); line-height:1.35; }
+.weekschema-tabel { width:100%; border-collapse:collapse; font-size:13px; }
+.weekschema-tabel th { font-size:10px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.4px; padding:8px 6px; text-align:left; border-bottom:0.5px solid var(--border); }
+.weekschema-tabel td { padding:5px 6px; border-bottom:0.5px solid var(--border); }
+.weekschema-tabel tr:last-child td { border-bottom:none; }
+.weekschema-tabel input[type=time] { width:100%; min-width:0; padding:6px 6px; border-radius:8px; border:1px solid var(--border); font-size:14px; background:var(--card); color:var(--text); font-family:inherit; box-sizing:border-box; }
 .advies-card { background:var(--card); border-radius:var(--radius); padding:12px 14px; box-shadow:0 2px 12px rgba(0,0,0,0.06); cursor:pointer; }
 .advies-device-icon { font-size:18px; line-height:1; margin-bottom:4px; }
 .advies-device-naam { font-size:11px; font-weight:600; color:var(--text); margin-bottom:2px; line-height:1.3; }

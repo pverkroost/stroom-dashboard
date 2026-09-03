@@ -26,14 +26,16 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/planLaden.js` — plant laad-actie via QStash (publishJSON met delay)
   - `api/cronLaden.js` — wordt door QStash aangeroepen om Homey-webhook te triggeren
   - `api/auth.js` — login/logout/me samengevoegd in één function (routing via `?action=`),
-    om onder de Vercel Hobby 12-functie-limiet te blijven (bcrypt + HMAC sessie-cookie)
-  - `api/db/migrate.js` — maakt `app_user`-tabel in Neon (idempotent)
+    om onder de Vercel Hobby 12-functie-limiet te blijven (bcrypt + HMAC sessie-cookie).
+    Sinds v2.76.0 ook `?action=schema` (GET/POST weekschema snelkaarten, tabel `user_schedule`)
+  - `api/db/migrate.js` — maakt `app_user`- en `user_schedule`-tabel in Neon (idempotent)
 - **Auth-libs** (root `lib/`, gedeeld door api): `lib/session.js` (HMAC encode/decode + `eq_session`-cookie),
   `lib/auth.js` (`getSession`/`requireSession` uit request-cookie).
 - **State**: laadplanningen in Upstash Redis (sleutel `laadplanning_<userId>_<apparaat>`, bv. `laadplanning_001_autophev`).
   Home Connect-tokens in `homeconnect_tokens_<userId>`, OAuth state-nonces in `homeconnect_state_<state>`.
   HomeWizard P1 live meetwaarde in `homewizard_<userId>` (`{ vermogenW, importKwh?, exportKwh?, updatedAt }`, TTL 600s).
   Gebruikers (email + bcrypt-hash + userId) in Neon PostgreSQL tabel `app_user`.
+  Weekschema snelkaarten in Neon tabel `user_schedule` (user_id, apparaat_key, dag 0-6, tijd 'HH:MM').
 
 ## Auth (sinds v2.72.0)
 Echte login met e-mail + wachtwoord i.p.v. de rauwe `?u=`-parameter. Login, logout
@@ -51,6 +53,32 @@ Wachtwoorden: bcrypt (cost 10) in Neon-tabel `app_user`. Nieuwe gebruiker:
 enumeratie) + timing-egalisatie met dummy bcrypt-compare. Uitloggen via knop in de
 Instellingen-tab → `POST /api/auth?action=logout` (wist `eq_session`). `SESSION_SECRET`
 env var vereist (min. 32 tekens).
+
+## Weekschema-snelkaarten (sinds v2.76.0)
+Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per apparaat met
+`snelkaart: true` in `users/<id>.js` een kaart die direct het aanbevolen startmoment toont
+("Zet nu aan" / "Zet aan om HH:MM") o.b.v. een deadline uit een vast weekschema
+(`deadlineLabel`: "klaar om" voor de vaatwasser, "vertrek om" voor de auto).
+- **Code**: `js/weekschema.js` (kaarten, overrule, beheer in Instellingen) + gedeelde helper
+  `berekenBlokVoorDeadline(uren, kW, deadlineDate, planUren)` en `deadlineVanHHMM()` in
+  `js/apparaten.js`. Die helper vervangt de vroeger gedupliceerde deadline-filtering in
+  `herbereken()` (vertrekplanner) en `hcGoedkoopsteBlok()` (Home Connect).
+- **Defaults**: per apparaat `weekschema: { ma:'07:00', …, zo:'09:00' }` in `users/<id>.js`.
+  Opgeslagen waarden uit Neon gaan daar overheen; de server kent de defaults niet
+  (`bron: 'default'` = niets opgeslagen → frontend gebruikt config).
+- **Opslag**: tabel `user_schedule` (één rij per user/apparaat/dag, dag = JS `getDay()`,
+  0 = zondag). `GET /api/auth?action=schema` (userId via sessie of `?u=`) en
+  `POST /api/auth?action=schema` `{ schema: { <apSleutel>: { <dag>: 'HH:MM' } } }`
+  (sessie vereist, vervangt per apparaat, rate limit 30/min/IP). Bewust op `api/auth.js`
+  gehangen: geen 12e function verbruiken (#97), en de Neon-client + sessie-check zaten daar al.
+  Na deploy éénmalig `GET /api/db/migrate` aanroepen voor de nieuwe tabel.
+- **Auto**: SoC is onbekend → de kaart rekent altijd met de volle `ap.uren`. "Plan in via
+  Homey" opent het bestaande detailpaneel met het berekende blok voorgeselecteerd en start
+  de bestaande `planInladen`-flow (pincode). De vaatwasser heeft geen aansturing: puur advies.
+- **Overrule**: "andere tijd voor nu" op de kaart wijzigt alleen de deadline in deze sessie
+  (`_snelkaartOverride`), niet het opgeslagen weekschema.
+- **Randgeval**: deadline voorbij de bekende prijzen terwijl morgen-prijzen nog niet binnen
+  zijn (vóór ~14:00) → "Wacht op morgen-prijzen" (helper geeft `wachtOpMorgen: true`).
 
 ## Security
 Gecentraliseerd in `api/_helpers.js` (gedeeld door alle endpoints):

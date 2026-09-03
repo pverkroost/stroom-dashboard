@@ -29,6 +29,13 @@
 </div>
 
 <div id="mainContent">
+  <!-- Snelkaarten: aanbevolen startmoment o.b.v. weekschema-deadline (js/weekschema.js).
+       Verborgen als geen apparaat in users/<id>.js `snelkaart: true` heeft. -->
+  <div class="section" id="snelkaartSection" style="display:none">
+    <div class="section-title">Nu bij het apparaat</div>
+    <div id="snelkaartContainer"></div>
+  </div>
+
   <div class="section" id="laadadviesSection">
     <div class="section-title" id="laadadviesTitle">Slim inplannen · vandaag</div>
     <div id="laadadviesContainer"></div>
@@ -189,6 +196,14 @@
   </div>
 
   <div class="section">
+    <div class="section-title">Weekschema</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Deadline per weekdag voor de snelkaarten bovenaan de app</div>
+    <div class="tarief-card" id="weekschemaCard">
+      <div class="tarief-row"><span class="tarief-key" style="color:var(--muted)">Laden…</span></div>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-title">Home Connect</div>
     <div class="tarief-card" id="homeConnectCard">
       <div class="tarief-row"><span class="tarief-key" style="color:var(--muted)">Laden…</span></div>
@@ -237,7 +252,7 @@
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.75.2</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.76.0</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -275,11 +290,11 @@
   // APP_VERSION = single source voor de versie-stamp en cache-bust querystrings.
   // js/bootstrap.js gebruikt dit om de user-config + app-modules met `?v=` te laden
   // (vroeger statische script-tags). Het moet vóór bootstrap.js gezet worden.
-  window.APP_VERSION = '2.75.2';
+  window.APP_VERSION = '2.76.0';
 </script>
 <!-- bootstrap.js bepaalt de gebruiker (echte sessie via /api/auth?action=me, of legacy ?u=)
      en laadt daarna pas users/<id>.js + js/config|solar|prijzen|apparaten|app.js.
      Zonder geldige sessie toont het de #loginOverlay hierboven. -->
-<script src="js/bootstrap.js?v=2.75.2"></script>
+<script src="js/bootstrap.js?v=2.76.0"></script>
 </body>
 </html>

@@ -225,6 +225,14 @@ async function laadKilowattCount() {
 // uren/vermogen heeft voor laadberekeningen
 pasAutoConfigToe(leesAutoConfig());
 
+// Weekschema (snelkaarten) uit Neon ophalen. Tot het binnen is rekenen de
+// snelkaarten met de defaults uit users/<id>.js; daarna één rerender.
+if (typeof laadWeekschema === 'function') {
+  laadWeekschema().then(() => {
+    if (!isZonTab && !isInstTab && typeof renderSnelkaarten === 'function') renderSnelkaarten();
+  });
+}
+
 // Overschrijf SolarEdge piekKw met de waarde uit /details (single source of
 // truth = SolarEdge zelf). Eerst synchroon uit localStorage zodat de eerste
 // render direct goed is; dan async vers ophalen en bij verandering opnieuw
@@ -452,6 +460,7 @@ function renderInstellingen() {
     zpCard.innerHTML = rows.join('');
   }
   if (typeof renderApparatenInstellingen === 'function') renderApparatenInstellingen();
+  if (typeof renderWeekschemaInstellingen === 'function') renderWeekschemaInstellingen();
   if (typeof renderHomeConnect === 'function') renderHomeConnect();
   const gebruikerEl = document.getElementById('instGebruiker');
   const versieEl    = document.getElementById('instVersie');
