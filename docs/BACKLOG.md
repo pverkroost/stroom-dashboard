@@ -198,6 +198,12 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.76.1** — Snelkaarten vereenvoudigd
+- **#101** Snelkaarten "Nu bij het apparaat" glanceable gemaakt: aanzettijd ("Nu" / "HH:MM")
+  is het grote element, bedrag/zon-%/tijdvenster weg, deadline alleen nog als kleine
+  subregel. Functies ongewijzigd (Plan in via Homey, overrule, wacht-op-morgen, niet-aangestuurd).
+  De "Slim inplannen"-kaarten houden hun detail.
+
 **v2.76.0** — Weekschema-snelkaarten
 - **#100** Twee snelkaarten bovenaan de hoofdtab (vaatwasser "klaar om", auto "vertrek om"):
   aanbevolen startmoment o.b.v. een vast weekschema per weekdag, met kosten/zon/besparing,

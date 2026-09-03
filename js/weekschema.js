@@ -141,8 +141,6 @@ function _dagContext(datum, offset) {
   return naam;
 }
 
-function _fmtEuro(n) { return '€ ' + (Math.round(n * 100) / 100).toFixed(2); }
-
 // ── Planning-status (alleen aanstuurbare apparaten, bv. auto) ───────────────
 function _snelkaartKanAansturen(ap) {
   return !!ap.automatisering && heeftIntegratie('homey');
@@ -193,28 +191,33 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
   const kanSturen  = _snelkaartKanAansturen(ap);
   const isLaden    = ap.type === 'laden';
   const kop        = '<div class="card-label">' + icon + ' ' + naam + '</div>';
-  const open       = (kind, tekst) => '<div class="card snelkaart" onclick="openApDetail(' + apIdx + ')" style="cursor:pointer">' + kop + '<div class="card-val" style="font-size:14px;color:var(--muted)">' + tekst + '</div>' + (kind ? '<div class="snelkaart-info">' + kind + '</div>' : '') + '</div>';
+  const kaart      = inhoud => '<div class="card snelkaart" onclick="openApDetail(' + apIdx + ')" style="cursor:pointer">' + kop + inhoud + '</div>';
+  const stil       = tekst => '<div class="snelkaart-status">' + tekst + '</div>';
 
   // Auto zonder kenteken/specs → zelfde call-to-action als het overzicht.
   if (ap.batterij === true && (!apIsBruikbaar(ap) || !ap.autoInfo?.kenteken)) {
-    return open('Tik om je auto toe te voegen', 'Voeg je auto toe');
+    return kaart(stil('Voeg je auto toe') + '<div class="snelkaart-info">Tik om je auto toe te voegen</div>');
   }
-  if (!apIsBruikbaar(ap)) return open('', 'Geen vermogen/duur bekend');
+  if (!apIsBruikbaar(ap)) return kaart(stil('Geen vermogen/duur bekend'));
 
-  const aantalBlok  = Math.ceil(ap.uren);
-  const schema      = weekschemaVoor(ap);
-  const override    = _snelkaartOverride[key] || null;
-  const dl          = override ? deadlineVanOverride(override, aantalBlok) : volgendeDeadline(schema, aantalBlok);
+  const aantalBlok   = Math.ceil(ap.uren);
+  const schema       = weekschemaVoor(ap);
+  const override     = _snelkaartOverride[key] || null;
+  const dl           = override ? deadlineVanOverride(override, aantalBlok) : volgendeDeadline(schema, aantalBlok);
   const overruleOpen = !!_snelkaartOverruleOpen[key];
+  const verb         = isLaden ? 'Start laden' : 'Zet aan';
 
-  // Deadline-regel + overrule-bediening (gedeeld door alle takken hieronder)
-  const deadlineRegel = dl
-    ? '<div class="card-time">' + label + ' <b>' + escapeHtml(dl.tijd) + '</b> · ' + escapeHtml(_dagContext(dl.deadline, dl.offset)) +
-      (override ? ' <span style="color:#854f0b">(aangepast)</span>' : '') + '</div>'
+  // Subregel: alleen de deadline als kleine context ("klaar om 07:00"), met
+  // "morgen" ervoor als de aanzettijd pas morgen valt. Geen bedrag/zon/tijdvenster:
+  // dat detail staat in de "Slim inplannen"-kaarten en het detailpaneel.
+  const subRegel = (startMorgen) => dl
+    ? '<div class="card-time">' + (startMorgen ? 'morgen · ' : '') + label + ' ' + escapeHtml(dl.tijd) +
+      (override ? ' <span style="color:#854f0b">· aangepast</span>' : '') + '</div>'
     : '<div class="card-time">Geen tijd in weekschema — stel in via ⚙️</div>';
+
   const overruleHtml =
     '<button class="snelkaart-link" onclick="event.stopPropagation();snelkaartOverruleToggle(\'' + key + '\')">' +
-      (overruleOpen ? '▲ verberg' : (override ? '✏️ andere tijd' : '✏️ andere tijd voor nu')) + '</button>' +
+      (overruleOpen ? '▲ verberg' : '✏️ andere tijd') + '</button>' +
     (overruleOpen
       ? '<div class="snelkaart-overrule" onclick="event.stopPropagation()">' +
           '<input type="time" value="' + escapeHtml(override || (dl ? dl.tijd : '')) + '" aria-label="Afwijkende deadline" onchange="snelkaartOverrule(\'' + key + '\', this.value)">' +
@@ -222,13 +225,15 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
         '</div>'
       : '');
 
-  let kern = '', kosten = '', actie = '';
+  let kern = '', sub = '', actie = '';
   _snelkaartLaatste[key] = { res: null, deadlineTijd: dl ? dl.tijd : null };
 
   if (!dl) {
-    kern = '<div class="card-val" style="font-size:14px;color:var(--muted)">Geen deadline</div>';
+    kern = stil('Geen deadline');
+    sub  = subRegel(false);
   } else if (!planUren.length) {
-    kern = '<div class="card-val" style="font-size:14px;color:var(--muted)">Prijzen niet beschikbaar</div>';
+    kern = stil('Prijzen niet beschikbaar');
+    sub  = subRegel(false);
   } else {
     const res = berekenBlokVoorDeadline(ap.uren, ap.vermogen, dl.deadline, planUren);
     // Deadline voorbij de bekende prijzen terwijl morgen nog niet binnen is: geen
@@ -236,29 +241,18 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
     // keuze als leegKaart() in het overzicht. Overrule naar een deadline vandaag
     // geeft wél direct advies.
     if (res.wachtOpMorgen) {
-      _snelkaartLaatste[key] = { res: null, deadlineTijd: dl.tijd };
-      kern   = '<div class="card-val" style="font-size:14px;color:var(--muted)">⏳ Wacht op morgen-prijzen</div>';
-      kosten = '<div class="card-sub">rond 14:00 beschikbaar' +
-        (res.haalbaar ? '<div style="font-size:9px;margin-top:1px">tot dan goedkoopste bekende blok: ' + escapeHtml(hMStr(res.startTijd) + '–' + hMStr(res.eindTijd) + ' · ' + _fmtEuro(res.kosten)) + '</div>' : '') +
-        '</div>';
+      kern = stil('⏳ Wacht op morgen-prijzen');
+      sub  = '<div class="card-time">rond 14:00 · ' + label + ' ' + escapeHtml(dl.tijd) + '</div>';
+    } else if (res.haalbaar) {
+      _snelkaartLaatste[key] = { res, deadlineTijd: dl.tijd };
+      const nu          = res.startIndex === 0;
+      const startMorgen = res.startTijd.getTime() >= getTomorrowStart().getTime();
+      kern = '<div class="snelkaart-verb">' + verb + (nu ? '' : ' om') + '</div>' +
+             '<div class="snelkaart-tijd' + (nu ? ' nu' : '') + '">' + (nu ? 'Nu ✓' : escapeHtml(hMStr(res.startTijd))) + '</div>';
+      sub  = subRegel(startMorgen);
     } else {
-    _snelkaartLaatste[key] = { res, deadlineTijd: dl.tijd };
-    if (res.haalbaar) {
-      const nu       = res.startIndex === 0;
-      const startStr = hMStr(res.startTijd);
-      const startDag = res.startTijd.getTime() >= getTomorrowStart().getTime() ? ' (morgen)' : '';
-      const werkw    = isLaden ? (nu ? 'Start nu met laden' : 'Start laden om ' + startStr + startDag)
-                               : (nu ? 'Zet nu aan'          : 'Zet aan om ' + startStr + startDag);
-      kern = '<div class="card-val' + (nu ? ' nu' : '') + '">' + (nu ? '✓ ' : '⏰ ') + escapeHtml(werkw) + '</div>';
-      const dekPct  = Math.round(gemSolarDekking(res.startIndex, res.aantalBlok, ap.vermogen, planUren) * 100);
-      const delen   = [startStr + '–' + hMStr(res.eindTijd), _fmtEuro(res.kosten)];
-      if (dekPct > 0) delen.push('☀️ ' + dekPct + '%');
-      kosten = '<div class="card-sub">' + escapeHtml(delen.join(' · ')) +
-        (res.besparing > 0.005 ? ' · <span style="color:var(--color-text-success);font-weight:600">bespaar ' + escapeHtml(_fmtEuro(res.besparing)) + ' t.o.v. nu</span>' : '') +
-        '</div>';
-    } else {
-      kern = '<div class="card-val" style="font-size:14px;color:#a32d2d">⚠️ Geen geschikt moment vóór ' + escapeHtml(dl.tijd) + '</div>';
-    }
+      kern = stil('<span style="color:#a32d2d">⚠️ Geen moment vóór ' + escapeHtml(dl.tijd) + '</span>');
+      sub  = subRegel(false);
     }
   }
 
@@ -267,19 +261,16 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
     const pl = _snelkaartPlanning[key];
     const haalbaar = !!(_snelkaartLaatste[key].res && _snelkaartLaatste[key].res.haalbaar);
     if (pl && pl.actief && pl.startTijd) {
-      actie = '<div class="snelkaart-info"><span style="color:var(--green)">●</span> Gepland: start ' + escapeHtml(dagHMStrPlain(pl.startTijd)) + ' · klaar ' + escapeHtml(hMStr(pl.stopTijd)) + '</div>' +
+      actie = '<div class="snelkaart-info"><span style="color:var(--green)">●</span> Gepland · start ' + escapeHtml(dagHMStrPlain(pl.startTijd)) + '</div>' +
               '<button class="snelkaart-btn wit" onclick="event.stopPropagation();snelkaartPlanIn(' + apIdx + ')">Planning wijzigen</button>';
     } else if (haalbaar) {
-      actie = '<button class="snelkaart-btn" onclick="event.stopPropagation();snelkaartPlanIn(' + apIdx + ')">📅 Plan in via Homey</button>' +
-              '<div class="snelkaart-info">pincode vereist</div>';
+      actie = '<button class="snelkaart-btn" onclick="event.stopPropagation();snelkaartPlanIn(' + apIdx + ')">📅 Plan in via Homey</button>';
     }
   } else {
-    actie = '<div class="snelkaart-info">🔌 Zelf aanzetten — dit apparaat wordt niet aangestuurd</div>';
+    actie = '<div class="snelkaart-info">🔌 Zelf aanzetten</div>';
   }
 
-  return '<div class="card snelkaart" onclick="openApDetail(' + apIdx + ')" style="cursor:pointer">' +
-    kop + kern + deadlineRegel + kosten + actie + overruleHtml +
-  '</div>';
+  return kaart(kern + sub + actie + overruleHtml);
 }
 
 // Na het sluiten van het detailpaneel (sluitApDetail in js/apparaten.js): de

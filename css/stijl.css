@@ -91,8 +91,10 @@ body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif; ba
 /* Snelkaarten (weekschema-gestuurd advies bovenaan de hoofdtab, v2.76.0) — hergebruikt .card */
 .snelkaart-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .snelkaart { display:flex; flex-direction:column; gap:3px; }
-.snelkaart .card-val { font-size:16px; line-height:1.25; }
-.snelkaart .card-val.nu { color:#27500a; }
+.snelkaart-verb { font-size:12px; font-weight:500; color:var(--text); margin-top:2px; }
+.snelkaart-tijd { font-size:30px; font-weight:600; line-height:1.1; letter-spacing:-0.8px; color:var(--text); }
+.snelkaart-tijd.nu { color:#27500a; }
+.snelkaart-status { font-size:14px; font-weight:500; color:var(--muted); line-height:1.3; margin-top:4px; }
 .snelkaart-link { font-size:11px; color:var(--green); background:none; border:none; padding:0; cursor:pointer; font-family:inherit; text-decoration:underline; align-self:flex-start; }
 .snelkaart-overrule { display:flex; align-items:center; gap:6px; margin-top:4px; }
 .snelkaart-overrule input[type=time] { flex:1; min-width:0; padding:6px 8px; border-radius:8px; border:1px solid var(--border); font-size:14px; background:var(--card); color:var(--text); font-family:inherit; box-sizing:border-box; }
