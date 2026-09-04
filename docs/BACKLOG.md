@@ -23,7 +23,7 @@
 - **#41** [M] Wachtwoord wijzigen in instellingen — sectie "Beveiliging" + `POST /api/changePassword` — zie details
 - **#97** [L] Push-notificaties deel 1: PWA-fundament + Web Push infra (`manifest.json`, `sw.js`, `api/push.js` met `?action=` routing, `js/push.js`, Instellingen-UI). Vereist VAPID-keys + env vars `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`/`PUSH_SECRET`. Let op Vercel 12-functielimiet (na `push.js` = 12/12). Uitwerking van #9 — zie details
 - **#98** [M] Push-notificaties deel 2: slimme trigger via Homey (P1 negatief + verliesgevende/negatieve EPEX-prijs → `api/push?action=send`) met Redis-cooldown tegen spam. Vervolg op #97
-- **#99** [M] iOS Shortcut widget-endpoint (read-only): `?action=widget` aan bestaand endpoint (NIET nieuw i.v.m. functielimiet), auth via read-only `WIDGET_TOKEN_<id>`, geeft per apparaat het goedkoopste tijdvenster terug. Bedien-acties blijven achter pincode
+- **#99** [M] iOS Shortcut widget-endpoint (read-only): `?action=widget` aan bestaand endpoint (NIET nieuw i.v.m. functielimiet), auth via read-only `WIDGET_TOKEN_<id>`, geeft per apparaat het goedkoopste tijdvenster terug. Bedien-acties blijven achter sessie-auth
 
 > ⚠️ Nummer #41 botst met een afgerond item (v2.64.0, `setInterval` visibility-pauze). Overweeg te hernummeren.
 
@@ -197,6 +197,17 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
+
+**v2.77.0** — Pincode vervallen
+- Pincode (`APP_PINCODE_<id>`) volledig verwijderd: sinds de echte login (v2.72.0) was hij
+  een dubbele laag die vooral frictie gaf. Bedien-endpoints (`/api/homey` POST,
+  `/api/planLaden` POST/DELETE, `/api/homeconnect` start/stop) vereisen nu een geldige
+  sessie via `requireSessionUserId` (401 zonder cookie, geen `?u=`-fallback) — één
+  verplichte laag i.p.v. twee, niet nul. Frontend: pincode-invoer, prompts en de 5-min
+  in-memory cache weg; bedien-acties (Nu starten/stoppen, Plan dit in, annuleren, Home
+  Connect start/stop/inplannen, snelkaart "Plan in via Homey") gaan direct. Brute-force-
+  lockout blijft alleen op `/api/db/migrate`. QStash-verificatie, CORS, rate limiting en
+  HMAC-sessie ongewijzigd.
 
 **v2.76.2** — Homescreen-PWA opent op de snelkaarten
 - PWA-basis: `manifest.json` (standalone, start_url `/`, groen thema) + iconen 192/512/180

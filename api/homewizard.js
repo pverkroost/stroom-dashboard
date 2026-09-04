@@ -5,11 +5,10 @@
 // waarde in Upstash Redis cachet. De frontend leest hieruit. Zelfde Redis +
 // serverless patroon als de laadplanning — geen Homey-token nodig.
 //
-// Auth-keuze (POST): een aparte, lange gedeelde secret `HOMEWIZARD_PUSH_TOKEN_<userId>`
-// i.p.v. de interactieve `APP_PINCODE`. Reden: de pincode is kort (brute-force-
-// gevoelig) en wordt voor gevoelige bedien-acties gebruikt; hem in elke push
-// (elke paar minuten) meesturen is onwenselijk. Een lange random push-token is
-// de gangbare machine-to-machine ingest-aanpak en kan eenmalig in de Homey-flow.
+// Auth-keuze (POST): een aparte, lange gedeelde secret `HOMEWIZARD_PUSH_TOKEN_<userId>`.
+// Homey heeft geen sessie-cookie, dus de gebruikersauth (eq_session) is hier niet
+// bruikbaar. Een lange random push-token is de gangbare machine-to-machine
+// ingest-aanpak en kan eenmalig in de Homey-flow.
 const { Redis } = require('@upstash/redis');
 const { applyGate, getValidUserId, VALID_USERS } = require('./_helpers');
 
