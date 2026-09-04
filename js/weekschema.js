@@ -297,8 +297,9 @@ function snelkaartOverruleReset(key) {
 }
 
 // Auto: open het bestaande detailpaneel met het berekende blok voorgeselecteerd en
-// start de bestaande planInladen-flow (pincode). Bij een al actieve planning
-// alleen het paneel openen zodat de gebruiker die kan wijzigen/annuleren.
+// start direct de bestaande planInladen-flow via de ingelogde sessie. Bij een al
+// actieve planning alleen het paneel openen zodat de gebruiker die kan
+// wijzigen/annuleren.
 async function snelkaartPlanIn(apIdx) {
   const ap = APPARATEN[apIdx];
   if (!ap) return;

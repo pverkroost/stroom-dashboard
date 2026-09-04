@@ -23,7 +23,7 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/solaredge.js` — SolarEdge Monitoring API (overview/power/energy)
   - `api/homey.js` — Homey cloud webhook proxy + connectivity check
   - `api/homewizard.js` — HomeWizard P1 live verbruik/teruglevering: POST (Homey-push, gedeelde push-token) cachet in Redis, GET levert aan de frontend
-  - `api/homeconnect.js` — Home Connect (BSH) OAuth2 auth-redirect + appliance status/start/stop (pincode)
+  - `api/homeconnect.js` — Home Connect (BSH) OAuth2 auth-redirect + appliance status/start/stop (sessie)
   - `api/homeconnect/callback.js` — OAuth2 redirect-target: code → tokens in Redis (state-CSRF-verified)
   - `api/planLaden.js` — plant laad-actie via QStash (publishJSON met delay)
   - `api/cronLaden.js` — wordt door QStash aangeroepen om Homey-webhook te triggeren
@@ -49,7 +49,11 @@ HMAC-ondertekende `HttpOnly` cookie `eq_session` (30 dagen) met `{ uid, email, u
 `getValidUserId` (in `api/_helpers.js`) leest eerst die sessie, valt anders terug op
 `?u=` (backwards-compat tijdens de transitie — niet meteen verwijderen). `js/bootstrap.js`
 doet bij laden `GET /api/auth?action=me`: 401 → login-overlay, 200 → laadt `users/<id>.js`
-+ app-modules. Pincode (`APP_PINCODE_<id>`) blijft apart vereist voor gevoelige acties.
++ app-modules. Bedien-acties (Homey start/stop, `planLaden` POST/DELETE, Home Connect
+start/stop) vereisen sinds v2.77.0 een geldige sessie via `requireSessionUserId` — géén
+`?u=`-fallback. De vroegere pincode (`APP_PINCODE_<id>`) is toen vervallen: sinds de echte
+login was hij een dubbele laag die vooral frictie gaf; netto blijft één verplichte laag
+(de sessie) over, niet nul.
 Wachtwoorden: bcrypt (cost 10) in Neon-tabel `app_user`. Nieuwe gebruiker:
 `node scripts/create-user.mjs`. Rate limiting op de login-actie: 10 pogingen per IP per
 5 min (`applyGate`, sliding window via Upstash). Generieke foutmelding (geen e-mail-
@@ -78,7 +82,7 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
   zie *Security*).
 - **Auto**: SoC is onbekend → de kaart rekent altijd met de volle `ap.uren`. "Plan in via
   Homey" opent het bestaande detailpaneel met het berekende blok voorgeselecteerd en start
-  de bestaande `planInladen`-flow (pincode). De vaatwasser heeft geen aansturing: puur advies.
+  de bestaande `planInladen`-flow (sessie-auth). De vaatwasser heeft geen aansturing: puur advies.
 - **Overrule**: "andere tijd voor nu" op de kaart wijzigt alleen de deadline in deze sessie
   (`_snelkaartOverride`), niet het opgeslagen weekschema.
 - **Randgeval**: deadline voorbij de bekende prijzen terwijl morgen-prijzen nog niet binnen
@@ -88,9 +92,13 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
 Gecentraliseerd in `api/_helpers.js` (gedeeld door alle endpoints):
 - **Rate limiting**: sliding window via Upstash Redis (`INCR` + `EXPIRE`). Login 10/5min per IP.
   Fail-open bij Redis-storing zodat een Upstash-uitval de app niet platlegt.
-- **Brute-force lockout op pincode-endpoints**: telt 401-failures per IP+endpoint in een
+- **Sessie-auth op bedien-endpoints**: `requireSessionUserId` (401 zonder geldige
+  `eq_session`) op `/api/homey` POST, `/api/planLaden` POST/DELETE en
+  `/api/homeconnect?action=start|stop`. Lees-acties mogen nog via `getValidUserId` (`?u=`).
+- **Brute-force lockout op token-endpoints**: telt 401-failures per IP+endpoint in een
   15-min window. 5+ fails → 5 min lockout, 10+ fails → 1 u lockout (`recordAuthFailure` /
-  `checkAuthLockout`). Succesvolle pin wist de teller (`clearAuthFailures`).
+  `checkAuthLockout`). Succesvolle token wist de teller (`clearAuthFailures`). Sinds v2.77.0
+  alleen nog op `/api/db/migrate` (de pincode-endpoints bestaan niet meer).
 - **CORS-lockdown**: alleen `https://energieiq.nl` en `https://stroom-dashboard.vercel.app`
   krijgen een `Access-Control-Allow-Origin`-header (`ALLOWED_ORIGINS`).
 - **QStash signature-verificatie**: `cronLaden` valideert binnenkomende calls via
@@ -98,7 +106,7 @@ Gecentraliseerd in `api/_helpers.js` (gedeeld door alle endpoints):
 - **Migrate-endpoint achter token**: `GET /api/db/migrate` vereist `MIGRATE_SECRET` (env var,
   min. 32 tekens) via `Authorization: Bearer <token>` of `?secret=<token>`; timing-safe
   vergelijking, 401 zonder schema-info, 503 (fail-closed) als de var ontbreekt. Rate limit
-  5/min/IP + dezelfde brute-force-lockout als de pincode-endpoints. Aanroepen:
+  5/min/IP + brute-force-lockout. Aanroepen:
   `curl -H "Authorization: Bearer $MIGRATE_SECRET" https://energieiq.nl/api/db/migrate`
 - **Home Connect OAuth CSRF**: `state`-nonce in Redis, éénmalig consumeerbaar in de callback.
 - **XSS**: `escapeHtml()` in `js/config.js` voor alle 3rd-party/user-data die naar `innerHTML` gaat.
@@ -197,7 +205,6 @@ Alle in Settings → Environment Variables van het Vercel-project:
 | `SOLAREDGE_API_KEY_<NNN>`     | SolarEdge Monitoring API key per user                    |
 | `SOLAREDGE_SITE_ID_<NNN>`     | SolarEdge site ID per user                               |
 | `HOMEY_CLOUD_ID_<NNN>`        | Homey cloud-id per user                                  |
-| `APP_PINCODE_<NNN>`           | Pincode voor `/api/homey` POST + `/api/planLaden` POST   |
 | `HOMEWIZARD_PUSH_TOKEN_<NNN>` | Gedeelde secret die de Homey-flow meestuurt bij de P1-push naar `/api/homewizard` POST |
 
 ### Vercel env vars setup (overgang naar genummerde suffixen)
@@ -207,11 +214,10 @@ Hernoemen (nieuwe maken met waarde van oude → Vercel redeploy → oude verwijd
 - `SOLAREDGE_API_KEY` → `SOLAREDGE_API_KEY_001`
 - `SOLAREDGE_SITE_ID` → `SOLAREDGE_SITE_ID_001`
 - `HOMEY_CLOUD_ID` → `HOMEY_CLOUD_ID_001`
-- `APP_PINCODE` → `APP_PINCODE_001`
 
 Nieuw toevoegen (leeg laten tot user 002 echte keys heeft):
 - `GROWATT_API_TOKEN_002`, `SOLAREDGE_API_KEY_002`, `SOLAREDGE_SITE_ID_002`,
-  `HOMEY_CLOUD_ID_002`, `APP_PINCODE_002`
+  `HOMEY_CLOUD_ID_002`
 
 Vercel heeft geen rename-knop; maak de nieuwe `_001` aan, trigger redeploy,
 verwijder daarna de oude variabele zonder suffix.

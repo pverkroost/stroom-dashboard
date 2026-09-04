@@ -28,6 +28,19 @@ function getValidUserId(req) {
   return VALID_USERS.includes(raw) ? raw : VALID_USERS[0];
 }
 
+// Bedien-endpoints (Homey start/stop, planLaden POST/DELETE, Home Connect
+// start/stop) vereisen sinds v2.77.0 een geldige sessie i.p.v. de pincode.
+// Bewust GEEN ?u=-fallback zoals in getValidUserId: die zou een bedien-actie
+// zonder enige auth mogelijk maken. Geeft userId terug, of stuurt 401 en null.
+function requireSessionUserId(req, res) {
+  const session = getSession(req);
+  if (!session || !VALID_USERS.includes(session.userId)) {
+    res.status(401).json({ error: 'Niet ingelogd' });
+    return null;
+  }
+  return session.userId;
+}
+
 // Eén Redis-instance hergebruiken voor rate-limiting (laat consumers eigen Redis houden voor data).
 let _redisInstance = null;
 function getRedis() {
@@ -98,9 +111,10 @@ async function applyGate(req, res, { endpoint, max, windowSec, message }) {
   return true;
 }
 
-// ── Brute-force protectie op pincode-endpoints ─────────────────────────────
-// Bovenop de generieke per-minuut rate-limit: telt specifiek 401-pincode-failures
-// per IP+endpoint binnen een 15min-window. Bij drempel wordt een aparte lockout-key
+// ── Brute-force protectie op token-endpoints ───────────────────────────────
+// Bovenop de generieke per-minuut rate-limit: telt specifiek 401-token-failures
+// per IP+endpoint binnen een 15min-window (nu alleen /api/db/migrate; vroeger ook
+// de pincode-endpoints, de pincode is in v2.77.0 vervallen). Bij drempel wordt een aparte lockout-key
 // gezet met TTL, zodat een aanvaller na X foute pogingen Y minuten "buiten staat".
 const AUTH_FAIL_WINDOW_SEC = 15 * 60;
 const AUTH_LOCKOUT_SOFT_THRESHOLD = 5;   // 5+ fails binnen 15min  → 5min lockout
@@ -125,7 +139,7 @@ async function checkAuthLockout({ endpoint, ip }) {
   }
 }
 
-// Roep aan bij verkeerde pincode. Geeft de nieuwe fail-count terug.
+// Roep aan bij een verkeerde token. Geeft de nieuwe fail-count terug.
 // Bij drempel wordt aparte lockout-key gezet zodat checkAuthLockout faalt
 // voor volgende requests.
 async function recordAuthFailure({ endpoint, ip }) {
@@ -144,7 +158,7 @@ async function recordAuthFailure({ endpoint, ip }) {
   }
 }
 
-// Roep aan bij succesvolle pincode: wis counter + lockout. Beloont legitieme
+// Roep aan bij een geldige token: wis counter + lockout. Beloont legitieme
 // gebruikers die per ongeluk één keer mistypten zodat ze niet onnodig vast komen
 // te zitten in de window.
 async function clearAuthFailures({ endpoint, ip }) {
@@ -283,6 +297,7 @@ module.exports = {
   ALLOWED_ORIGINS,
   VALID_USERS,
   getValidUserId,
+  requireSessionUserId,
   // Home Connect
   HOMECONNECT_BASE,
   HOMECONNECT_AUTH_URL,

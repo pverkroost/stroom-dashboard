@@ -1,13 +1,13 @@
-const { applyGate, getClientIp, getValidUserId, checkAuthLockout, recordAuthFailure, clearAuthFailures } = require('./_helpers');
+const { applyGate, getValidUserId, requireSessionUserId } = require('./_helpers');
 
+// GET ?test=true: verbindingscheck (alleen-lezen, userId via sessie of ?u=).
+// POST { action }: Homey-webhook triggeren — vereist een geldige sessie
+// (sinds v2.77.0 zonder pincode; de sessie-auth is de enige, verplichte laag).
 module.exports = async (req, res) => {
   if (!(await applyGate(req, res, { endpoint: 'homey', max: 5, windowSec: 60 }))) return;
 
-  const userId       = getValidUserId(req);
-  const pincode      = process.env[`APP_PINCODE_${userId}`];
-  const homeyCloudId = process.env[`HOMEY_CLOUD_ID_${userId}`];
-
   if (req.method === 'GET' && req.query?.test === 'true') {
+    const homeyCloudId = process.env[`HOMEY_CLOUD_ID_${getValidUserId(req)}`];
     if (!homeyCloudId) return res.json({ verbonden: false });
     const controller = new AbortController();
     const timeoutId  = setTimeout(() => controller.abort(), 5000);
@@ -26,22 +26,12 @@ module.exports = async (req, res) => {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { pin, action } = req.body || {};
+  const userId = requireSessionUserId(req, res);
+  if (!userId) return;
+  const homeyCloudId = process.env[`HOMEY_CLOUD_ID_${userId}`];
+  if (!homeyCloudId) return res.json({ beschikbaar: false });
 
-  if (!pincode || !homeyCloudId) {
-    return res.json({ beschikbaar: false });
-  }
-
-  const ip = getClientIp(req);
-  const lockout = await checkAuthLockout({ endpoint: 'homey', ip });
-  if (lockout.locked) return res.status(429).json({ error: 'Te veel ongeldige pincode-pogingen. Probeer later opnieuw.' });
-
-  if (pin !== pincode) {
-    await recordAuthFailure({ endpoint: 'homey', ip });
-    return res.status(401).json({ error: 'Ongeldige pincode' });
-  }
-  await clearAuthFailures({ endpoint: 'homey', ip });
-
+  const { action } = req.body || {};
   const webhookKey = action === 'stop' ? 'auto-laden-stoppen' : 'auto-laden-starten';
   const url = `https://${homeyCloudId}.connect.athom.com/api/manager/logic/webhook/${webhookKey}`;
 

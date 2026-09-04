@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const {
-  applyGate, getClientIp, getValidUserId,
-  checkAuthLockout, recordAuthFailure, clearAuthFailures,
+  applyGate, getValidUserId, requireSessionUserId,
   HOMECONNECT_BASE, HOMECONNECT_AUTH_URL, homeConnectRedirectUri,
   storeHomeConnectState, getHomeConnectTokens, getHomeConnectToken,
 } = require('./_helpers');
@@ -148,8 +147,9 @@ module.exports = async (req, res) => {
   // ── JSON API (status / appliances / start / stop) ────────────────────────
   if (!(await applyGate(req, res, { endpoint: 'homeconnect', max: 30, windowSec: 60 }))) return;
 
-  const userId      = getValidUserId(req);
-  const expectedPin = process.env[`APP_PINCODE_${userId}`];
+  // GET-acties (status/appliances/programs) via sessie of legacy ?u=; de
+  // POST-bedienacties start/stop hieronder vereisen een geldige sessie.
+  const userId = getValidUserId(req);
 
   // status: zonder haId → verbindingsstatus (tokens aanwezig?). Met haId →
   // live monitoring van het toestel (power/programma/temperatuur/deur). Werkt
@@ -236,22 +236,16 @@ module.exports = async (req, res) => {
     }
   }
 
-  // start / stop vereisen POST + pincode (consistent met /api/homey + /api/planLaden).
+  // start / stop vereisen POST + geldige sessie (consistent met /api/homey +
+  // /api/planLaden; sinds v2.77.0 zonder pincode).
   if (req.method === 'POST' && (action === 'start' || action === 'stop')) {
-    const { haId, programKey, options, pin } = req.body || {};
-    const ip = getClientIp(req);
-
-    const lockout = await checkAuthLockout({ endpoint: 'homeconnect', ip });
-    if (lockout.locked) return res.status(429).json({ error: 'Te veel ongeldige pincode-pogingen. Probeer later opnieuw.' });
-    if (!expectedPin || pin !== expectedPin) {
-      await recordAuthFailure({ endpoint: 'homeconnect', ip });
-      return res.status(401).json({ error: 'Ongeldige pincode' });
-    }
-    await clearAuthFailures({ endpoint: 'homeconnect', ip });
+    const sessieUserId = requireSessionUserId(req, res);
+    if (!sessieUserId) return;
+    const { haId, programKey, options } = req.body || {};
 
     if (!geldigHaId(haId)) return res.status(400).json({ error: 'Ongeldig haId' });
 
-    const token = await getHomeConnectToken(userId);
+    const token = await getHomeConnectToken(sessieUserId);
     if (!token) return res.status(401).json({ error: 'Niet gekoppeld' });
     const enc = encodeURIComponent(haId);
 

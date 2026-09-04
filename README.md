@@ -53,7 +53,6 @@ In Vercel → Settings → Environment Variables:
 | `SOLAREDGE_API_KEY` / `SOLAREDGE_SITE_ID` | SolarEdge Monitoring API |
 | `HOMEY_CLOUD_ID` | Homey cloud-id voor `<id>.connect.athom.com` |
 | `HOMEWIZARD_PUSH_TOKEN_<userId>` | Lange random secret die de Homey-flow meestuurt bij de P1-push naar `/api/homewizard` (#11) |
-| `APP_PINCODE` | Pincode voor `/api/homey` + `/api/homeconnect` POST |
 | `HOMECONNECT_CLIENT_ID` / `HOMECONNECT_CLIENT_SECRET` | Home Connect OAuth2 app-credentials (globaal, gedeeld) |
 | `APP_URL` | Basis-URL voor QStash self-callbacks én Home Connect redirect-URI |
 | `QSTASH_TOKEN` | Upstash QStash publish token |
@@ -70,8 +69,11 @@ backwards-compatibiliteit). Auth is **stateless**: na een geslaagde login zet de
 server een HMAC-ondertekende, `HttpOnly` cookie `eq_session` (30 dagen geldig) met
 `{ uid, email, userId }`. Elke `/api/*`-call leidt de `userId` uit die cookie af
 (`getValidUserId` in `api/_helpers.js`); bij geen geldige sessie valt hij terug op
-`?u=`. De pincode (`APP_PINCODE_<id>`) blijft apart vereist voor gevoelige acties
-(laden starten/inplannen, Home Connect start/stop).
+`?u=` — behalve voor **bedien-acties** (Homey start/stop, laadplanning aanmaken/annuleren,
+Home Connect start/stop): die vereisen sinds v2.77.0 een geldige sessie
+(`requireSessionUserId`) en geven anders `401`. De vroegere pincode (`APP_PINCODE_<id>`)
+is daarmee vervallen: sinds de echte login (v2.72.0) was hij een dubbele laag die vooral
+frictie gaf. Netto blijft er één verplichte beveiligingslaag over: de sessie.
 
 Login, logout en me zitten in één serverless function `api/auth.js` (routing via
 `?action=`) om onder de Vercel Hobby 12-functie-limiet te blijven.
@@ -108,8 +110,10 @@ Client-side constanten in `js/config.js`:
 Centraal in `api/_helpers.js`, gedeeld door alle endpoints:
 - **Rate limiting** — sliding window via Upstash Redis. Login: 10 pogingen per IP per 5 min.
   Fail-open bij Redis-storing zodat een Upstash-uitval de app niet platlegt.
-- **Brute-force lockout op pincode-endpoints** — failures per IP+endpoint in een 15-min window;
-  5+ fails → 5 min lockout, 10+ fails → 1 u lockout. Een juiste pincode wist de teller.
+- **Sessie-auth op bedien-endpoints** — `/api/homey` POST, `/api/planLaden` POST/DELETE en
+  `/api/homeconnect?action=start|stop` vereisen een geldige `eq_session` (geen `?u=`-fallback).
+- **Brute-force lockout op token-endpoints** — failures per IP+endpoint in een 15-min window;
+  5+ fails → 5 min lockout, 10+ fails → 1 u lockout (nu alleen `/api/db/migrate`).
 - **CORS-lockdown** — alleen `https://energieiq.nl` en `https://stroom-dashboard.vercel.app`
   krijgen een `Access-Control-Allow-Origin`-header.
 - **QStash signature-verificatie** — `/api/cronLaden` valideert calls met de QStash signing keys.
@@ -206,10 +210,9 @@ De Zon-tab toont op de tegel **"Live verbruik"** het actuele net-vermogen
      (`importKwh`/`exportKwh` zijn optioneel; `[…]` zijn Homey-flow-tags van de P1-tegel.)
 
 **Auth-keuze:** een aparte, lange gedeelde secret `HOMEWIZARD_PUSH_TOKEN_<userId>`
-(in Vercel env vars) in plaats van de interactieve `APP_PINCODE`. De pincode is kort
-(brute-force-gevoelig) en wordt voor gevoelige bedien-acties gebruikt; hem in elke
-push (om de paar minuten) meesturen is onwenselijk. Een lange random push-token is
-de gangbare machine-to-machine ingest-aanpak en wordt eenmalig in de Homey-flow gezet.
+(in Vercel env vars). Homey heeft geen sessie-cookie, dus de gebruikersauth is hier
+niet bruikbaar; een lange random push-token is de gangbare machine-to-machine
+ingest-aanpak en wordt eenmalig in de Homey-flow gezet.
 Genereer er een met bv. `openssl rand -hex 32`.
 
 ### Kenteken lookup (RDW + EV database)

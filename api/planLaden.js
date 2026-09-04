@@ -1,6 +1,6 @@
 const { Redis } = require('@upstash/redis');
 const { Client } = require('@upstash/qstash');
-const { applyGate, getClientIp, getValidUserId, checkAuthLockout, recordAuthFailure, clearAuthFailures } = require('./_helpers');
+const { applyGate, getValidUserId, requireSessionUserId } = require('./_helpers');
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
@@ -84,9 +84,10 @@ async function planHomeConnectQStash(userId, startTijd, apparaat, haId, programK
 module.exports = async (req, res) => {
   if (!(await applyGate(req, res, { endpoint: 'planLaden', max: 5, windowSec: 60 }))) return;
 
-  const userId      = getValidUserId(req);
-  const apparaat    = req.query?.apparaat || 'default';
-  const expectedPin = process.env[`APP_PINCODE_${userId}`];
+  // GET (status) mag via sessie of legacy ?u=; POST/DELETE (bedienen) vereisen
+  // sinds v2.77.0 een geldige sessie — zonder pincode, maar nooit zonder auth.
+  let userId       = getValidUserId(req);
+  const apparaat   = req.query?.apparaat || 'default';
 
   if (req.method === 'GET') {
     const data = await redis.get(sleutel(userId, apparaat));
@@ -110,16 +111,10 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === 'POST') {
+    userId = requireSessionUserId(req, res);
+    if (!userId) return;
     const body = req.body || {};
-    const { startTijd, stopTijd, apparaat: apBody, pin, type } = body;
-    const ip = getClientIp(req);
-    const lockout = await checkAuthLockout({ endpoint: 'planLaden', ip });
-    if (lockout.locked) return res.status(429).json({ error: 'Te veel ongeldige pincode-pogingen. Probeer later opnieuw.' });
-    if (!expectedPin || pin !== expectedPin) {
-      await recordAuthFailure({ endpoint: 'planLaden', ip });
-      return res.status(401).json({ error: 'Ongeldige pincode' });
-    }
-    await clearAuthFailures({ endpoint: 'planLaden', ip });
+    const { startTijd, stopTijd, apparaat: apBody, type } = body;
 
     // ── Home Connect-planning (wasmachine/droger op goedkoopste EPEX-moment) ──
     if (type === 'homeconnect') {
@@ -202,15 +197,8 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === 'DELETE') {
-    const pin = req.body?.pin || req.query?.pin;
-    const ip = getClientIp(req);
-    const lockout = await checkAuthLockout({ endpoint: 'planLaden', ip });
-    if (lockout.locked) return res.status(429).json({ error: 'Te veel ongeldige pincode-pogingen. Probeer later opnieuw.' });
-    if (!expectedPin || pin !== expectedPin) {
-      await recordAuthFailure({ endpoint: 'planLaden', ip });
-      return res.status(401).json({ error: 'Ongeldige pincode' });
-    }
-    await clearAuthFailures({ endpoint: 'planLaden', ip });
+    userId = requireSessionUserId(req, res);
+    if (!userId) return;
 
     // Annuleer eventuele pending QStash-berichten vóór we de planning uit Redis
     // verwijderen, zodat ze niet stilletjes alsnog vuren.

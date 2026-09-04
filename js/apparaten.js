@@ -380,28 +380,9 @@ function openApDetail(apIdx) {
 function sluitApDetail() {
   document.getElementById('apparaatDetail').classList.remove('open');
   document.body.style.overflow = '';
-  wisCachedPlanPin(); // verlaat-detail = einde "sessie" voor de plain pincode
   apDetailState = null;
   // Snelkaarten (js/weekschema.js): planningsstatus op de auto-kaart verversen.
   if (typeof snelkaartNaDetailSluiten === 'function') snelkaartNaDetailSluiten();
-}
-
-// Pincode-cache TTL: 5min na laatste set. Voorkomt dat een tab die open blijft
-// staan de plain pincode permanent in memory houdt.
-const _PLAN_PIN_TTL_MS = 5 * 60 * 1000;
-let _planPinTimer = null;
-function cachePlanPin(pin) {
-  if (!apDetailState) return;
-  apDetailState._cachedPlanPin = pin;
-  if (_planPinTimer) clearTimeout(_planPinTimer);
-  _planPinTimer = setTimeout(() => {
-    if (apDetailState) apDetailState._cachedPlanPin = null;
-    _planPinTimer = null;
-  }, _PLAN_PIN_TTL_MS);
-}
-function wisCachedPlanPin() {
-  if (_planPinTimer) { clearTimeout(_planPinTimer); _planPinTimer = null; }
-  if (apDetailState) apDetailState._cachedPlanPin = null;
 }
 
 function adjustApDetail(delta) {
@@ -613,29 +594,56 @@ function koppelHcAppliance(haId, apparaatNaam) {
   renderHomeConnect();
 }
 
-function hcActie(action) {
-  _homeyPendingAction = 'hc' + action; // 'hcstart' | 'hcstop'
-  const section  = document.getElementById('homeyPincodeSection');
-  const input    = document.getElementById('homeyPinInput');
-  const okBtn    = document.getElementById('homeyOkBtn');
-  const statusEl = document.getElementById('homeyStatus');
-  if (section)  section.style.display = 'block';
-  if (input)    { input.disabled = false; input.value = ''; input.focus(); }
-  if (okBtn)    { okBtn.disabled = false; okBtn.textContent = '✓'; }
-  if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--muted)'; }
-}
+// Home Connect bedien-acties, direct via de ingelogde sessie (sinds v2.77.0
+// zonder pincode-stap). Meldingen in #homeyStatus (gedeeld met de Homey-sectie,
+// die voor Home Connect-apparaten niet rendert — dus geen dubbele ids).
+//   start/stop  → POST /api/homeconnect?action=  (programma nu starten/stoppen)
+//   plan        → POST /api/planLaden type:'homeconnect' (QStash op goedkoopste uur)
+//   annuleer    → DELETE /api/planLaden
+async function hcActie(action) {
+  if (!apDetailState) return;
+  const ap       = apDetailState.ap;
+  const haId     = hcHaIdVoor(ap);
+  const apparaat = apSleutel(ap.naam);
+  try {
+    if (!haId) throw new Error('Apparaat niet gekoppeld');
 
-// Gedeelde pincode-invoer (zelfde ids als de Homey-automatisering, die voor
-// Home Connect-apparaten niet rendert — dus geen dubbele ids).
-function pincodeSectieHtml() {
-  return '<div id="homeyPincodeSection" style="display:none;margin-top:10px">' +
-    '<div style="display:flex;gap:8px;align-items:center">' +
-      '<input type="password" id="homeyPinInput" placeholder="Pincode" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off"' +
-        ' style="flex:1;padding:16px;border-radius:10px;border:1.5px solid var(--border);font-size:22px;font-family:inherit;background:var(--card);color:var(--text);text-align:center;box-sizing:border-box"' +
-        ' onkeydown="if(event.key===\'Enter\')bevestigPincode()" onfocus="this.scrollIntoView({behavior:\'smooth\',block:\'center\'})">' +
-      '<button id="homeyOkBtn" onclick="bevestigPincode()" style="width:56px;height:56px;border-radius:10px;border:none;background:var(--green);color:white;font-size:24px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">✓</button>' +
-    '</div>' +
-  '</div>';
+    if (action === 'start' || action === 'stop') {
+      const extra = (action === 'start' && apDetailState._hcStart) ? apDetailState._hcStart : {};
+      _zetBedienStatus(action === 'start' ? 'Starten…' : 'Stoppen…');
+      await _bedienFetch('/api/homeconnect?action=' + action, { method: 'POST', body: JSON.stringify({ haId, ...extra }) });
+      const heeftFinish = action === 'start' && apDetailState._hcStart
+        && (apDetailState._hcStart.options || []).some(o => /FinishInRelative$/.test(o.key));
+      _zetBedienStatus(action !== 'start' ? '✓ Programma gestopt.'
+        : heeftFinish ? '✓ Ingepland — de machine start zelf op tijd.' : '✓ Programma gestart!', 'var(--green)');
+      if (action === 'start') bekijkDrogerKoppeling(ap);
+      return;
+    }
+
+    if (action === 'plan') {
+      const planReq = apDetailState._hcPlanReq || {};
+      _zetBedienStatus('Inplannen…');
+      await _bedienFetch('/api/planLaden', { method: 'POST', body: JSON.stringify({
+        type: 'homeconnect', apparaat, haId,
+        programKey: planReq.programKey, options: planReq.options || [], startTijd: planReq.startTijd,
+      }) });
+      apDetailState._hcPlanActief = true;
+      _zetBedienStatus('✓ Ingepland op het goedkoopste moment.', 'var(--green)');
+      await hcLaadPlanningStatus(ap);
+      bekijkDrogerKoppeling(ap); // bied aan de droger aansluitend in te plannen
+      return;
+    }
+
+    if (action === 'annuleer') {
+      await _bedienFetch('/api/planLaden?apparaat=' + apparaat, { method: 'DELETE' });
+      apDetailState._hcPlanActief = false;
+      _zetBedienStatus('✓ Planning geannuleerd', 'var(--green)');
+      await hcLaadPlanningStatus(ap);
+      return;
+    }
+  } catch (e) {
+    _zetBedienStatus('✗ ' + e.message, '#a32d2d');
+  }
 }
 
 // ── Home Connect live monitoring (oven / kookplaat) ─────────────────────────
@@ -750,7 +758,6 @@ function vulHcDetailSectie(ap) {
   el.innerHTML =
     '<div class="section" style="padding-top:8px;padding-bottom:4px">' +
       '<div id="hcProgUI"><div style="font-size:12px;color:var(--muted)">Programma\'s laden…</div></div>' +
-      pincodeSectieHtml() +
       '<div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>' +
     '</div>';
   apDetailState._hcUI = { programs: null, programKey: null, options: null, ladenOpties: false };
@@ -937,8 +944,8 @@ function _hcVerzamelOpties() {
   return opts;
 }
 
-// Verzamel programKey + gekozen opties (incl. FinishInRelative) en open de
-// pincode-prompt; bevestigPincode('hcstart') verstuurt de PUT.
+// Verzamel programKey + gekozen opties (incl. FinishInRelative) en verstuur de
+// PUT via hcActie('start').
 function hcStarten() {
   if (!apDetailState || !apDetailState._hcUI || !apDetailState._hcUI.programKey) return;
   const ui = apDetailState._hcUI;
@@ -1096,8 +1103,8 @@ async function hcLaadPlanningStatus(ap) {
   } catch {}
 }
 
-// Inplannen-knop: bij actieve planning eerst annuleren (wijzigen), anders pincode
-// vragen en in bevestigPincode('hcplan') POSTen naar /api/planLaden.
+// Inplannen-knop: bij actieve planning eerst annuleren (wijzigen), anders via
+// hcActie('plan') POSTen naar /api/planLaden.
 function hcPlanInladen() {
   if (!apDetailState || !apDetailState._hcUI || !apDetailState._hcUI.programKey) return;
   if (apDetailState._hcPlanActief) { hcAnnuleerPlanning(); return; }
@@ -1108,30 +1115,10 @@ function hcPlanInladen() {
     options:    _hcVerzamelOpties(),
     startTijd:  new Date(plan.startTijd).toISOString(),
   };
-  hcActie('plan'); // → _homeyPendingAction = 'hcplan'
+  hcActie('plan');
 }
 
-async function hcAnnuleerPlanning() {
-  if (!apDetailState) return;
-  const cachedPin = apDetailState._cachedPlanPin;
-  if (!cachedPin) { hcActie('annuleer'); return; } // → 'hcannuleer', pincode-prompt
-  const apparaat = apSleutel(apDetailState.ap.naam);
-  try {
-    const r = await fetch(apiUrl('/api/planLaden?apparaat=' + apparaat), {
-      method:  'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ pin: cachedPin })
-    });
-    const data = await r.json();
-    if (r.status === 401) { wisCachedPlanPin(); return hcAnnuleerPlanning(); }
-    if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
-    apDetailState._hcPlanActief = false;
-    hcLaadPlanningStatus(apDetailState.ap);
-  } catch (e) {
-    const statusEl = document.getElementById('hcPlanStatus');
-    if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = '#a32d2d'; statusEl.textContent = '✗ ' + e.message; }
-  }
-}
+async function hcAnnuleerPlanning() { return hcActie('annuleer'); }
 
 // ── Washer → dryer chaining (IntelligentDry) ────────────────────────────────
 function _vindDrogerAp(wasAp) {
@@ -1324,7 +1311,6 @@ function renderApDetail() {
           '<button class="ap-cta-btn ap-cta-groen" onclick="homeyActie(\'start\')" id="homeyStartBtn" style="flex:1;margin-bottom:0">⚡ Nu starten</button>' +
           '<button class="ap-cta-btn ap-cta-wit" onclick="homeyActie(\'stop\')" id="homeyStopBtn" style="flex:1;margin-bottom:0">■ Nu stoppen</button>' +
         '</div>' +
-        pincodeSectieHtml() +
         '<div id="homeyStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px"></div>' +
       '</div>'
     : heeftHomeConnect
@@ -1616,306 +1602,114 @@ async function laadPlanningStatus(apparaat) {
   }
 }
 
+// ── Bedien-acties (Homey / laadplanning) ────────────────────────────────────
+// Sinds v2.77.0 zonder pincode: elke bedien-call gaat direct naar de API, die een
+// geldige sessie (eq_session-cookie) vereist. 401 = niet (meer) ingelogd.
+function _bedienFout(r, data) {
+  if (r.status === 401 && (!data || !data.error || data.error === 'Niet ingelogd')) {
+    return new Error('Niet ingelogd — log opnieuw in om te bedienen');
+  }
+  return new Error((data && data.error) || ('HTTP ' + r.status));
+}
+async function _bedienFetch(path, opts) {
+  const r = await fetch(apiUrl(path), Object.assign(
+    { headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' }, opts));
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || !data.success) throw _bedienFout(r, data);
+  return data;
+}
+function _zetBedienStatus(tekst, kleur) {
+  const el = document.getElementById('homeyStatus');
+  if (el) { el.textContent = tekst; el.style.color = kleur || 'var(--muted)'; }
+}
+function _zetPlanKnop() {
+  const btn = document.getElementById('planInladenBtn');
+  if (!btn) return;
+  btn.disabled = false;
+  if (!_planningActief) {
+    const t = getSelStartActual();
+    btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
+  }
+}
+
+// Plan de laadsessie (auto) via QStash. stilUpdate = slider/overneem-knop bij
+// een al actieve planning: zelfde POST, zonder knop-feedback.
 async function planInladen(stilUpdate = false) {
   if (!apDetailState) return;
   const btn      = document.getElementById('planInladenBtn');
   const apparaat = apSleutel(apDetailState.ap.naam);
 
   // Actieve planning aanpassen via een expliciete klik: eerst annuleren, daarna laat de gebruiker
-  // opnieuw "Plan dit in" klikken om nieuwe planning te starten (met pincode).
+  // opnieuw "Plan dit in" klikken om een nieuwe planning te starten.
   if (_planningActief && !stilUpdate) {
     await annuleerPlanning(apparaat);
-    if (btn) {
-      const t = getSelStartActual();
-      btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
-    }
+    _zetPlanKnop();
     return;
   }
-
-  // Stille update vanuit slider/overneem-knop: alleen mogelijk als pincode al gecached is
-  // in deze detail-paneel-sessie. Anders silent abort — gebruiker moet expliciet opnieuw inplannen.
-  if (stilUpdate && !apDetailState._cachedPlanPin) return;
 
   const { planUren, currentStartIdx } = apDetailState;
   const startP = planUren[currentStartIdx];
   if (!startP) return;
   const startTijd = new Date(startP.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
   // Laadduur = benodigde uren (houdt rekening met batterijniveau), afgerond op
-  // hele uur-blokken — zelfde block als de tijdlijn-slider en het advies tonen.
+  // hele uur-blokken — zelfde blok als de tijdlijn-slider en het advies tonen.
   const stopTijd  = new Date(startTijd.getTime() + Math.ceil(benodigdeLaadUren()) * 3600000);
+  const statusEl  = document.getElementById('planningStatusEl');
 
-  if (stilUpdate) {
-    try {
-      const r = await fetch(apiUrl('/api/planLaden'), {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ startTijd: startTijd.toISOString(), stopTijd: stopTijd.toISOString(), apparaat, pin: apDetailState._cachedPlanPin })
-      });
-      const data = await r.json();
-      if (r.status === 401) {
-        wisCachedPlanPin();
-        const statusEl = document.getElementById('planningStatusEl');
-        if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = '#a32d2d'; statusEl.textContent = 'Pincode niet meer geldig — plan opnieuw in'; }
-        return;
-      }
-      if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
-      _planningActief = true;
-      await laadPlanningStatus(apparaat);
-    } catch(e) {
-      console.warn('[planInladen stilUpdate]', e.message);
-    }
-    return;
+  if (!stilUpdate && btn) { btn.disabled = true; btn.textContent = 'Opslaan…'; }
+  try {
+    await _bedienFetch('/api/planLaden', { method: 'POST', body: JSON.stringify({
+      startTijd: startTijd.toISOString(), stopTijd: stopTijd.toISOString(), apparaat,
+    }) });
+    _planningActief = true;
+    if (!stilUpdate) _zetBedienStatus('✓ Planning opgeslagen', 'var(--green)');
+    await laadPlanningStatus(apparaat);
+  } catch (e) {
+    if (stilUpdate) console.warn('[planInladen stilUpdate]', e.message);
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = '#a32d2d'; statusEl.textContent = '✗ ' + e.message; }
+  } finally {
+    _zetPlanKnop();
   }
-
-  // Initiale planning: vraag pincode via dezelfde sectie die ook 'Nu starten/stoppen' gebruikt.
-  _homeyPendingAction = 'plan';
-  const section  = document.getElementById('homeyPincodeSection');
-  const input    = document.getElementById('homeyPinInput');
-  const okBtn    = document.getElementById('homeyOkBtn');
-  const statusEl = document.getElementById('homeyStatus');
-  if (section)  { section.style.display = 'block'; section.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-  if (input)    { input.disabled = false; input.value = ''; input.focus(); }
-  if (okBtn)    { okBtn.disabled = false; okBtn.textContent = '✓'; }
-  if (statusEl) { statusEl.textContent = 'Voer pincode in om de planning op te slaan'; statusEl.style.color = 'var(--muted)'; }
 }
 
 async function annuleerPlanning(apparaat) {
   if (!apparaat && apDetailState) apparaat = apSleutel(apDetailState.ap.naam);
-  const statusEl  = document.getElementById('planningStatusEl');
-  const cachedPin = apDetailState?._cachedPlanPin;
-
-  // Geen gecachte pin (bv. na page-refresh): trigger pincode-prompt voor annuleren.
-  if (!cachedPin) {
-    _homeyPendingAction = 'annuleer';
-    const section      = document.getElementById('homeyPincodeSection');
-    const input        = document.getElementById('homeyPinInput');
-    const okBtn        = document.getElementById('homeyOkBtn');
-    const promptStatus = document.getElementById('homeyStatus');
-    if (section)      { section.style.display = 'block'; section.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-    if (input)        { input.disabled = false; input.value = ''; input.focus(); }
-    if (okBtn)        { okBtn.disabled = false; okBtn.textContent = '✓'; }
-    if (promptStatus) { promptStatus.textContent = 'Voer pincode in om planning te annuleren'; promptStatus.style.color = 'var(--muted)'; }
-    return;
-  }
-
+  const statusEl = document.getElementById('planningStatusEl');
   try {
-    const r = await fetch(apiUrl('/api/planLaden?apparaat=' + (apparaat || '')), {
-      method:  'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ pin: cachedPin })
-    });
-    const data = await r.json();
-    if (r.status === 401) {
-      // Gecachte pin niet meer geldig — wis cache en prompt opnieuw
-      wisCachedPlanPin();
-      return annuleerPlanning(apparaat);
-    }
-    if (!r.ok || !data.success) throw new Error(data.error || 'HTTP ' + r.status);
+    await _bedienFetch('/api/planLaden?apparaat=' + (apparaat || ''), { method: 'DELETE' });
     _planningActief = false;
     if (statusEl) statusEl.style.display = 'none';
-    const btn = document.getElementById('planInladenBtn');
-    if (btn) {
-      const t = getSelStartActual();
-      btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
-    }
-  } catch(e) {
+    _zetPlanKnop();
+    _zetBedienStatus('✓ Planning geannuleerd', 'var(--green)');
+  } catch (e) {
     if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = '#a32d2d'; statusEl.textContent = '✗ ' + e.message; }
   }
 }
 
-let _homeyPendingAction = null;
-
-function homeyActie(action) {
-  // Pre-DELETE bij 'start' is verwijderd: daarvoor is auth nodig. Cleanup van
-  // actieve planning gebeurt nu na succesvolle 'start'-bevestiging in bevestigPincode.
-  _homeyPendingAction = action;
-  const section  = document.getElementById('homeyPincodeSection');
-  const input    = document.getElementById('homeyPinInput');
-  const okBtn    = document.getElementById('homeyOkBtn');
-  const statusEl = document.getElementById('homeyStatus');
-  if (section)  section.style.display = 'block';
-  if (input)    { input.disabled = false; input.value = ''; input.focus(); }
-  if (okBtn)    { okBtn.disabled = false; okBtn.textContent = '✓'; }
-  if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--muted)'; }
-}
-
-async function bevestigPincode() {
-  const input    = document.getElementById('homeyPinInput');
-  const okBtn    = document.getElementById('homeyOkBtn');
-  const pin      = input?.value?.trim();
-  const statusEl = document.getElementById('homeyStatus');
-  const section  = document.getElementById('homeyPincodeSection');
-  const action   = _homeyPendingAction;
-  if (!pin || !action) return;
-
-  if (input)  input.disabled = true;
-  if (okBtn)  { okBtn.disabled = true; okBtn.textContent = '…'; }
-  if (statusEl) statusEl.textContent = '';
-
+// Homey-webhook direct ('start' | 'stop'). Bij 'start' met actieve planning wordt
+// die planning daarna opgeruimd (best-effort), zodat QStash niet alsnog vuurt.
+async function homeyActie(action) {
+  if (!apDetailState) return;
+  const knoppen = ['homeyStartBtn', 'homeyStopBtn'].map(id => document.getElementById(id)).filter(Boolean);
+  knoppen.forEach(b => { b.disabled = true; });
+  _zetBedienStatus(action === 'start' ? 'Starten…' : 'Stoppen…');
   try {
-    if (action === 'plan') {
-      if (!apDetailState) throw new Error('Geen apparaat actief');
-      const apparaat = apSleutel(apDetailState.ap.naam);
-      const { planUren, currentStartIdx } = apDetailState;
-      const startP = planUren[currentStartIdx];
-      if (!startP) throw new Error('Ongeldige starttijd');
-      const startTijd = new Date(startP.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
-      // Laadduur = benodigde uren (batterijniveau), afgerond op hele uur-blokken.
-      const stopTijd  = new Date(startTijd.getTime() + Math.ceil(benodigdeLaadUren()) * 3600000);
-
-      const r = await fetch(apiUrl('/api/planLaden'), {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ startTijd: startTijd.toISOString(), stopTijd: stopTijd.toISOString(), apparaat, pin })
-      });
-      const data = await r.json();
-      if (r.status === 401) throw new Error('Ongeldige pincode');
-      if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
-
-      cachePlanPin(pin); // herbruikbaar voor stille slider-updates en annuleren; wipt na 5min
-      _planningActief = true;
-      if (section)  section.style.display = 'none';
-      if (statusEl) { statusEl.textContent = '✓ Planning opgeslagen'; statusEl.style.color = 'var(--green)'; }
-      await laadPlanningStatus(apparaat);
-      return;
-    }
-
-    if (action === 'annuleer') {
-      if (!apDetailState) throw new Error('Geen apparaat actief');
-      const apparaat = apSleutel(apDetailState.ap.naam);
-      const r = await fetch(apiUrl('/api/planLaden?apparaat=' + apparaat), {
-        method:  'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ pin })
-      });
-      const data = await r.json();
-      if (r.status === 401) throw new Error('Ongeldige pincode');
-      if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
-
-      cachePlanPin(pin);
-      _planningActief = false;
-      if (section) section.style.display = 'none';
-      const planStatusEl = document.getElementById('planningStatusEl');
-      if (planStatusEl) planStatusEl.style.display = 'none';
-      const btn = document.getElementById('planInladenBtn');
-      if (btn) {
-        const t = getSelStartActual();
-        btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
-      }
-      if (statusEl) { statusEl.textContent = '✓ Planning geannuleerd'; statusEl.style.color = 'var(--green)'; }
-      return;
-    }
-
-    if (action === 'hcplan') {
-      if (!apDetailState) throw new Error('Geen apparaat actief');
-      const ap   = apDetailState.ap;
-      const haId = hcHaIdVoor(ap);
-      if (!haId) throw new Error('Apparaat niet gekoppeld');
-      const apparaat = apSleutel(ap.naam);
-      const planReq  = apDetailState._hcPlanReq || {};
-      const r = await fetch(apiUrl('/api/planLaden'), {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ type: 'homeconnect', apparaat, haId, programKey: planReq.programKey, options: planReq.options || [], startTijd: planReq.startTijd, pin })
-      });
-      const data = await r.json();
-      if (r.status === 401) throw new Error('Ongeldige pincode');
-      if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
-
-      cachePlanPin(pin); // herbruikbaar voor annuleren; wipt na 5min
-      apDetailState._hcPlanActief = true;
-      if (section)  section.style.display = 'none';
-      if (statusEl) { statusEl.textContent = '✓ Ingepland op het goedkoopste moment.'; statusEl.style.color = 'var(--green)'; }
-      await hcLaadPlanningStatus(ap);
-      // Bied na de was aan de droger aansluitend in te plannen.
-      bekijkDrogerKoppeling(ap);
-      return;
-    }
-
-    if (action === 'hcannuleer') {
-      if (!apDetailState) throw new Error('Geen apparaat actief');
-      const ap       = apDetailState.ap;
-      const apparaat = apSleutel(ap.naam);
-      const r = await fetch(apiUrl('/api/planLaden?apparaat=' + apparaat), {
-        method:  'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ pin })
-      });
-      const data = await r.json();
-      if (r.status === 401) throw new Error('Ongeldige pincode');
-      if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
-
-      cachePlanPin(pin);
-      apDetailState._hcPlanActief = false;
-      if (section)  section.style.display = 'none';
-      if (statusEl) { statusEl.textContent = '✓ Planning geannuleerd'; statusEl.style.color = 'var(--green)'; }
-      await hcLaadPlanningStatus(ap);
-      return;
-    }
-
-    if (action === 'hcstart' || action === 'hcstop') {
-      if (!apDetailState) throw new Error('Geen apparaat actief');
-      const haId = hcHaIdVoor(apDetailState.ap);
-      if (!haId) throw new Error('Apparaat niet gekoppeld');
-      const sub   = action === 'hcstart' ? 'start' : 'stop';
-      const extra = (action === 'hcstart' && apDetailState._hcStart) ? apDetailState._hcStart : {};
-      const r = await fetch(apiUrl('/api/homeconnect?action=' + sub), {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ haId, pin, ...extra })
-      });
-      const data = await r.json().catch(() => ({}));
-      if (r.status === 401 && data.error === 'Ongeldige pincode') throw new Error('Ongeldige pincode');
-      if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
-      if (section)  section.style.display = 'none';
-      const heeftFinish = action === 'hcstart' && apDetailState._hcStart
-        && (apDetailState._hcStart.options || []).some(o => /FinishInRelative$/.test(o.key));
-      if (statusEl) {
-        statusEl.textContent = action !== 'hcstart' ? '✓ Programma gestopt.'
-          : heeftFinish ? '✓ Ingepland — de machine start zelf op tijd.' : '✓ Programma gestart!';
-        statusEl.style.color = 'var(--green)';
-      }
-      // Bied na een wasbeurt aan de droger erna in te plannen.
-      if (action === 'hcstart') bekijkDrogerKoppeling(apDetailState.ap);
-      return;
-    }
-
-    // 'start' of 'stop' — Homey webhook direct
-    const r = await fetch(apiUrl('/api/homey'), {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ pin, action })
-    });
-    const data = await r.json();
-    if (r.status === 401) throw new Error('Ongeldige pincode');
-    if (!r.ok || !data.success) throw new Error(data.error || `HTTP ${r.status}`);
-
-    // Bij 'start' met actieve planning: cleanup planning na succesvolle webhook.
-    // Best-effort — als DELETE faalt, blijft Redis-row staan (verstreken QStash
-    // messages firen alsnog, dat is backlog #6/#7 voor QStash msg-cleanup).
-    if (action === 'start' && _planningActief && apDetailState) {
+    await _bedienFetch('/api/homey', { method: 'POST', body: JSON.stringify({ action }) });
+    if (action === 'start' && _planningActief) {
       const apparaat = apSleutel(apDetailState.ap.naam);
       try {
-        await fetch(apiUrl('/api/planLaden?apparaat=' + apparaat), {
-          method:  'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ pin })
-        });
+        await _bedienFetch('/api/planLaden?apparaat=' + apparaat, { method: 'DELETE' });
         _planningActief = false;
         const planStatusEl = document.getElementById('planningStatusEl');
         if (planStatusEl) planStatusEl.style.display = 'none';
+        _zetPlanKnop();
       } catch {}
     }
-
-    if (section)  section.style.display = 'none';
-    if (statusEl) {
-      statusEl.textContent = action === 'start' ? '✓ Laden gestart!' : '✓ Laden gestopt.';
-      statusEl.style.color = 'var(--green)';
-    }
+    _zetBedienStatus(action === 'start' ? '✓ Laden gestart!' : '✓ Laden gestopt.', 'var(--green)');
   } catch (e) {
-    if (statusEl) { statusEl.textContent = `✗ ${e.message}`; statusEl.style.color = '#a32d2d'; }
-    if (input) { input.disabled = false; input.value = ''; input.focus(); }
-    if (okBtn) { okBtn.disabled = false; okBtn.textContent = '✓'; }
+    _zetBedienStatus('✗ ' + e.message, '#a32d2d');
+  } finally {
+    knoppen.forEach(b => { b.disabled = false; });
   }
 }
 
