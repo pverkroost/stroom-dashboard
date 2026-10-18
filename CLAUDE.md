@@ -16,6 +16,8 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
 
 ## Architectuur
 - **Frontend**: vanilla JS + Chart.js, geserveerd vanuit de repo-root (`index.html`, `css/`, `js/`).
+  `js/prijsformule.js` = pure prijsformule (verbruik + parametrische teruglevering), zonder DOM,
+  gedeeld door de browser (geladen vóór `js/config.js`) en `npm test` (`test/prijsformule.test.js`).
   PWA-basis sinds v2.76.2: `manifest.json` + `icons/` (standalone homescreen-app, opent op de
   hoofdtab). Bewust geen service worker — offline/push komt met backlog #97.
 - **Backend**: serverless functies in `api/` (Vercel)
@@ -115,19 +117,24 @@ Gecentraliseerd in `api/_helpers.js` (gedeeld door alle endpoints):
 ## Multi-user (sinds v2.54.0)
 Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
 - **`users/<id>.js`** zet `window.CONFIG` (niet-gevoelige config: tarieven, panelen, apparaten).
-  Geldige user-id's hardcoded in `index.html` inline loader; onbekend → fallback naar `001`.
-  Profielen: `001` = Pieter (SolarEdge + Growatt + Homey + Home Connect),
-  `002` = vriend (alleen SolarEdge; geen Growatt, geen Homey). Het `integraties`-veld
-  per user bepaalt welke secties/tegels getoond worden (`heeftIntegratie()`).
+  Geldige user-id's hardcoded in `js/bootstrap.js` (`GELDIGE_USERS`); onbekend → fallback naar `001`.
+  Profielen: `001` = Pieter (Sepa Green; SolarEdge + Growatt + Homey + Home Connect),
+  `002` = vriend (alleen SolarEdge; geen Growatt, geen Homey),
+  `003` = Patrick, Almelo (Zonneplan; SolarEdge 10,344 kWp + Home Connect voor zijn
+  Siemens-apparaten; geen Growatt/Homey/HomeWizard. Apparatenlijst is nog een voorlopige
+  default; Miele-apparaten vallen buiten Home Connect en worden niet ondersteund).
+  Het `integraties`-veld per user bepaalt welke secties/tegels getoond worden (`heeftIntegratie()`).
 - **Server-side**: alle `/api/*` endpoints lezen `?u=<id>` (of body), valideren tegen
-  `GELDIGE_USERS = ['001', '002']`, en lezen env vars met userId-suffix
+  `VALID_USERS = ['001', '002', '003']` (`api/_helpers.js`), en lezen env vars met userId-suffix
   (`process.env[`SOLAREDGE_API_KEY_${userId}`]`). Geen mapping-tabel — userId IS de suffix.
 - **Frontend fetch helper**: `apiUrl(path)` in `js/config.js` hangt `?u=<id>` aan elke `/api/*` call.
 - **QStash → cronLaden**: body bevat ook `userId` zodat cronLaden de juiste Homey cloud-id pakt
   bij de scheduled webhook (na signature-verificatie).
-- **Toevoegen nieuwe user**: maak `users/<nieuw-id>.js`, update `GELDIGE_USERS` array in
-  zowel `index.html` als alle 5 API endpoints, vul per-user env vars in Vercel.
-  Geen auth; URL-id's zijn raadbaar (volgt #19 in backlog).
+- **Toevoegen nieuwe user**: maak `users/<nieuw-id>.js` (incl. `tarieven.teruglevering`
+  als object), update de lijst op **2 plekken**: `GELDIGE_USERS` in `js/bootstrap.js` en
+  `VALID_USERS` in `api/_helpers.js` (alle endpoints lezen die), vul per-user env vars in
+  Vercel en maak een login aan met `node scripts/create-user.mjs <email> <ww> "<naam>" <id>`.
+  `npm test` rekent de `users/*.js`-tarieven door.
 
 ## Auto / Kenteken
 Voertuigspecs voor het laad-apparaat "Auto" via kenteken-lookup, **server-side in `api/kenteken.js`**:
@@ -232,8 +239,38 @@ Client-side constanten staan per-user in `users/<id>.js` (zet `window.CONFIG`):
 oude constants (`OPSLAG`, `EB`, `LAT`, `APPARATEN`, …) zodat bestaande code
 ongewijzigd werkt. Pas waarden aan in het juiste `users/<id>.js` bestand.
 
+## Prijsformule (parametrisch per user, sinds v2.78.0)
+Alle rekenwerk zit in `js/prijsformule.js` (pure functies, getest in `test/prijsformule.test.js`,
+`npm test`). `js/config.js` blijft de compat-laag: `berekenTerugleverPrijs(epex)` (1 arg) en
+`berekenPrijs(epex)` in `js/prijzen.js` delegeren aan de 2-arg varianten met `window.CONFIG.tarieven`.
+
+```
+verbruiksprijs  = (epex + opslag + eb) × btw                         (alle contracten)
+teruglevering, per user via tarieven.teruglevering:
+  { methode: 'afslag', bedrag }        → (epex − bedrag) × btw         Sepa Green (001, 002)
+  { methode: 'opslag', bedrag,
+    zonnebonusPct?, zonnebonusMaxKwhJaar? }
+                                       → (epex + bedrag) × btw         Zonneplan (003)
+    met zonnebonus (alleen 'opslag'): als zonnebonusPct > 0 én (epex + bedrag) > 0
+                                       → (epex + bedrag) × (1 + zonnebonusPct) × btw
+```
+- Een kaal getal (`teruglevering: 0.0353`, nog in `users/002.js`) = afslag met dat bedrag.
+  `normaliseerTeruglevering()` gooit bij een ongeldige methode/bedrag — geen stille 0.
+- `TERUGLEVERING` (genormaliseerd object) en `TERUGLEVERING_OPSLAG` (compat: afslag-bedrag,
+  0 bij methode 'opslag') staan in `js/config.js`. Nieuwe code gebruikt de functies, niet de constante.
+- **Vereenvoudiging zonnebonus**: Zonneplan keert de 10% alleen overdag (zonsopkomst–ondergang)
+  en tot 7500 kWh/jaar uit. Beide grenzen worden bewust **niet** gehandhaafd; de bonus geldt op
+  alle uren. Geen half-werkende zonsopkomst-detectie bouwen — pas verfijnen met een echte
+  zon-op/onder-bron (Open-Meteo levert `sunrise`/`sunset`). Vervolgitem in backlog.
+- Instellingen → Tarieven wordt per user gerenderd uit `window.CONFIG.tarieven` (`renderInstellingen`),
+  incl. `tarieven.leverancier` als die gezet is.
+- **Geld-kritisch**: bij elke wijziging aan de formule eerst de verwachte waarden met de hand
+  uitrekenen en in de test zetten; `npm test` moet groen zijn. Backward-compat voor 001 is
+  bitwise getest tegen de oude `(epex − 0.0353) × 1.21`.
+
 ## Tarieven (Sepa Green, excl. btw) — referentie voor 001
-Bron: Sepa Green Energy jaarnota 2025/2026. Aanpassen in `users/001.js` en de Tarieven-sectie van `index.html`.
+Bron: Sepa Green Energy jaarnota 2025/2026. Aanpassen in `users/001.js`; de Tarieven-sectie
+in Instellingen wordt daaruit gerenderd.
 
 | Tarief                        | Waarde            | Constante in code        |
 |-------------------------------|-------------------|--------------------------|
@@ -241,11 +278,20 @@ Bron: Sepa Green Energy jaarnota 2025/2026. Aanpassen in `users/001.js` en de Ta
 | Energiebelasting              | € 0,11618 / kWh   | `EB`                     |
 | BTW                           | 21 %              | `BTW = 1.21`             |
 | Vaste kosten (lev. + netbeh.) | € 1,35 / dag      | `VASTE_KOSTEN_PER_DAG`   |
-| Afslag bij teruglevering      | € 0,03530 / kWh   | `TERUGLEVERING_OPSLAG`   |
+| Afslag bij teruglevering      | € 0,03530 / kWh   | `tarieven.teruglevering = { methode:'afslag', bedrag }` |
 
 `EB` is het gewogen gemiddelde over de jaarnota-perioden: periode 1+2 (4131 kWh à € 0,122863)
 en periode 3 (5178 kWh à € 0,110848) → € 0,11618/kWh. `BTW` is een **vermenigvuldiger** (1.21),
 géén percentage — niet als `0.21` opslaan, dat breekt de prijsformule.
 
-Prijsformule (`js/prijzen.js`): `(epex + OPSLAG + EB) × BTW`
-Teruglevering (`js/config.js`): `(epex − TERUGLEVERING_OPSLAG) × BTW`
+Prijsformule: zie *Prijsformule (parametrisch per user)* hierboven.
+
+## Tarieven (Zonneplan, excl. btw) — referentie voor 003
+| Tarief                        | Waarde            |
+|-------------------------------|-------------------|
+| Inkoopvergoeding (verbruik)   | € 0,01653 / kWh (€ 0,02 incl.) |
+| Energiebelasting              | € 0,12599 / kWh   |
+| BTW                           | 21 %              |
+| Vaste kosten                  | € 0,16986 / dag   |
+| Vergoeding bij teruglevering  | EPEX **+** € 0,01653 / kWh (zelfde inkoopvergoeding als verbruik) |
+| Zonnebonus                    | + 10 % over (EPEX + vergoeding), max 7500 kWh/jaar, alleen overdag (niet gehandhaafd) |

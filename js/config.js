@@ -12,7 +12,15 @@ const OPSLAG               = window.CONFIG.tarieven.opslag;
 const EB                   = window.CONFIG.tarieven.eb;
 const BTW                  = window.CONFIG.tarieven.btw;
 const VASTE_KOSTEN_PER_DAG = window.CONFIG.tarieven.vasteKostenPerDag;
-const TERUGLEVERING_OPSLAG = window.CONFIG.tarieven.teruglevering;
+// Teruglevering is sinds v2.78.0 parametrisch (js/prijsformule.js): een kaal getal
+// in users/<id>.js = afslag (Sepa Green), een object { methode, bedrag, … } kiest
+// 'afslag' of 'opslag' (Zonneplan). Fail-fast bij ongeldige config zodat een
+// vergeten/verkeerd veld niet stilletjes verkeerde prijzen oplevert.
+const TERUGLEVERING        = PRIJSFORMULE.normaliseerTeruglevering(window.CONFIG.tarieven.teruglevering);
+// Compat-constante: het afslag-bedrag per kWh. Alleen betekenisvol bij methode
+// 'afslag'; bij 'opslag' is hij 0 zodat oude lees-plekken niet per ongeluk een
+// opslag als afslag interpreteren. Nieuwe code gebruikt berekenTerugleverPrijs().
+const TERUGLEVERING_OPSLAG = TERUGLEVERING.methode === 'afslag' ? TERUGLEVERING.bedrag : 0;
 
 // Panelen / locatie — fallback Nijverdal als user-config het veld mist.
 // TOTAL_PEAK_KW en SOLAREDGE_PEAK_KW zijn let-bindings omdat app.js ze
@@ -67,7 +75,10 @@ function apiUrl(path) {
   return path + sep + 'u=' + encodeURIComponent(window.CONFIG.userId);
 }
 
-function berekenTerugleverPrijs(epex) { return (epex - TERUGLEVERING_OPSLAG) * BTW; }
+// Terugleverprijs incl. btw voor deze user — delegeert aan de pure formule in
+// js/prijsformule.js (één bron voor browser én `npm test`); de app gebruikt overal
+// deze 1-arg, user-gebonden variant.
+function berekenTerugleverPrijs(epex) { return PRIJSFORMULE.berekenTerugleverPrijs(epex, window.CONFIG.tarieven); }
 
 // HTML-escape voor user-controlled / 3rd-party data (RDW, EV-DB, API errors)
 // die in template-strings naar innerHTML gaat. Null/undefined → lege string.

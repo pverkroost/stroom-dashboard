@@ -4,6 +4,7 @@
     "node": ">=18"
   },
   "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
     "lint": "eslint \"js/**/*.js\" \"api/**/*.js\"",
     "lint:fix": "eslint \"js/**/*.js\" \"api/**/*.js\" --fix"
   },

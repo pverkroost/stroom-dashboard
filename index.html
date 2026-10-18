@@ -177,15 +177,9 @@
 
   <div class="section" style="padding-top:28px">
     <div class="section-title">Tarieven</div>
-    <div class="tarief-card">
-      <div class="tarief-row"><span class="tarief-key">Inkoopvergoeding</span><span>€ 0,03073 / kWh</span></div>
-      <div class="tarief-row"><span class="tarief-key">Energiebelasting</span><span>€ 0,09161 / kWh</span></div>
-      <div class="tarief-row"><span class="tarief-key">BTW</span><span>21%</span></div>
-      <div class="tarief-row"><span class="tarief-key">Vaste kosten</span><span>€ 1,35 / dag</span></div>
-      <div class="tarief-row"><span class="tarief-key">Terugleververgoeding</span><span>− € 0,03530 / kWh</span></div>
-      <div class="tarief-row" style="display:block;border-top:none;padding-top:0">
-        <span style="font-size:10px;color:var(--muted);line-height:1.5">Sepa Green brengt € 0,0353/kWh in rekening bij teruglevering.<br>Bij lage beursprijzen kan terugleveren geld kosten.</span>
-      </div>
+    <!-- Gevuld door renderInstellingen() uit window.CONFIG.tarieven (per user). -->
+    <div class="tarief-card" id="tarievenCard">
+      <div class="tarief-row"><span class="tarief-key" style="color:var(--muted)">Laden…</span></div>
     </div>
   </div>
 
@@ -257,7 +251,7 @@
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.77.0</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.78.0</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -295,11 +289,11 @@
   // APP_VERSION = single source voor de versie-stamp en cache-bust querystrings.
   // js/bootstrap.js gebruikt dit om de user-config + app-modules met `?v=` te laden
   // (vroeger statische script-tags). Het moet vóór bootstrap.js gezet worden.
-  window.APP_VERSION = '2.77.0';
+  window.APP_VERSION = '2.78.0';
 </script>
 <!-- bootstrap.js bepaalt de gebruiker (echte sessie via /api/auth?action=me, of legacy ?u=)
      en laadt daarna pas users/<id>.js + js/config|solar|prijzen|apparaten|app.js.
      Zonder geldige sessie toont het de #loginOverlay hierboven. -->
-<script src="js/bootstrap.js?v=2.77.0"></script>
+<script src="js/bootstrap.js?v=2.78.0"></script>
 </body>
 </html>

@@ -27,7 +27,8 @@ Persoonlijk dashboard voor een dynamisch stroomcontract. Combineert EPEX day-ahe
 ├── js/
 │   ├── config.js           tarieven, locatie, panelen, apparaten
 │   ├── app.js              tab-navigatie, status, init
-│   ├── prijzen.js          EnergyZero ophalen + prijsformule
+│   ├── prijsformule.js     pure prijsformule (verbruik + parametrische teruglevering), ook in npm test
+│   ├── prijzen.js          EnergyZero ophalen + grafiek/uurlijst
 │   ├── solar.js            SolarEdge + Growatt + Open-Meteo
 │   └── apparaten.js        slim-inplannen logica + UI
 ├── api/                    Vercel serverless functions
@@ -250,11 +251,21 @@ node -e "const d=require('./kilowatt-ev-data.json'); require('fs').writeFileSync
 ```
 
 ## Prijsformule
+Parametrisch per gebruiker (`users/<id>.js` → `tarieven`), rekenwerk in `js/prijsformule.js`
+(getest met `npm test`):
 ```
-verbruiksprijs = (epex + OPSLAG + EB) × BTW
-terugleverprijs = (epex − TERUGLEVERING_OPSLAG) × BTW
+verbruiksprijs  = (epex + opslag + eb) × btw
+terugleverprijs:
+  methode 'afslag' (Sepa Green):  (epex − bedrag) × btw
+  methode 'opslag' (Zonneplan):   (epex + bedrag) × btw
+     + zonnebonus: × (1 + zonnebonusPct) als zonnebonusPct gezet is en (epex + bedrag) > 0
 ```
-Actuele Sepa Green tarieven (excl. btw): zie tabel in [CLAUDE.md](CLAUDE.md#tarieven-sepa-green-excl-btw).
+```js
+teruglevering: { methode: 'afslag', bedrag: 0.0353 }                                  // Sepa Green
+teruglevering: { methode: 'opslag', bedrag: 0.01653, zonnebonusPct: 0.10, zonnebonusMaxKwhJaar: 7500 } // Zonneplan
+```
+Vereenvoudiging: de zonnebonus geldt op alle uren (Zonneplan: alleen overdag en tot
+7500 kWh/jaar). Tarieventabellen per contract: zie [CLAUDE.md](CLAUDE.md#prijsformule-parametrisch-per-user-sinds-v2780).
 
 ## Lokaal draaien
 De frontend is een statische pagina — open `index.html` direct, of serveer de repo-root met bijvoorbeeld:

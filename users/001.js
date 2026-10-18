@@ -16,11 +16,14 @@
     // de richting-interpretatie, niet de getoonde absolute waarde).
     homewizardVermogenInverteren: false,
     tarieven: {
+      leverancier:       'Sepa Green',
       opslag:            0.02508, // € per kWh excl. btw (jaarnota 2025/2026)
       eb:                0.11618, // energiebelasting € per kWh excl. btw (gewogen gem. jaarnota 2025/2026)
       btw:               1.21,
       vasteKostenPerDag: 1.35,    // € per dag excl. btw
-      teruglevering:     0.0353,  // afslag bij teruglevering € per kWh excl. btw
+      // Sepa Green brengt een vaste afslag in rekening bij teruglevering:
+      // terugleverprijs = (epex − bedrag) × btw. Zie js/prijsformule.js.
+      teruglevering:     { methode: 'afslag', bedrag: 0.0353 }, // € per kWh excl. btw
     },
     panelen: {
       lat:           52.3667, // Nijverdal

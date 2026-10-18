@@ -13,7 +13,7 @@ const ALLOWED_ORIGINS = [
 // van een nieuwe user maar op 2 plekken hoeft: hier en de inline-loader in
 // index.html (frontend kan niet `require` uit api/). VALID_USERS[0] is de
 // fallback voor onbekende of ontbrekende ?u waardes.
-const VALID_USERS = ['001', '002'];
+const VALID_USERS = ['001', '002', '003'];
 
 // Veilige userId-extractie. Volgorde:
 //  1. Geldige eq_session-cookie → session.userId (echte auth, niet te spoofen).

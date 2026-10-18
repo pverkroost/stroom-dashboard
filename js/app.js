@@ -457,6 +457,29 @@ function renderInstellingen() {
       });
     }
   }
+  const tCard = document.getElementById('tarievenCard');
+  if (tCard) {
+    const t   = window.CONFIG.tarieven || {};
+    const tl  = TERUGLEVERING;
+    const kwh = n => '€ ' + (n ?? 0).toFixed(5).replace('.', ',') + ' / kWh';
+    const row = (k, v) => `<div class="tarief-row"><span class="tarief-key">${k}</span><span>${v}</span></div>`;
+    const lev = escapeHtml(t.leverancier || 'De leverancier');
+    const terugRij = tl.methode === 'afslag'
+      ? row('Afslag bij teruglevering', '− ' + kwh(tl.bedrag))
+      : row('Vergoeding bij teruglevering', '+ ' + kwh(tl.bedrag)) +
+        (tl.zonnebonusPct > 0 ? row('Zonnebonus', '+ ' + Math.round(tl.zonnebonusPct * 100) + '%' + (tl.zonnebonusMaxKwhJaar ? ' <span style="font-size:10px;color:var(--muted)">tot ' + tl.zonnebonusMaxKwhJaar + ' kWh/jaar</span>' : '')) : '');
+    const toelichting = tl.methode === 'afslag'
+      ? `${lev} brengt ${kwh(tl.bedrag)} in rekening bij teruglevering: terugleverprijs = (EPEX − afslag) × btw.<br>Bij lage beursprijzen kan terugleveren geld kosten.`
+      : `${lev} vergoedt EPEX + ${kwh(tl.bedrag)}${tl.zonnebonusPct > 0 ? ', met ' + Math.round(tl.zonnebonusPct * 100) + '% zonnebonus zolang dat bedrag positief is' : ''}: terugleverprijs = (EPEX + vergoeding)${tl.zonnebonusPct > 0 ? ' × (1 + bonus)' : ''} × btw.<br>Bij negatieve beursprijzen kan terugleveren geld kosten.`;
+    tCard.innerHTML =
+      (t.leverancier ? row('Leverancier', escapeHtml(t.leverancier)) : '') +
+      row('Inkoopvergoeding', kwh(t.opslag)) +
+      row('Energiebelasting', kwh(t.eb)) +
+      row('BTW', Math.round(((t.btw || 1) - 1) * 100) + '%') +
+      row('Vaste kosten', '€ ' + (t.vasteKostenPerDag ?? 0).toFixed(2).replace('.', ',') + ' / dag') +
+      terugRij +
+      `<div class="tarief-row" style="display:block;border-top:none;padding-top:0"><span style="font-size:10px;color:var(--muted);line-height:1.5">${toelichting}<br>Alle bedragen excl. btw; de app rekent incl. btw.</span></div>`;
+  }
   const zpCard = document.getElementById('zonnepanelenCard');
   if (zpCard) {
     const p   = window.CONFIG.panelen || {};
