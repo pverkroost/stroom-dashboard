@@ -38,8 +38,9 @@
       growatt:   { piekKw: 0,      panelen: 0, locatie: '—' },
     },
     // VOORLOPIGE DEFAULT — Patricks exacte apparatenlijst moet nog bevestigd worden.
-    // Geen Homey (bevestigd), dus `automatisering: true` is voor 003 nooit van toepassing.
-    // Bewust zonder auto en zonder snelkaarten/weekschema.
+    // Bevestigd: geen Homey (dus `automatisering: true` is hier nooit van toepassing) en
+    // geen hybride/elektrische auto (dus géén apparaat met `batterij: true` — test/
+    // prijsformule.test.js bewaakt dat). Geen snelkaarten/weekschema.
     // Home Connect-koppeling (haId) gebeurt via Instellingen → Home Connect.
     apparaten: [
       { naam: 'Vaatwasser', icon: '🍽️', uren: 3.5, vermogen: 1.8, type: 'starten', automatisering: false, batterij: false, volgorde: 1, grootverbruik: true, klaarOmTekst: 'Vaatwasser moet gereed zijn om', korteTekst: '🍽️ Gereed zijn om' },

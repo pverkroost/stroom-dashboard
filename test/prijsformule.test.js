@@ -141,4 +141,8 @@ test('users/003.js is Zonneplan: opslag + zonnebonus 10%', () => {
   assert.equal(c.panelen.growatt.piekKw, 0);
   assert.equal(c.panelen.lat, 52.33);
   assert.equal(c.panelen.lon, 6.69);
+  // Patrick heeft geen Homey en geen hybride/elektrische auto (bevestigd).
+  assert.ok(!c.apparaten.some(a => a.batterij === true), 'geen auto-/laadapparaat voor 003');
+  assert.ok(!c.apparaten.some(a => a.automatisering === true), 'geen Homey-automatisering voor 003');
+  assert.deepEqual(c.apparaten.map(a => a.naam), ['Vaatwasser', 'Wasmachine', 'Droger']);
 });

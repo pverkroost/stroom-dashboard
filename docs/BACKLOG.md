@@ -66,7 +66,7 @@
 
 ### Open vragen
 - User 003 (Patrick): exacte apparatenlijst (`users/003.js` heeft nu een voorlopige default:
-  vaatwasser/wasmachine/droger, geen auto). Geen Homey — bevestigd.
+  vaatwasser/wasmachine/droger). Bevestigd: geen Homey, geen hybride/elektrische auto.
 - Miele-apparaten (Patrick) vallen buiten Home Connect (eigen Miele-API) → niet ondersteund; alleen
   zijn Siemens-apparaten werken. Bekend gat.
 - ~~HomeWizard P1 aanschaffen?~~ → beantwoord: aangeschaft en geïntegreerd (#11, v2.74.0)
