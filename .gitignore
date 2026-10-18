@@ -4,3 +4,6 @@ node_modules/
 
 # Ruwe chat-export uit claude.ai — bevat persoonlijke info, blijft lokaal
 docs/chat*.md
+
+.vercel
+.env*
