@@ -1,4 +1,5 @@
-function berekenPrijs(epex) { return (epex + OPSLAG + EB) * BTW; }
+// Verbruiksprijs incl. btw: (epex + OPSLAG + EB) × BTW — zie js/prijsformule.js.
+function berekenPrijs(epex) { return PRIJSFORMULE.berekenVerbruiksPrijs(epex, window.CONFIG.tarieven); }
 
 async function fetchPrijzen(offset) {
   const start = new Date(); start.setDate(start.getDate() + offset); start.setHours(0,0,0,0);

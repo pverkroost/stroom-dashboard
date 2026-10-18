@@ -20,6 +20,7 @@
   "globals": {
     "window": "readonly",
     "Chart": "readonly",
-    "CONFIG": "readonly"
+    "CONFIG": "readonly",
+    "PRIJSFORMULE": "readonly"
   }
 }

@@ -6,7 +6,7 @@
 //     tijdens de transitie naar echte login).
 //  2. Anders → GET /api/auth?action=me. 200 → start app met session.userId. 401 → login-overlay.
 (function () {
-  var GELDIGE_USERS = ['001', '002'];
+  var GELDIGE_USERS = ['001', '002', '003'];
 
   function loadScript(src) {
     return new Promise(function (resolve, reject) {
@@ -25,6 +25,7 @@
     var v = '?v=' + window.APP_VERSION;
     var bestanden = [
       'users/' + userId + '.js' + v,
+      'js/prijsformule.js' + v,
       'js/config.js' + v,
       'js/solar.js' + v,
       'js/prijzen.js' + v,

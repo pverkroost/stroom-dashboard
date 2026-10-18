@@ -57,12 +57,18 @@
 - **#39** [XL] Lemon Squeezy freemium-betaalmuur (vereist #19) — zie details
 
 ### Nice-to-have
+- Zonnebonus (Zonneplan, user 003) verfijnen: alleen overdag (Open-Meteo `sunrise`/`sunset`) en
+  de 7500 kWh/jaar-grens handhaven — nu vereenvoudigd op alle uren (zie `js/prijsformule.js`)
 - Warmtepomp via API — uitgewerkt als #96 (Mitsubishi Ecodan via MELCloud)
 - Boiler via Homey
 - "Volledig gratis op zon"-badge als solar > apparaatverbruik
 - Geselecteerd-uur-lijn doortrekken op Morgen + Zon tab
 
 ### Open vragen
+- User 003 (Patrick): exacte apparatenlijst (`users/003.js` heeft nu een voorlopige default:
+  vaatwasser/wasmachine/droger). Bevestigd: geen Homey, geen hybride/elektrische auto.
+- Miele-apparaten (Patrick) vallen buiten Home Connect (eigen Miele-API) → niet ondersteund; alleen
+  zijn Siemens-apparaten werken. Bekend gat.
 - ~~HomeWizard P1 aanschaffen?~~ → beantwoord: aangeschaft en geïntegreerd (#11, v2.74.0)
 - Welke netbeheerder? (Enexis-portal check uitgesteld)
 - Welk merk warmtepomp? → Mitsubishi Ecodan (zie #96)
@@ -198,7 +204,17 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
-**v2.77.0** — Pincode vervallen
+**v2.78.0** — Parametrische teruglever-prijsformule + user 003 (Zonneplan)
+- **#102** `tarieven.teruglevering` per user: `{ methode:'afslag'|'opslag', bedrag, zonnebonusPct?,
+  zonnebonusMaxKwhJaar? }`. Nieuw `js/prijsformule.js` (pure functies, in browser én Node)
+  + `test/prijsformule.test.js` (`npm test`, 12 tests incl. bitwise backward-compat voor 001).
+  `js/config.js` blijft compat-laag (`TERUGLEVERING`, `TERUGLEVERING_OPSLAG`). Instellingen →
+  Tarieven nu per user gerenderd. Vereenvoudiging: zonnebonus op alle uren, 7500 kWh-grens
+  niet gehandhaafd.
+- **#103** User `003` Patrick (Almelo, Zonneplan): `users/003.js` (SolarEdge 10,344 kWp +
+  Home Connect; geen Growatt/Homey/HomeWizard), geregistreerd in `js/bootstrap.js` en
+  `api/_helpers.js`. Apparatenlijst is een voorlopige default.
+
 - Pincode (`APP_PINCODE_<id>`) volledig verwijderd: sinds de echte login (v2.72.0) was hij
   een dubbele laag die vooral frictie gaf. Bedien-endpoints (`/api/homey` POST,
   `/api/planLaden` POST/DELETE, `/api/homeconnect` start/stop) vereisen nu een geldige
