@@ -144,5 +144,11 @@ test('users/003.js is Zonneplan: opslag + zonnebonus 10%', () => {
   // Patrick heeft geen Homey en geen hybride/elektrische auto (bevestigd).
   assert.ok(!c.apparaten.some(a => a.batterij === true), 'geen auto-/laadapparaat voor 003');
   assert.ok(!c.apparaten.some(a => a.automatisering === true), 'geen Homey-automatisering voor 003');
+  // Snelkaart + weekschema alleen voor de vaatwasser (v2.79.4): geen auto-kolom voor 003.
+  const snel = c.apparaten.filter(a => a.snelkaart === true);
+  assert.deepEqual(snel.map(a => a.naam), ['Vaatwasser'], 'alleen de vaatwasser heeft een snelkaart');
+  assert.deepEqual(Object.keys(snel[0].weekschema), ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']);
+  assert.ok(Object.values(snel[0].weekschema).every(t => /^\d{2}:\d{2}$/.test(t)), 'weekschema-tijden HH:MM');
+  assert.equal(snel[0].deadlineLabel, 'klaar om');
   assert.deepEqual(c.apparaten.map(a => a.naam), ['Vaatwasser', 'Wasmachine', 'Droger']);
 });

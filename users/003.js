@@ -42,10 +42,15 @@
     // VOORLOPIGE DEFAULT — Patricks exacte apparatenlijst moet nog bevestigd worden.
     // Bevestigd: geen Homey (dus `automatisering: true` is hier nooit van toepassing) en
     // geen hybride/elektrische auto (dus géén apparaat met `batterij: true` — test/
-    // prijsformule.test.js bewaakt dat). Geen snelkaarten/weekschema.
-    // Home Connect-koppeling (haId) gebeurt via Instellingen → Home Connect.
+    // prijsformule.test.js bewaakt dat). Snelkaart + weekschema alleen voor de vaatwasser
+    // (sinds v2.79.4; puur advies, geen aansturing) — ook door de test bewaakt.
+    // Home Connect-koppeling (haId) gebeurt via Instellingen → Integraties → Home Connect.
     apparaten: [
-      { naam: 'Vaatwasser', icon: '🍽️', uren: 3.5, vermogen: 1.8, type: 'starten', automatisering: false, batterij: false, volgorde: 1, grootverbruik: true, klaarOmTekst: 'Vaatwasser moet gereed zijn om', korteTekst: '🍽️ Gereed zijn om' },
+      { naam: 'Vaatwasser', icon: '🍽️', uren: 3.5, vermogen: 1.8, type: 'starten', automatisering: false, batterij: false, volgorde: 1, grootverbruik: true, klaarOmTekst: 'Vaatwasser moet gereed zijn om', korteTekst: '🍽️ Gereed zijn om',
+        // Snelkaart ("klaar om"): zelfde defaults als user 001 — doordeweeks 07:00, weekend 09:00.
+        // Patrick kan ze zelf aanpassen in Instellingen → Weekschema (opslag in Neon).
+        snelkaart: true, deadlineLabel: 'klaar om',
+        weekschema: { ma: '07:00', di: '07:00', wo: '07:00', do: '07:00', vr: '07:00', za: '09:00', zo: '09:00' } },
       { naam: 'Wasmachine', icon: '👕', uren: 2,   vermogen: 1.5, type: 'starten', automatisering: false, batterij: false, volgorde: 2, grootverbruik: true, klaarOmTekst: 'Wasmachine moet gereed zijn om', korteTekst: '👕 Gereed zijn om', comboMet: 'Droger', homeConnect: true, homeConnectControl: true, haId: null },
       { naam: 'Droger',     icon: '🌀', uren: 2,   vermogen: 2.0, type: 'starten', automatisering: false, batterij: false, volgorde: 3, grootverbruik: true, klaarOmTekst: 'Droger moet gereed zijn om',     korteTekst: '🌀 Gereed zijn om', naApparaat: 'Wasmachine', homeConnect: true, homeConnectControl: true, haId: null },
     ],

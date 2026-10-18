@@ -324,6 +324,10 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.79.4** — Snelkaart + weekschema vaatwasser voor user 003
+- `users/003.js`: vaatwasser krijgt `snelkaart: true` + default-weekschema (ma–vr 07:00, za/zo
+  09:00), zelfde als 001. Alleen de vaatwasser (geen auto-kolom); test bewaakt dat.
+
 **v2.79.3** — Home Connect op één plek in de integratielijst
 - Instellingen: de losse sectie "Home Connect" is weg; OAuth-koppeling, apparaat-mapping
   (dropdowns, `localStorage` `homeconnect_mapping`) en de monitoring-uitleg zitten nu als
