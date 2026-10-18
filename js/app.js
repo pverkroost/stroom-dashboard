@@ -355,10 +355,13 @@ function renderInstellingen() {
     { naam: 'Open-Meteo',      sub: null,             key: 'openMeteo' },
     { naam: 'Homey',           sub: null,             key: 'homey', homey: true, integratie: 'homey' },
     { naam: 'Home Connect',    sub: 'BSH wasmachine/droger/oven', key: 'homeConnect', homeConnect: true, integratie: 'homeConnect' },
-    { naam: 'HomeWizard cloud', sub: 'P1 via HomeWizard-account (fallback voor Homey)', key: 'homewizardCloud', hwCloud: true, integratie: 'homewizardCloud' },
+    { naam: 'HomeWizard cloud', sub: 'P1 via HomeWizard-account', key: 'homewizardCloud', hwCloud: true, integratie: 'homewizardCloud' },
   ];
   const bronnen = alleBronnen.filter(b => !b.integratie || heeftIntegratie(b.integratie));
   const card = document.getElementById('integratiesCard');
+  // Het HomeWizard-beheerpaneel zit ín deze kaart; bewaar open/dicht-stand en ingetypte
+  // velden vóór de herbouw (deze functie draait ook elke 5 min en na de Homey-check).
+  const hwUi = typeof bewaarHwCloudUiState === 'function' ? bewaarHwCloudUiState() : { open: false };
   if (card) {
     card.innerHTML = bronnen.map(b => {
       let statusStr, tijdStr = '', kleurStr = '';
@@ -378,7 +381,7 @@ function renderInstellingen() {
         statusStr = '<span id="hcIntegratieStatus">' + hcStatusBadge() + '</span>';
         if (_hcStatus && !_hcStatus.verbonden) kleurStr = 'color:var(--muted)';
       } else if (b.hwCloud) {
-        // Status wordt na renderHomeWizardCloudInstellingen() in deze span bijgewerkt.
+        // Status + linktekst worden na renderHomeWizardCloudInstellingen() bijgewerkt.
         statusStr = '<span id="hwCloudIntegratieStatus">' + (typeof hwCloudStatusBadge === 'function' ? hwCloudStatusBadge() : '') + '</span>';
       } else {
         const s = apiStatus[b.key];
@@ -406,6 +409,21 @@ function renderInstellingen() {
             <li>Log in met je Siemens/Bosch-account</li>
             <li>Koppel je apparaten in de lijst</li>
           </ol>
+        </div>`;
+      }
+      if (b.hwCloud) {
+        // Eén plek voor de HomeWizard-koppeling (v2.79.1): de rij zelf toont de status,
+        // de link klapt het beheerpaneel uit (koppelen met e-mail+wachtwoord / ontkoppelen).
+        // Zelfde patroon als de "Hoe koppel ik?"-link bij Home Connect.
+        return `<div class="tarief-row" style="align-items:flex-start">
+          <div>
+            <div class="tarief-key">${b.naam}</div>
+            <div style="font-size:10px;color:var(--muted)">${b.sub || ''} · <a href="#" onclick="toggleHwCloudPanel(event)" style="color:var(--green)"><span id="hwCloudToggleLabel">Koppelen</span></a></div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;${kleurStr}"><div>${statusStr}</div></div>
+        </div>
+        <div id="hwCloudPanel" style="display:${hwUi.open ? 'block' : 'none'};border-bottom:0.5px solid var(--border)">
+          <div class="tarief-row"><span class="tarief-key" style="color:var(--muted)">Laden…</span></div>
         </div>`;
       }
       return `<div class="tarief-row" style="align-items:flex-start">

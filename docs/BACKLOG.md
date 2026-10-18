@@ -324,6 +324,11 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.79.1** — HomeWizard-koppeling op één plek
+- Instellingen: de losse sectie "HomeWizard" is weg; koppelen/status/ontkoppelen zit nu als
+  uitklappaneel onder de rij "HomeWizard cloud" in de integratielijst (link "Koppelen" /
+  "Beheer koppeling", zelfde patroon als "Hoe koppel ik?" bij Home Connect). Werking ongewijzigd.
+
 **v2.79.0** — HomeWizard cloud-API als P1-fallback
 - **#105** Live P1-verbruik via de (ongedocumenteerde) HomeWizard cloud-API als fallback voor de
   Homey-push: user voert zelf e-mail + wachtwoord in (Instellingen → HomeWizard), versleuteld in

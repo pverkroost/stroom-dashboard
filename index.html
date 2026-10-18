@@ -203,13 +203,6 @@
   </div>
 
   <div class="section">
-    <div class="section-title">HomeWizard</div>
-    <div class="tarief-card" id="homewizardCloudCard">
-      <div class="tarief-row"><span class="tarief-key" style="color:var(--muted)">Laden…</span></div>
-    </div>
-  </div>
-
-  <div class="section">
     <div class="section-title">Home Connect</div>
     <div class="tarief-card" id="homeConnectCard">
       <div class="tarief-row"><span class="tarief-key" style="color:var(--muted)">Laden…</span></div>
@@ -258,7 +251,7 @@
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.79.0</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.79.1</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -296,11 +289,11 @@
   // APP_VERSION = single source voor de versie-stamp en cache-bust querystrings.
   // js/bootstrap.js gebruikt dit om de user-config + app-modules met `?v=` te laden
   // (vroeger statische script-tags). Het moet vóór bootstrap.js gezet worden.
-  window.APP_VERSION = '2.79.0';
+  window.APP_VERSION = '2.79.1';
 </script>
 <!-- bootstrap.js bepaalt de gebruiker (echte sessie via /api/auth?action=me, of legacy ?u=)
      en laadt daarna pas users/<id>.js + js/config|solar|prijzen|apparaten|app.js.
      Zonder geldige sessie toont het de #loginOverlay hierboven. -->
-<script src="js/bootstrap.js?v=2.79.0"></script>
+<script src="js/bootstrap.js?v=2.79.1"></script>
 </body>
 </html>

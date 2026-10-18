@@ -99,7 +99,8 @@ Voor users zonder Homey (003) of als de push hapert (001) is er een fallback via
 **ongedocumenteerde HomeWizard cloud-API** (gereverse-engineerd; zie de Homey-apps van
 smarthomesven/jtebbens en de PyPI-library `homewizard-cloud`). **Onderhoudsrisico**: HomeWizard
 kan dit zonder aankondiging breken; dan faalt `cloudpoll` netjes en toont de tegel "geen live data".
-- **Credentials door de user zelf**: Instellingen → HomeWizard → e-mail + wachtwoord → "Koppelen"
+- **Credentials door de user zelf**: Instellingen → Integraties → rij "HomeWizard cloud" → "Koppelen"
+  (uitklappaneel, sinds v2.79.1 de enige plek) → e-mail + wachtwoord → "Koppelen"
   (`POST ?action=cloudsetup`, sessie vereist). De server valideert live (auth + discovery) en slaat
   pas dan op. **Niet** in Vercel env vars, niet door de beheerder. De UI toont alleen
   gekoppeld/niet-gekoppeld + e-mail, nooit het wachtwoord; het komt ook niet in logs of responses.

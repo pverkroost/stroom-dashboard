@@ -253,7 +253,7 @@ node -e "const d=require('./kilowatt-ev-data.json'); require('fs').writeFileSync
 
 ### HomeWizard cloud-fallback (zonder Homey, v2.79.0)
 Heb je geen Homey, of hapert de push? Dan kan de app je P1-stand via je **HomeWizard-account**
-ophalen. Instellingen → **HomeWizard** → e-mail + wachtwoord van je HomeWizard Energy-account →
+ophalen. Instellingen → **Integraties** → rij **HomeWizard cloud** → "Koppelen" → e-mail + wachtwoord van je HomeWizard Energy-account →
 **Koppelen**. De app controleert direct of het inloggen lukt en of er een P1-meter in je account
 zit, en slaat je gegevens daarna **versleuteld** op (AES-256-GCM, server-side in Redis; nooit in
 env vars, nooit zichtbaar in de app). Ontkoppelen wist ze weer.
