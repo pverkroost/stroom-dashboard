@@ -78,16 +78,28 @@ async function fetchGrowatt() {
   };
 }
 
-// HomeWizard P1 live net-uitwisseling (#11). Vermogen wordt door een Homey-flow
-// naar /api/homewizard gepusht en gecachet in Redis; hier alleen ophalen. Bij
-// stale/lege response → null zodat renderHomeWizard "geen live data" toont.
+// HomeWizard P1 live net-uitwisseling (#11). Fallback-keten (v2.79.0):
+//  1. Verse Homey-push-data in Redis (bron 'homey', < 5 min) → die, realtime.
+//  2. Anders, als de user de HomeWizard-cloud heeft gekoppeld (integratie
+//     homewizardCloud): POST ?action=cloudpoll (server doet open-pak-sluit op de
+//     cloud-websocket; max 1× per 2 min vanuit deze tab, 1× per min server-side).
+//     Een cloud-waarde jonger dan 2 min uit Redis wordt zonder nieuwe poll gebruikt.
+//  3. Geen van beide → null, renderHomeWizard toont "geen live data".
+function _hwLiveBruikbaar(d) { return d && !d.stale && typeof d.vermogenW === 'number'; }
 async function fetchHomeWizard() {
-  if (!heeftIntegratie('homewizard')) return null;
+  const heeftPush  = heeftIntegratie('homewizard');
+  const heeftCloud = heeftIntegratie('homewizardCloud');
+  if (!heeftPush && !heeftCloud) return null;
+  let data = null;
   const res = await fetch(apiUrl('/api/homewizard')).catch(() => null);
-  if (!res?.ok) return null;
-  const data = await res.json().catch(() => null);
-  if (!data || data.stale || typeof data.vermogenW !== 'number') return null;
-  return data;
+  if (res?.ok) data = await res.json().catch(() => null);
+  if (_hwLiveBruikbaar(data) && data.bron !== 'cloud') return data;                 // 1. Homey
+  if (_hwLiveBruikbaar(data) && Date.now() - data.updatedAt < 2 * 60 * 1000) return data; // recente cloud-waarde
+  if (heeftCloud && typeof pollHwCloud === 'function') {                               // 2. cloud
+    const cloud = await pollHwCloud();
+    if (_hwLiveBruikbaar(cloud)) return cloud;
+  }
+  return _hwLiveBruikbaar(data) ? data : null;
 }
 
 // Tegel "Live verbruik": positief vermogenW = verbruik uit het net, negatief =
@@ -97,7 +109,7 @@ async function fetchHomeWizard() {
 function renderHomeWizard() {
   const sectie = document.getElementById('zonLiveVerbruikSection');
   if (!sectie) return;
-  if (!heeftIntegratie('homewizard')) { sectie.style.display = 'none'; return; }
+  if (!heeftIntegratie('homewizard') && !heeftIntegratie('homewizardCloud')) { sectie.style.display = 'none'; return; }
   sectie.style.display = '';
 
   const valEl = document.getElementById('hwLiveVal');
@@ -107,7 +119,11 @@ function renderHomeWizard() {
   if (!homewizardLive || typeof homewizardLive.vermogenW !== 'number') {
     valEl.textContent   = '—';
     valEl.style.color   = '';
-    subEl.textContent   = 'Geen live data (Homey/P1 offline?)';
+    subEl.textContent   = heeftIntegratie('homewizard')
+      ? 'Geen live data (Homey/P1 offline?)'
+      : (typeof _hwCloudStatus !== 'undefined' && _hwCloudStatus && !_hwCloudStatus.gekoppeld
+          ? 'Koppel je HomeWizard-account via ⚙️ Instellingen'
+          : 'Geen live data (HomeWizard-cloud niet bereikbaar?)');
     return;
   }
 
@@ -117,8 +133,9 @@ function renderHomeWizard() {
   valEl.innerHTML   = `${teruglevert ? 'Teruglevering' : 'Verbruik'}: ${watt} <small style="font-size:13px;color:var(--muted);font-weight:400">W</small>`;
   valEl.style.color = teruglevert ? '#3b6d11' : '';
 
-  const bij = homewizardLive.updatedAt ? `bijgewerkt ${uurStr(new Date(homewizardLive.updatedAt))}` : '';
-  subEl.textContent = bij;
+  const bij  = homewizardLive.updatedAt ? `bijgewerkt ${uurStr(new Date(homewizardLive.updatedAt))}` : '';
+  const bron = homewizardLive.bron === 'cloud' ? 'via HomeWizard cloud' : 'via Homey';
+  subEl.textContent = [bij, bron].filter(Boolean).join(' · ');
 }
 
 async function fetchSolarData() {

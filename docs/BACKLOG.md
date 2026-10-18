@@ -73,6 +73,8 @@
 - Geselecteerd-uur-lijn doortrekken op Morgen + Zon tab
 
 ### Open vragen
+- Home Connect-tokens staan nog plaintext in Redis (`homeconnect_tokens_<id>`); nu `lib/crypto.js`
+  bestaat (v2.79.0) is dat een kleine opvolgstap.
 - User 003 (Patrick): exacte apparatenlijst (`users/003.js` heeft nu een voorlopige default:
   vaatwasser/wasmachine/droger). Bevestigd: geen Homey, geen hybride/elektrische auto.
 - Miele-apparaten (Patrick) vallen buiten Home Connect (eigen Miele-API) → niet ondersteund; alleen
@@ -275,6 +277,15 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
+
+**v2.79.0** — HomeWizard cloud-API als P1-fallback
+- **#105** Live P1-verbruik via de (ongedocumenteerde) HomeWizard cloud-API als fallback voor de
+  Homey-push: user voert zelf e-mail + wachtwoord in (Instellingen → HomeWizard), versleuteld in
+  Redis (`lib/crypto.js`, AES-256-GCM; `hw_cloud_creds_<id>`), sessie-cache `hw_cloud_session_<id>`,
+  open-pak-sluit WebSocket (`lib/homewizard-cloud.js`), `?action=cloudstatus|cloudsetup|cloudpoll|
+  cloudunlink` op `api/homewizard.js` (sessie vereist). Homey-data houdt voorrang; tegel toont de
+  bron. Vlag `integraties.homewizardCloud` (001 fallback, 003 primair). Nieuwe dep `ws`.
+  Onderhoudsrisico: niet-officiële API. Tests: `test/homewizard-cloud.test.js`.
 
 **v2.78.0** — Parametrische teruglever-prijsformule + user 003 (Zonneplan)
 - **#102** `tarieven.teruglevering` per user: `{ methode:'afslag'|'opslag', bedrag, zonnebonusPct?,

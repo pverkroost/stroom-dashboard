@@ -24,7 +24,8 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/growatt.js` — Growatt OpenAPI plant data
   - `api/solaredge.js` — SolarEdge Monitoring API (overview/power/energy)
   - `api/homey.js` — Homey cloud webhook proxy + connectivity check
-  - `api/homewizard.js` — HomeWizard P1 live verbruik/teruglevering: POST (Homey-push, gedeelde push-token) cachet in Redis, GET levert aan de frontend
+  - `api/homewizard.js` — HomeWizard P1 live verbruik/teruglevering: POST (Homey-push, gedeelde push-token) cachet in Redis, GET levert aan de frontend.
+    Sinds v2.79.0 ook de cloud-fallback via `?action=cloudstatus|cloudsetup|cloudpoll|cloudunlink` (sessie vereist) — zie *HomeWizard cloud-fallback*
   - `api/homeconnect.js` — Home Connect (BSH) OAuth2 auth-redirect + appliance status/start/stop (sessie)
   - `api/homeconnect/callback.js` — OAuth2 redirect-target: code → tokens in Redis (state-CSRF-verified)
   - `api/planLaden.js` — plant laad-actie via QStash (publishJSON met delay)
@@ -35,10 +36,12 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/db/migrate.js` — maakt `app_user`- en `user_schedule`-tabel in Neon (idempotent).
     Vereist `MIGRATE_SECRET` (Bearer-header of `?secret=`), anders 401 — zie *Security*
 - **Auth-libs** (root `lib/`, gedeeld door api): `lib/session.js` (HMAC encode/decode + `eq_session`-cookie),
-  `lib/auth.js` (`getSession`/`requireSession` uit request-cookie).
+  `lib/auth.js` (`getSession`/`requireSession` uit request-cookie), `lib/crypto.js` (AES-256-GCM voor
+  per-user credentials in Redis), `lib/homewizard-cloud.js` (HomeWizard cloud-protocol + sessie-cache).
 - **State**: laadplanningen in Upstash Redis (sleutel `laadplanning_<userId>_<apparaat>`, bv. `laadplanning_001_autophev`).
   Home Connect-tokens in `homeconnect_tokens_<userId>`, OAuth state-nonces in `homeconnect_state_<state>`.
-  HomeWizard P1 live meetwaarde in `homewizard_<userId>` (`{ vermogenW, importKwh?, exportKwh?, updatedAt }`, TTL 600s).
+  HomeWizard P1 live meetwaarde in `homewizard_<userId>` (`{ vermogenW, importKwh?, exportKwh?, updatedAt, bron:'homey'|'cloud' }`, TTL 600s).
+  HomeWizard-cloud: credentials versleuteld in `hw_cloud_creds_<userId>`, token + device_id in `hw_cloud_session_<userId>` (TTL 3000s).
   Gebruikers (email + bcrypt-hash + userId) in Neon PostgreSQL tabel `app_user`.
   Weekschema snelkaarten in Neon tabel `user_schedule` (user_id, apparaat_key, dag 0-6, tijd 'HH:MM').
 
@@ -90,13 +93,47 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
 - **Randgeval**: deadline voorbij de bekende prijzen terwijl morgen-prijzen nog niet binnen
   zijn (vóór ~14:00) → "Wacht op morgen-prijzen" (helper geeft `wachtOpMorgen: true`).
 
+## HomeWizard cloud-fallback (sinds v2.79.0)
+Live P1-verbruik komt primair via de Homey-push (`POST /api/homewizard` met `HOMEWIZARD_PUSH_TOKEN_<id>`).
+Voor users zonder Homey (003) of als de push hapert (001) is er een fallback via de
+**ongedocumenteerde HomeWizard cloud-API** (gereverse-engineerd; zie de Homey-apps van
+smarthomesven/jtebbens en de PyPI-library `homewizard-cloud`). **Onderhoudsrisico**: HomeWizard
+kan dit zonder aankondiging breken; dan faalt `cloudpoll` netjes en toont de tegel "geen live data".
+- **Credentials door de user zelf**: Instellingen → HomeWizard → e-mail + wachtwoord → "Koppelen"
+  (`POST ?action=cloudsetup`, sessie vereist). De server valideert live (auth + discovery) en slaat
+  pas dan op. **Niet** in Vercel env vars, niet door de beheerder. De UI toont alleen
+  gekoppeld/niet-gekoppeld + e-mail, nooit het wachtwoord; het komt ook niet in logs of responses.
+- **Versleuteling** (`lib/crypto.js`): AES-256-GCM, random IV per blob, formaat `v1.<base64url>`.
+  Sleutel = env `CREDS_ENCRYPTION_KEY` (64 hex) als gezet, anders HKDF uit `SESSION_SECRET`.
+  Let op: `SESSION_SECRET` roteren zonder `CREDS_ENCRYPTION_KEY` maakt opgeslagen credentials
+  onleesbaar → users moeten opnieuw koppelen. (De Home Connect-tokens staan nog plaintext in Redis —
+  kandidaat om ook via `lib/crypto.js` te laten lopen.)
+- **Protocol** (`lib/homewizard-cloud.js`, bewezen met `tmp/hw-cloud-test.js`): auth GET
+  `api.homewizardeasyonline.com/v1/auth/account/token` (Basic) → token (~3300 s); discovery GET
+  `homes.api.homewizard.com/locations` → `device_id` (`p1dongle/<hex>`, **niet** het numerieke `id`);
+  live via WebSocket `wss://energy-app-ws.homewizard.com/ws/`: hello `{type,message_id:1,compatibility:5,
+  os:'android',source:'nl.homewizard.android.energy',token,version:'2024.1.0'}` → 200 → `subscribe_device`
+  (message_id 2) → eerste `p1dongle`-state met `active_power_w` (~4 s) → verbinding dicht (open-pak-sluit).
+- **Serverless**: token + device_id gecachet in `hw_cloud_session_<userId>` (TTL 3000 s); een gewone
+  `cloudpoll` doet alleen de WebSocket-stap. Bij 401 op de hello één re-auth met de opgeslagen credentials.
+  Server-side throttle: cloud-waarde jonger dan 1 min wordt hergebruikt; verse Homey-data (< 5 min,
+  bron ≠ cloud) heeft altijd voorrang en voorkomt een cloud-call.
+- **Frontend** (`js/solar.js` `fetchHomeWizard`, `js/homewizardcloud.js`): 1. verse Homey-data → gebruik;
+  2. anders en `integraties.homewizardCloud` → `cloudpoll` (max 1× per 2 min per tab); 3. anders
+  "geen live data". Tegel toont de bron ("via Homey" / "via HomeWizard cloud").
+- **Config**: `integraties.homewizardCloud: true` in `users/001.js` (fallback) en `users/003.js` (primair).
+- **Afhankelijkheid**: `ws` (Node-WebSocket-client; Vercel-runtime heeft niet gegarandeerd een globale WebSocket).
+
 ## Security
 Gecentraliseerd in `api/_helpers.js` (gedeeld door alle endpoints):
 - **Rate limiting**: sliding window via Upstash Redis (`INCR` + `EXPIRE`). Login 10/5min per IP.
   Fail-open bij Redis-storing zodat een Upstash-uitval de app niet platlegt.
 - **Sessie-auth op bedien-endpoints**: `requireSessionUserId` (401 zonder geldige
-  `eq_session`) op `/api/homey` POST, `/api/planLaden` POST/DELETE en
-  `/api/homeconnect?action=start|stop`. Lees-acties mogen nog via `getValidUserId` (`?u=`).
+  `eq_session`) op `/api/homey` POST, `/api/planLaden` POST/DELETE,
+  `/api/homeconnect?action=start|stop` en alle `/api/homewizard?action=cloud*`-acties.
+  Lees-acties mogen nog via `getValidUserId` (`?u=`).
+- **Credential-versleuteling**: HomeWizard-cloud e-mail + wachtwoord AES-256-GCM in Redis
+  (`lib/crypto.js`), nooit in logs/responses — zie *HomeWizard cloud-fallback*.
 - **Brute-force lockout op token-endpoints**: telt 401-failures per IP+endpoint in een
   15-min window. 5+ fails → 5 min lockout, 10+ fails → 1 u lockout (`recordAuthFailure` /
   `checkAuthLockout`). Succesvolle token wist de teller (`clearAuthFailures`). Sinds v2.77.0
@@ -121,7 +158,7 @@ Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
   Profielen: `001` = Pieter (Sepa Green; SolarEdge + Growatt + Homey + Home Connect),
   `002` = vriend (alleen SolarEdge; geen Growatt, geen Homey),
   `003` = Patrick, Almelo (Zonneplan; SolarEdge 10,344 kWp + Home Connect voor zijn
-  Siemens-apparaten; geen Growatt, geen Homey, geen auto (beide bevestigd), geen HomeWizard.
+  Siemens-apparaten; geen Growatt, geen Homey, geen auto (beide bevestigd); P1 via HomeWizard-cloud.
   Apparatenlijst is nog een voorlopige default; Miele-apparaten vallen buiten Home Connect en
   worden niet ondersteund).
   Het `integraties`-veld per user bepaalt welke secties/tegels getoond worden (`heeftIntegratie()`).
@@ -204,6 +241,7 @@ Alle in Settings → Environment Variables van het Vercel-project:
 | `DATABASE_URL`                | Neon PostgreSQL connection string (via Vercel↔Neon-integratie) |
 | `SESSION_SECRET`              | HMAC-secret voor `eq_session`-cookie — min. 32 tekens, sterk random |
 | `MIGRATE_SECRET`              | Token voor `/api/db/migrate` — min. 32 tekens, sterk random (≠ SESSION_SECRET) |
+| `CREDS_ENCRYPTION_KEY`        | Optioneel: 64 hex-tekens (32 bytes) voor versleuteling van per-user credentials in Redis. Niet gezet → afgeleid uit `SESSION_SECRET` |
 
 **Per gebruiker (suffix = userId, bv. `_001`, `_002`):**
 

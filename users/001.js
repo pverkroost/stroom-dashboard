@@ -8,7 +8,8 @@
       growatt:     true,
       homey:       true,
       homeConnect: true,
-      homewizard:  true,
+      homewizard:  true,   // P1 via Homey-push (primair, realtime)
+      homewizardCloud: true, // P1 via HomeWizard-cloud als fallback wanneer de Homey-push hapert
     },
     // HomeWizard P1 teken-conventie. Default false = standaard HomeWizard:
     // negatief vermogenW = teruglevering, positief = verbruik uit het net. Zet op

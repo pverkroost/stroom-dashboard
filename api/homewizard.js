@@ -1,34 +1,77 @@
-// HomeWizard P1 live verbruik/teruglevering (#11).
-// De P1-meter heeft alleen een lokale API (thuisnetwerk) en is niet bereikbaar
-// vanuit Vercel. Een Homey-flow leest measure_power (+ optioneel cumulatieve
-// import/export) en pusht die periodiek (1–5 min) naar dit endpoint, dat de
-// waarde in Upstash Redis cachet. De frontend leest hieruit. Zelfde Redis +
-// serverless patroon als de laadplanning — geen Homey-token nodig.
+// HomeWizard P1 live verbruik/teruglevering (#11) — twee routes, één Redis-sleutel:
 //
-// Auth-keuze (POST): een aparte, lange gedeelde secret `HOMEWIZARD_PUSH_TOKEN_<userId>`.
-// Homey heeft geen sessie-cookie, dus de gebruikersauth (eq_session) is hier niet
-// bruikbaar. Een lange random push-token is de gangbare machine-to-machine
-// ingest-aanpak en kan eenmalig in de Homey-flow.
+//  A. Homey-push (primair, realtime): een Homey-flow leest measure_power (+ optioneel
+//     cumulatieve import/export) en POST't die periodiek naar dit endpoint met de
+//     gedeelde push-token HOMEWIZARD_PUSH_TOKEN_<userId>. Homey heeft geen sessie-
+//     cookie, dus een lange random push-token is de machine-to-machine-auth.
+//  B. HomeWizard cloud-API (fallback, sinds v2.79.0): voor users zonder Homey (003) of
+//     als Homey hapert (001). De user voert zijn HomeWizard e-mail + wachtwoord ZELF in
+//     via Instellingen; die staan AES-256-GCM-versleuteld in Redis (lib/crypto.js),
+//     niet in env vars. Protocol + sessie-cache in lib/homewizard-cloud.js.
+//     Routing via ?action= (geen nieuwe function i.v.m. de Vercel Hobby 12-limiet):
+//       GET  ?action=cloudstatus  (sessie)  → { gekoppeld, email?, device? } — nooit het wachtwoord
+//       POST ?action=cloudsetup   (sessie)  { email, wachtwoord } → valideert live, slaat versleuteld op
+//       POST ?action=cloudpoll    (sessie)  → live waarde; schrijft homewizard_<userId> met bron:'cloud'
+//       POST ?action=cloudunlink  (sessie)  → wist credentials + sessie
+//     Homey-data heeft voorrang: cloudpoll geeft verse Homey-data terug zonder te pollen.
+//
+//  GET zonder action: de live waarde voor de frontend (beide routes), met `bron`.
+//  Cache 10 min in Redis (TTL); data ouder dan 5 min geldt als stale.
 const { Redis } = require('@upstash/redis');
-const { applyGate, getValidUserId, VALID_USERS } = require('./_helpers');
+const { applyGate, getValidUserId, requireSessionUserId, VALID_USERS } = require('./_helpers');
+const { maakClient } = require('../lib/homewizard-cloud');
 
 const redis = new Redis({
   url:   process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
+const cloud = maakClient({ redis });
 
 function sleutel(userId) { return 'homewizard_' + userId; }
 
-// Cache 10 min in Redis (TTL) zodat een offline P1/Homey vanzelf verdwijnt;
-// GET rapporteert data ouder dan 5 min al als stale (strenger dan de TTL).
 const CACHE_TTL_SEC = 600;
 const STALE_MS      = 5 * 60 * 1000;
 
 function geldigGetal(v) { return typeof v === 'number' && Number.isFinite(v); }
 
+// Foutmeldingen richting de client bevatten nooit credentials; de lib bouwt ze
+// zelf zonder e-mail/wachtwoord. Onverwachte fouten worden generiek gemaakt.
+function veiligeFout(e) {
+  const m = (e && e.message) || '';
+  return /^HomeWizard|^Ongeldig|^Wachtwoord|^Geen P1/.test(m) ? m : 'HomeWizard cloud: onverwachte fout';
+}
+
 module.exports = async (req, res) => {
-  // Push kan tot ~1×/min komen; ruime limiet zodat legitieme pushes niet sneuvelen.
   if (!(await applyGate(req, res, { endpoint: 'homewizard', max: 30, windowSec: 60 }))) return;
+  const action = req.query?.action || null;
+
+  // ── Cloud-acties (sessie vereist; ?u=-fallback bewust niet toegestaan) ──
+  if (action) {
+    const userId = requireSessionUserId(req, res);
+    if (!userId) return;
+    try {
+      if (action === 'cloudstatus' && req.method === 'GET') {
+        return res.json(await cloud.status(userId));
+      }
+      if (action === 'cloudsetup' && req.method === 'POST') {
+        const { email, wachtwoord } = req.body || {};
+        const r = await cloud.setup(userId, typeof email === 'string' ? email.trim().toLowerCase() : '', wachtwoord);
+        return res.json({ success: true, ...r });
+      }
+      if (action === 'cloudpoll' && req.method === 'POST') {
+        const live = await cloud.poll(userId, { staleMs: STALE_MS });
+        return res.json({ success: true, vermogenW: live.vermogenW, importKwh: live.importKwh, exportKwh: live.exportKwh, updatedAt: live.updatedAt, bron: live.bron, cached: !!live.cached });
+      }
+      if (action === 'cloudunlink' && req.method === 'POST') {
+        return res.json({ success: true, ...(await cloud.unlink(userId)) });
+      }
+      return res.status(400).json({ error: 'Onbekende action of verkeerde method' });
+    } catch (e) {
+      if (e && e.code === 'NIET_GEKOPPELD') return res.status(409).json({ error: e.message, gekoppeld: false });
+      console.warn('[homewizard cloud]', action, 'user', userId, '→', veiligeFout(e)); // geen credentials in logs
+      return res.status(502).json({ error: veiligeFout(e) });
+    }
+  }
 
   if (req.method === 'GET') {
     const userId = getValidUserId(req);
@@ -36,13 +79,14 @@ module.exports = async (req, res) => {
     if (!raw) return res.json({ stale: true });
     const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (!geldigGetal(data?.updatedAt) || Date.now() - data.updatedAt > STALE_MS) {
-      return res.json({ stale: true });
+      return res.json({ stale: true, bron: data?.bron });
     }
     return res.json({
       vermogenW: data.vermogenW,
       importKwh: data.importKwh,
       exportKwh: data.exportKwh,
       updatedAt: data.updatedAt,
+      bron:      data.bron || 'homey',
     });
   }
 
@@ -63,7 +107,7 @@ module.exports = async (req, res) => {
     }
 
     // import/exportKwh zijn optioneel (cumulatieve tellers); alleen opslaan als geldig.
-    const payload = { vermogenW: body.vermogenW, updatedAt: Date.now() };
+    const payload = { vermogenW: body.vermogenW, updatedAt: Date.now(), bron: 'homey' };
     if (geldigGetal(body.importKwh)) payload.importKwh = body.importKwh;
     if (geldigGetal(body.exportKwh)) payload.exportKwh = body.exportKwh;
 

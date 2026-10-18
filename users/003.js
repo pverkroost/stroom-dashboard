@@ -10,7 +10,8 @@
       growatt:     false,
       homey:       false,
       homeConnect: true,   // Siemens-apparaten; Miele valt NIET onder Home Connect (eigen API)
-      homewizard:  false,
+      homewizard:  false,  // geen Homey → geen push-route
+      homewizardCloud: true, // P1 via HomeWizard-cloud (primaire route voor 003; koppelen in Instellingen)
     },
     tarieven: {
       leverancier:       'Zonneplan',
