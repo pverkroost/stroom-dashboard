@@ -112,27 +112,54 @@ deprecation window" die nu al optreedt is de voorbode.
   Home Connect-integratie — veel herbruikbaar (`api/_helpers.js` token-helpers).
 - Endpoints: `monitoringapi.solaredge.com/v2`, Bearer-token i.p.v. `?api_key=`.
 
-**Migratie-stappen (nog te plannen, niet in dit item bouwen):**
-1. Developer-app op developer.solaredge.com, type Site Access, scopes `SITE_DATA` +
-   `DEVICE_DATA`. Client ID/Secret globaal in Vercel (zoals `HOMECONNECT_*`).
-2. `api/solaredge.js` ombouwen naar V2-endpoints + Bearer-auth.
-3. OAuth-flow per user + tokens in Redis (`solaredge_tokens_<userId>`), hergebruik van het
-   homeconnect-token-patroon (state-nonce, refresh vóór expiry).
-4. Pieter (001) en Patrick (003) koppelen elk eenmalig via de SolarEdge consent-pagina.
-5. **KRITIEK — credit-budget**: 2.000/maand ≈ 66/dag per account. Huidig pollgedrag
-   (overview + power + energy, elke paar minuten) is te veel. Pollfrequentie verlagen,
-   's nachts niet pollen (geen zon), evt. server-side cachen in Redis. Anders zijn de
-   credits op vóór het einde van de maand → data valt alsnog weg.
+**Veld-conclusie (inventarisatie `api/solaredge.js` + `js/solar.js`, okt 2026) — ✅ beantwoord:**
+De app gebruikt uitsluitend site-niveau-aggregaten:
 
-**Open checks vóór de bouw:**
+| V1-call | Gelezen velden | Gebruik in app |
+|---|---|---|
+| `overview` | `overview.currentPower.power` (W), `lastDayData.energy` (Wh), `lastMonthData.energy` (Wh) | hero "Nu opgewekt", live-tegel, "Vandaag", "Deze maand" |
+| `power` (15-min) | `power.values[].date`, `power.values[].value` (W) | `aggregateToHourly` → Zon-grafiek "actueel" + zon-dekking voor verstreken uren (`getSolarWatt`) |
+| `energy` (DAY, gisteren) | `energy.values[0].value` (Wh) | "Gisteren" |
+| `details` | `details.peakPower` (kWp) | overschrijft `panelen.solarEdge.piekKw` runtime, voedt `growattFractie` |
+
+Geen van de in V2 geschrapte velden (`dcVoltage`, inverter-temperatuur, per-fase L1/L2/L3)
+wordt gebruikt; ook `lifeTimeData`, `lastYearData`, `powerDetails`, `energyDetails`,
+`currentPowerFlow` e.d. niet. **V2 levert alle benodigde data.** Dode code die bij de
+migratie mag vervallen: de afgeleide `piekWatt`/`piekUur` in `fetchSolarEdge` (nergens gerenderd).
+
+**Drie risico's / werkpakketten:**
+
+1. **Credit-budget (grootste risico; kan NU al op V1).** `laadPrijzen` doet 3 SolarEdge-calls
+   (power + overview + energy-gisteren) elke 5 min zolang de tab zichtbaar is, plus `details`
+   bij elke start = tot ~36 calls/uur per account, terwijl de V2 Free tier ~66/dag toelaat.
+   Zonder maatregelen is het maandbudget in dagen op. Oplossing:
+   - server-side Redis-cache per user + type: overview 5–10 min, power 15 min,
+     energy-gisteren 24 u, details 24 u;
+   - 's nachts niet pollen (zonsondergang–zonsopkomst: power/overview zijn dan zinloos);
+   - de gisteren-call niet elke 5 min herhalen.
+   Vermindert óók de huidige 503's en is los van de OAuth-migratie te bouwen.
+2. **Normalisatielaag.** `api/solaredge.js` is nu een dunne proxy: de V1-JSON-vorm lekt tot in
+   `js/solar.js` (dat leest `overview.currentPower.power` letterlijk). Normaliseer naar een
+   eigen stabiel contract, bv. `{ currentWatt, todayWh, monthWh, hourly:[{date,watt}],
+   yesterdayWh, peakKwp }`, zodat de frontend niet mee hoeft te veranderen als de
+   V2-response-vorm afwijkt.
+3. **OAuth + endpoints.** V1 `?api_key=` → V2 Bearer-token op `monitoringapi.solaredge.com/v2`;
+   OAuth Site Access flow per user, tokens in Redis (`solaredge_tokens_<userId>`, hergebruik
+   homeconnect-token-patroon: state-nonce, refresh vóór expiry); tijdparameters van
+   `YYYY-MM-DD HH:mm:ss` naar ISO met tijdzone (`vandaagNl()` levert al de NL-datum).
+   Developer-app op developer.solaredge.com (type Site Access, scopes `SITE_DATA` +
+   `DEVICE_DATA`), Client ID/Secret globaal in Vercel (zoals `HOMECONNECT_*`). Pieter (001)
+   en Patrick (003) koppelen elk eenmalig via de consent-pagina. **Vercel 12-functielimiet**
+   (`api/` op 11, #97 claimt de 12e): de OAuth-callback als `?action=` op `api/solaredge.js`
+   zelf, niet als nieuwe function.
+
+**Aanbevolen volgorde:** werkpakket 1 (call-reductie) eerst — werkt al op V1, verlaagt de
+503's nu en is nodig om binnen het V2-creditbudget te blijven. Daarna 2 (normalisatie) en
+3 (OAuth) samen als de echte migratie, vóór 1 november.
+
+**Open check vóór de bouw:**
 - Heeft Patricks mySolarEdge-account de homeowner self-access/developer-optie, of moet
   de installateur die vrijgeven?
-- Geeft V2 alle velden terug die de app nu gebruikt? (V2 liet `dcVoltage`, inverter-temp
-  en per-fase-waarden vallen.) Inventariseer welke velden `js/solar.js` echt gebruikt.
-
-Let op de Vercel Hobby 12-functielimiet (`api/` zit op 11, #97 claimt de 12e): een
-OAuth-callback voor SolarEdge moet als `?action=` op `api/solaredge.js` zelf, niet als
-nieuwe function.
 
 ### #12 — Teruglevering stoppen bij verlies (geparkeerd)
 Oorspronkelijk idee: bij negatieve/verliesgevende EPEX-prijs de omvormer
