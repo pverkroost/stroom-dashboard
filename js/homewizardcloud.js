@@ -21,18 +21,68 @@ async function laadHwCloudStatus(force = false) {
   return _hwCloudStatus;
 }
 
+// ── Handmatige bron-keuze P1-data (v2.79.2) ─────────────────────────────────
+// 'auto' (default: Homey-push vóór, cloud als fallback), 'homey' (alleen Homey-push),
+// 'cloud' (forceer de cloud-poll, ook als Homey verse data heeft — om de cloud-route
+// te testen). Persoonlijke weergavevoorkeur per user in localStorage; geen gevoelige data.
+const HW_BRON_OPTIES = ['auto', 'homey', 'cloud'];
+function _hwBronKey() { return 'hwBron_' + ((window.CONFIG && window.CONFIG.userId) || '001'); }
+function hwBronVoorkeur() {
+  if (!heeftIntegratie('homewizardCloud')) return 'auto';
+  try { const v = localStorage.getItem(_hwBronKey()); return HW_BRON_OPTIES.includes(v) ? v : 'auto'; } catch { return 'auto'; }
+}
+function zetHwBronVoorkeur(keuze) {
+  if (!HW_BRON_OPTIES.includes(keuze)) return;
+  try { if (keuze === 'auto') localStorage.removeItem(_hwBronKey()); else localStorage.setItem(_hwBronKey(), keuze); } catch {}
+  _hwCloudLaatstePoll = 0;                         // volgende fetch mag direct pollen
+  renderHwBronKeuze();
+  if (typeof laadPrijzen === 'function') laadPrijzen(); // live-tegel direct met de nieuwe bron
+}
+function hwBronLabel(k) { return k === 'homey' ? 'Alleen Homey' : k === 'cloud' ? 'Alleen HomeWizard cloud' : 'Automatisch'; }
+function renderHwBronKeuze() {
+  const el = document.getElementById('hwBronKeuze');
+  if (!el) return;
+  const actief = hwBronVoorkeur();
+  el.innerHTML = HW_BRON_OPTIES.map(k => {
+    const aan = k === actief;
+    return '<button type="button" onclick="zetHwBronVoorkeur(\'' + k + '\')" aria-pressed="' + aan + '" style="flex:1;padding:7px 4px;border-radius:7px;border:1px solid ' +
+      (aan ? 'var(--green)' : 'var(--border)') + ';background:' + (aan ? 'var(--green)' : 'var(--card)') + ';color:' + (aan ? 'white' : 'var(--text)') +
+      ';font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">' + hwBronLabel(k) + '</button>';
+  }).join('');
+}
+// Alleen zinvol als er óók een Homey-push-route is; voor cloud-only users (003) is cloud al de enige bron.
+function _hwBronKeuzeHtml() {
+  if (!heeftIntegratie('homewizard')) return '';
+  return '<div style="padding:10px 14px 4px">' +
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Bron van de live P1-data</div>' +
+    '<div id="hwBronKeuze" style="display:flex;gap:6px"></div>' +
+    '<div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5">Automatisch = Homey heeft voorrang, cloud als fallback. "Alleen HomeWizard cloud" is bedoeld om de cloud-route te testen zonder Homey uit te zetten.</div>' +
+  '</div>';
+}
+
 // Live waarde via de cloud (open-pak-sluit op de server). Geeft dezelfde vorm als
-// GET /api/homewizard terug, of null. Throttle: max 1× per 2 min per tab.
-async function pollHwCloud(force = false) {
+// GET /api/homewizard terug, of null. Throttle: max 1× per 2 min per tab; binnen die
+// tijd wordt de laatst opgehaalde cloud-waarde (< 5 min) teruggegeven.
+// opts.forceCloud: server slaat de Homey-voorrang over (bron-keuze "Alleen HomeWizard cloud").
+let _hwCloudLaatsteWaarde = null;
+async function pollHwCloud(force = false, opts = {}) {
   if (!heeftIntegratie('homewizardCloud')) return null;
-  if (!force && Date.now() - _hwCloudLaatstePoll < _HW_CLOUD_POLL_MIN_MS) return null;
+  if (!force && Date.now() - _hwCloudLaatstePoll < _HW_CLOUD_POLL_MIN_MS) {
+    const w = _hwCloudLaatsteWaarde;
+    return (w && Date.now() - w.updatedAt < 5 * 60 * 1000) ? w : null;
+  }
   _hwCloudLaatstePoll = Date.now();
   try {
-    const r = await fetch(apiUrl('/api/homewizard?action=cloudpoll'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } });
+    const r = await fetch(apiUrl('/api/homewizard?action=cloudpoll'), {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ forceCloud: !!opts.forceCloud }),
+    });
     const d = await r.json().catch(() => ({}));
     if (r.status === 409) { _hwCloudStatus = { gekoppeld: false }; return null; } // niet gekoppeld
     if (!r.ok || !d.success || typeof d.vermogenW !== 'number') return null;
-    return { vermogenW: d.vermogenW, importKwh: d.importKwh, exportKwh: d.exportKwh, updatedAt: d.updatedAt, bron: d.bron || 'cloud' };
+    const w = { vermogenW: d.vermogenW, importKwh: d.importKwh, exportKwh: d.exportKwh, updatedAt: d.updatedAt, bron: d.bron || 'cloud' };
+    if (w.bron === 'cloud') _hwCloudLaatsteWaarde = w;
+    return w;
   } catch {
     return null;
   }
@@ -87,6 +137,7 @@ async function renderHomeWizardCloudInstellingen() {
 
   if (st.gekoppeld) {
     card.innerHTML =
+      _hwBronKeuzeHtml() +
       '<div style="font-size:11px;color:var(--muted);padding:8px 14px 2px;line-height:1.5">' + escapeHtml(uitleg) + '</div>' +
       '<div class="tarief-row"><span class="tarief-key">Account</span><span>' + escapeHtml(st.email || '—') + '</span></div>' +
       (st.device ? '<div class="tarief-row"><span class="tarief-key">P1-meter</span><span>' + escapeHtml(st.device.name || st.device.deviceId || '—') + '</span></div>' : '') +
@@ -94,12 +145,14 @@ async function renderHomeWizardCloudInstellingen() {
         '<button onclick="ontkoppelHwCloud()" id="hwCloudUnlinkBtn" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:#a32d2d;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Ontkoppelen</button>' +
         '<div id="hwCloudStatusMsg" style="font-size:11px;color:var(--muted);margin-top:8px;min-height:14px"></div>' +
       '</div>';
+    renderHwBronKeuze();
     _herstelHwCloudMsg();
     return;
   }
 
   const inp = 'display:block;width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;margin-bottom:8px';
   card.innerHTML =
+    _hwBronKeuzeHtml() +
     '<div style="font-size:11px;color:var(--muted);padding:8px 14px 2px;line-height:1.5">' + escapeHtml(uitleg) + '</div>' +
     '<form onsubmit="return koppelHwCloud(event)" style="padding:10px 14px 12px" autocomplete="off">' +
       '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">HomeWizard Energy e-mail</label>' +
@@ -113,6 +166,7 @@ async function renderHomeWizardCloudInstellingen() {
   const pwEl    = document.getElementById('hwCloudWachtwoord');
   if (emailEl && _hwCloudUi.email) emailEl.value = _hwCloudUi.email;
   if (pwEl && _hwCloudUi.wachtwoord) pwEl.value = _hwCloudUi.wachtwoord;
+  renderHwBronKeuze();
   _herstelHwCloudMsg();
 }
 

@@ -122,6 +122,9 @@ kan dit zonder aankondiging breken; dan faalt `cloudpoll` netjes en toont de teg
 - **Frontend** (`js/solar.js` `fetchHomeWizard`, `js/homewizardcloud.js`): 1. verse Homey-data → gebruik;
   2. anders en `integraties.homewizardCloud` → `cloudpoll` (max 1× per 2 min per tab); 3. anders
   "geen live data". Tegel toont de bron ("via Homey" / "via HomeWizard cloud").
+  **Handmatige bron-keuze** (v2.79.2, in het uitklappaneel, alleen voor users met óók de Homey-route):
+  `localStorage` `hwBron_<userId>` = `auto` (default) | `homey` | `cloud`. `cloud` stuurt `{ forceCloud: true }`
+  mee naar `cloudpoll` zodat de server de Homey-voorrang overslaat (1-min-throttle blijft). Testdoel; geen gevoelige data.
 - **Config**: `integraties.homewizardCloud: true` in `users/001.js` (fallback) en `users/003.js` (primair).
 - **Afhankelijkheid**: `ws` (Node-WebSocket-client; Vercel-runtime heeft niet gegarandeerd een globale WebSocket).
 

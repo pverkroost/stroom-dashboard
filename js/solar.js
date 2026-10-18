@@ -85,14 +85,26 @@ async function fetchGrowatt() {
 //     cloud-websocket; max 1× per 2 min vanuit deze tab, 1× per min server-side).
 //     Een cloud-waarde jonger dan 2 min uit Redis wordt zonder nieuwe poll gebruikt.
 //  3. Geen van beide → null, renderHomeWizard toont "geen live data".
+// Handmatige bron-keuze (v2.79.2, hwBronVoorkeur in js/homewizardcloud.js):
+//  'homey' → alleen stap 1; 'cloud' → alleen stap 2 met forceCloud (server slaat de
+//  Homey-voorrang over). 'auto' = de keten hierboven.
 function _hwLiveBruikbaar(d) { return d && !d.stale && typeof d.vermogenW === 'number'; }
+function _hwBron() { return typeof hwBronVoorkeur === 'function' ? hwBronVoorkeur() : 'auto'; }
 async function fetchHomeWizard() {
   const heeftPush  = heeftIntegratie('homewizard');
   const heeftCloud = heeftIntegratie('homewizardCloud');
   if (!heeftPush && !heeftCloud) return null;
+  const voorkeur = _hwBron();
   let data = null;
   const res = await fetch(apiUrl('/api/homewizard')).catch(() => null);
   if (res?.ok) data = await res.json().catch(() => null);
+  if (voorkeur === 'homey') return (_hwLiveBruikbaar(data) && data.bron !== 'cloud') ? data : null;
+  if (voorkeur === 'cloud') {
+    if (!heeftCloud || typeof pollHwCloud !== 'function') return null;
+    const cloud = await pollHwCloud(false, { forceCloud: true });
+    if (_hwLiveBruikbaar(cloud) && cloud.bron === 'cloud') return cloud;
+    return (_hwLiveBruikbaar(data) && data.bron === 'cloud') ? data : null;
+  }
   if (_hwLiveBruikbaar(data) && data.bron !== 'cloud') return data;                 // 1. Homey
   if (_hwLiveBruikbaar(data) && Date.now() - data.updatedAt < 2 * 60 * 1000) return data; // recente cloud-waarde
   if (heeftCloud && typeof pollHwCloud === 'function') {                               // 2. cloud
@@ -116,14 +128,24 @@ function renderHomeWizard() {
   const subEl = document.getElementById('hwLiveSub');
   if (!valEl || !subEl) return;
 
+  const voorkeur = _hwBron();
   if (!homewizardLive || typeof homewizardLive.vermogenW !== 'number') {
     valEl.textContent   = '—';
     valEl.style.color   = '';
-    subEl.textContent   = heeftIntegratie('homewizard')
-      ? 'Geen live data (Homey/P1 offline?)'
-      : (typeof _hwCloudStatus !== 'undefined' && _hwCloudStatus && !_hwCloudStatus.gekoppeld
-          ? 'Koppel je HomeWizard-account via ⚙️ Instellingen'
-          : 'Geen live data (HomeWizard-cloud niet bereikbaar?)');
+    const nietGekoppeld = typeof _hwCloudStatus !== 'undefined' && _hwCloudStatus && !_hwCloudStatus.gekoppeld;
+    if (voorkeur === 'cloud') {
+      subEl.textContent = nietGekoppeld
+        ? 'Bron: alleen HomeWizard cloud, maar geen account gekoppeld — koppel via ⚙️ Instellingen'
+        : 'Geen live data via HomeWizard cloud (bron handmatig op cloud gezet)';
+    } else if (voorkeur === 'homey') {
+      subEl.textContent = 'Geen live data via Homey (bron handmatig op Homey gezet; P1 offline?)';
+    } else {
+      subEl.textContent = heeftIntegratie('homewizard')
+        ? 'Geen live data (Homey/P1 offline?)'
+        : (nietGekoppeld
+            ? 'Koppel je HomeWizard-account via ⚙️ Instellingen'
+            : 'Geen live data (HomeWizard-cloud niet bereikbaar?)');
+    }
     return;
   }
 
@@ -134,7 +156,7 @@ function renderHomeWizard() {
   valEl.style.color = teruglevert ? '#3b6d11' : '';
 
   const bij  = homewizardLive.updatedAt ? `bijgewerkt ${uurStr(new Date(homewizardLive.updatedAt))}` : '';
-  const bron = homewizardLive.bron === 'cloud' ? 'via HomeWizard cloud' : 'via Homey';
+  const bron = (homewizardLive.bron === 'cloud' ? 'via HomeWizard cloud' : 'via Homey') + (voorkeur !== 'auto' ? ' (handmatig)' : '');
   subEl.textContent = [bij, bron].filter(Boolean).join(' · ');
 }
 

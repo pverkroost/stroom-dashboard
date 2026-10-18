@@ -262,6 +262,9 @@ Hoe het werkt: de server logt in bij HomeWizard, zoekt je P1-meter en opent kort
 naar `energy-app-ws.homewizard.com`, pakt de eerste meetwaarde (`active_power_w` + meterstanden)
 en sluit weer — elke paar minuten, alleen als er geen verse Homey-data is. Homey heeft altijd
 voorrang (realtime). De tegel toont de bron: "via Homey" of "via HomeWizard cloud".
+Heb je beide routes, dan kun je in hetzelfde paneel de bron handmatig vastzetten (Automatisch /
+Alleen Homey / Alleen HomeWizard cloud) — handig om de cloud-route te testen zonder Homey uit te
+zetten. De keuze is een persoonlijke weergavevoorkeur in je browser.
 
 ⚠️ Dit is een **niet-officiële, gereverse-engineerde API** (dezelfde die de Homey-apps
 `homey-homewizard-energy-cloud` en `com.homewizard` gebruiken). HomeWizard kan hem zonder

@@ -324,6 +324,12 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.79.2** — Handmatige bron-keuze HomeWizard P1
+- In het HomeWizard-uitklappaneel (users met Homey-route én cloud): Automatisch / Alleen Homey /
+  Alleen HomeWizard cloud, per user in `localStorage` (`hwBron_<id>`). "Alleen cloud" stuurt
+  `forceCloud` mee naar `cloudpoll` (server slaat Homey-voorrang over). Tegel toont de bron
+  + "(handmatig)"; nette melding bij cloud zonder gekoppeld account. Default blijft automatisch.
+
 **v2.79.1** — HomeWizard-koppeling op één plek
 - Instellingen: de losse sectie "HomeWizard" is weg; koppelen/status/ontkoppelen zit nu als
   uitklappaneel onder de rij "HomeWizard cloud" in de integratielijst (link "Koppelen" /

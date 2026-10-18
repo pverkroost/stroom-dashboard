@@ -138,6 +138,18 @@ test('poll: verse Homey-data heeft voorrang (geen websocket)', async () => {
   assert.equal(wsOpenCount, 0);
 });
 
+test('poll: forceCloud negeert verse Homey-data en pollt de cloud (handmatige bron-keuze)', async () => {
+  await client.setup('003', EMAIL, PW);
+  await redis.set('homewizard_003', JSON.stringify({ vermogenW: 500, updatedAt: nowMs - 60_000, bron: 'homey' }), { ex: 600 });
+  const r = await client.poll('003', { forceCloud: true });
+  assert.equal(r.bron, 'cloud'); assert.equal(r.cached, false); assert.equal(wsOpenCount, 1);
+  assert.notEqual(r.vermogenW, 500);
+  // zonder forceCloud blijft de Homey-voorrang gelden zodra Homey weer verser is
+  await redis.set('homewizard_003', JSON.stringify({ vermogenW: 510, updatedAt: nowMs, bron: 'homey' }), { ex: 600 });
+  const r2 = await client.poll('003');
+  assert.equal(r2.bron, 'homey'); assert.equal(r2.vermogenW, 510); assert.equal(wsOpenCount, 1);
+});
+
 test('poll: server-side throttle — cloud-waarde jonger dan 1 min wordt hergebruikt', async () => {
   await client.setup('003', EMAIL, PW);
   await client.poll('003');

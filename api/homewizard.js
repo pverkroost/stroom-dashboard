@@ -13,7 +13,8 @@
 //       POST ?action=cloudsetup   (sessie)  { email, wachtwoord } → valideert live, slaat versleuteld op
 //       POST ?action=cloudpoll    (sessie)  → live waarde; schrijft homewizard_<userId> met bron:'cloud'
 //       POST ?action=cloudunlink  (sessie)  → wist credentials + sessie
-//     Homey-data heeft voorrang: cloudpoll geeft verse Homey-data terug zonder te pollen.
+//     Homey-data heeft voorrang: cloudpoll geeft verse Homey-data terug zonder te pollen,
+//     tenzij body { forceCloud: true } (bron-keuze "Alleen HomeWizard cloud", v2.79.2).
 //
 //  GET zonder action: de live waarde voor de frontend (beide routes), met `bron`.
 //  Cache 10 min in Redis (TTL); data ouder dan 5 min geldt als stale.
@@ -59,7 +60,8 @@ module.exports = async (req, res) => {
         return res.json({ success: true, ...r });
       }
       if (action === 'cloudpoll' && req.method === 'POST') {
-        const live = await cloud.poll(userId, { staleMs: STALE_MS });
+        const forceCloud = !!(req.body && req.body.forceCloud === true); // handmatige bron-keuze "alleen cloud"
+        const live = await cloud.poll(userId, { staleMs: STALE_MS, forceCloud });
         return res.json({ success: true, vermogenW: live.vermogenW, importKwh: live.importKwh, exportKwh: live.exportKwh, updatedAt: live.updatedAt, bron: live.bron, cached: !!live.cached });
       }
       if (action === 'cloudunlink' && req.method === 'POST') {
