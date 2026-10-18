@@ -4,8 +4,13 @@
 //     `snelkaart: true` in users/<id>.js het aanbevolen startmoment o.b.v. een
 //     deadline uit het weekschema ("klaar om" / "vertrek om"). Rekent via de
 //     gedeelde helper berekenBlokVoorDeadline() in js/apparaten.js.
-//  2. Beheer in Instellingen (#weekschemaCard): per apparaat per weekdag een tijd,
-//     opgeslagen in Neon via GET/POST /api/auth?action=schema.
+//  2. Beheer per apparaat (v2.80.0): één generieke editor (7 dagen, Opslaan,
+//     Standaard, bron-regel) die op twee plekken uitklapt — op de snelkaart zelf
+//     ("📅 weekschema") en per apparaat in Instellingen → Weekschema (#weekschemaCard,
+//     vervangt de vroegere kruistabel). Opslaan gaat per apparaat via POST
+//     /api/auth?action=schema (de server vervangt per apparaat, dus andere apparaten
+//     blijven staan). Onopgeslagen invoer leeft in _wsDraft en overleeft de
+//     periodieke herbouw van kaarten en Instellingen.
 //
 // Weekschema-vorm (frontend én API): { <apparaatKey>: { <dag 0-6>: 'HH:MM' } }
 // met dag = Date.getDay() (0 = zondag). apparaatKey = apSleutel(ap.naam).
@@ -215,15 +220,21 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
       (override ? ' <span style="color:#854f0b">· aangepast</span>' : '') + '</div>'
     : '<div class="card-time">Geen tijd in weekschema — stel in via ⚙️</div>';
 
+  const editorOpen = !!_wsEditorOpen['kaart:' + key];
   const overruleHtml =
-    '<button class="snelkaart-link" onclick="event.stopPropagation();snelkaartOverruleToggle(\'' + key + '\')">' +
-      (overruleOpen ? '▲ verberg' : '✏️ andere tijd') + '</button>' +
+    '<div class="snelkaart-links">' +
+      '<button class="snelkaart-link" onclick="event.stopPropagation();snelkaartOverruleToggle(\'' + key + '\')">' +
+        (overruleOpen ? '▲ verberg' : '✏️ andere tijd') + '</button>' +
+      '<button class="snelkaart-link" onclick="event.stopPropagation();weekschemaEditorToggle(\'kaart\', \'' + key + '\')">' +
+        (editorOpen ? '▲ weekschema' : '📅 weekschema') + '</button>' +
+    '</div>' +
     (overruleOpen
       ? '<div class="snelkaart-overrule" onclick="event.stopPropagation()">' +
           '<input type="time" value="' + escapeHtml(override || (dl ? dl.tijd : '')) + '" aria-label="Afwijkende deadline" onchange="snelkaartOverrule(\'' + key + '\', this.value)">' +
           (override ? '<button class="snelkaart-link" style="text-decoration:none;font-size:16px" title="Terug naar weekschema" onclick="snelkaartOverruleReset(\'' + key + '\')">↺</button>' : '') +
         '</div>'
-      : '');
+      : '') +
+    (editorOpen ? weekschemaEditorHtml(ap, 'kaart') : '');
 
   let kern = '', sub = '', actie = '';
   _snelkaartLaatste[key] = { res: null, deadlineTijd: dl ? dl.tijd : null };
@@ -318,8 +329,141 @@ async function snelkaartPlanIn(apIdx) {
   if (!_planningActief && haalbaar && apDetailState && apDetailState.apIdx === apIdx) planInladen();
 }
 
-// ── Instellingen: weekschema-tabel ──────────────────────────────────────────
-function renderWeekschemaInstellingen() {
+// ── Per-apparaat weekschema-editor (v2.80.0) ────────────────────────────────
+// Eén component voor beide plekken (snelkaart en Instellingen). State buiten de DOM
+// zodat een herbouw (renderSnelkaarten op elke prijs-refresh/hover, renderInstellingen
+// elke 5 min / na de Homey-check) niets wist:
+//   _wsEditorOpen['<locatie>:<key>']  open/dicht per plek ('kaart' | 'inst')
+//   _wsDraft[key]                      { dag: 'HH:MM' | '' } onopgeslagen invoer
+//   _wsMsg[key]                        recente feedback (✓ opgeslagen / ✗ fout), 15 s
+const _wsEditorOpen = {};
+const _wsDraft      = {};
+const _wsMsg        = {};
+const _WS_DAGEN_VOLGORDE = [1, 2, 3, 4, 5, 6, 0]; // ma … zo
+
+function _wsApparaatVoorKey(key) {
+  const x = snelkaartApparaten().find(i => apSleutel(i.ap.naam) === key);
+  return x ? x.ap : null;
+}
+// Effectieve invoer: opgeslagen/default schema met de draft eroverheen ('' = dag leeg).
+function _wsEffectief(ap) {
+  return Object.assign({}, weekschemaVoor(ap), _wsDraft[apSleutel(ap.naam)] || {});
+}
+function _wsBronVoor(key) {
+  const db = _weekschemaDb && _weekschemaDb[key];
+  return db && Object.keys(db).length ? 'opgeslagen weekschema' : 'standaardwaarden uit configuratie';
+}
+// "ma–vr 07:00 · za–zo 09:00": aaneengesloten dagen met dezelfde tijd samengevat.
+function weekschemaSamenvatting(schema) {
+  const groepen = [];
+  _WS_DAGEN_VOLGORDE.forEach(dag => {
+    const t = schema[dag] || '–';
+    const g = groepen[groepen.length - 1];
+    if (g && g.t === t) g.tot = dag; else groepen.push({ t, van: dag, tot: dag });
+  });
+  return groepen.map(g => (g.van === g.tot ? _DAGNAMEN[g.van] : _DAGNAMEN[g.van] + '–' + _DAGNAMEN[g.tot]) + ' ' + g.t).join(' · ');
+}
+
+function weekschemaEditorHtml(ap, locatie) {
+  const key = apSleutel(ap.naam);
+  const eff = _wsEffectief(ap);
+  const rijen = _WS_DAGEN_VOLGORDE.map(dag =>
+    '<label class="ws-rij"><span>' + _DAGNAMEN[dag] + '</span>' +
+    '<input type="time" value="' + escapeHtml(eff[dag] || '') + '" aria-label="' + escapeHtml(displayNaam(ap) + ' ' + _DAGNAMEN[dag]) + '"' +
+    ' onchange="weekschemaDraftZet(\'' + key + '\', ' + dag + ', this.value)"></label>'
+  ).join('');
+  const m = _wsMsg[key];
+  const status = (m && Date.now() - m.t < 15_000)
+    ? '<span style="color:' + m.kleur + '">' + escapeHtml(m.tekst) + '</span>'
+    : (_wsDraft[key] && Object.keys(_wsDraft[key]).length
+        ? '<span style="color:#854f0b">Niet opgeslagen — klik Opslaan</span>'
+        : 'Bron: ' + _wsBronVoor(key) + '. Leeg veld = geen deadline die dag.');
+  return '<div class="ws-editor" onclick="event.stopPropagation()" data-key="' + key + '">' +
+    '<div class="ws-grid">' + rijen + '</div>' +
+    '<div class="ws-knoppen">' +
+      '<button class="ws-opslaan" onclick="bewaarWeekschemaApparaat(\'' + key + '\')">Opslaan</button>' +
+      '<button class="ws-standaard" onclick="herstelWeekschemaDefaultsApparaat(\'' + key + '\')">Standaard</button>' +
+    '</div>' +
+    '<div class="ws-status" id="wsStatus-' + locatie + '-' + key + '">' + status + '</div>' +
+  '</div>';
+}
+
+function _wsRender(locatie) {
+  if (locatie === 'kaart') renderSnelkaarten();
+  else renderWeekschemaInstellingen(true);
+}
+function weekschemaEditorToggle(locatie, key) {
+  _wsEditorOpen[locatie + ':' + key] = !_wsEditorOpen[locatie + ':' + key];
+  _wsRender(locatie);
+}
+// Draft bijwerken zonder te rerenderen (anders verliest het veld focus); de status-
+// regel wordt direct in de DOM gezet op beide plekken.
+function weekschemaDraftZet(key, dag, value) {
+  if (!_wsDraft[key]) _wsDraft[key] = {};
+  _wsDraft[key][dag] = _WS_TIJD_RE.test(value || '') ? value : '';
+  delete _wsMsg[key];
+  _wsStatusZet(key, 'Niet opgeslagen — klik Opslaan', '#854f0b', false);
+}
+function _wsStatusZet(key, tekst, kleur, onthoud = true) {
+  if (onthoud) _wsMsg[key] = { tekst, kleur, t: Date.now() };
+  ['kaart', 'inst'].forEach(loc => {
+    const el = document.getElementById('wsStatus-' + loc + '-' + key);
+    if (el) { el.innerHTML = '<span style="color:' + kleur + '">' + escapeHtml(tekst) + '</span>'; }
+  });
+}
+// Standaard: config-defaults in de draft + direct in de open velden (niet opgeslagen).
+function herstelWeekschemaDefaultsApparaat(key) {
+  const ap = _wsApparaatVoorKey(key);
+  if (!ap) return;
+  const def = weekschemaDefault(ap);
+  _wsDraft[key] = {};
+  _WS_DAGEN_VOLGORDE.forEach(dag => { _wsDraft[key][dag] = def[dag] || ''; });
+  document.querySelectorAll('.ws-editor[data-key="' + key + '"] input[type=time]').forEach((inp, i) => {
+    // volgorde in de editor = _WS_DAGEN_VOLGORDE
+    inp.value = def[_WS_DAGEN_VOLGORDE[i % 7]] || '';
+  });
+  delete _wsMsg[key];
+  _wsStatusZet(key, 'Standaardwaarden ingevuld — klik Opslaan om te bewaren', 'var(--muted)', false);
+}
+
+async function bewaarWeekschemaApparaat(key) {
+  const ap = _wsApparaatVoorKey(key);
+  if (!ap) return;
+  const eff = _wsEffectief(ap);
+  const dagen = {};
+  Object.keys(eff).forEach(dag => { if (_WS_TIJD_RE.test(eff[dag] || '')) dagen[dag] = eff[dag]; });
+  const knoppen = document.querySelectorAll('.ws-editor[data-key="' + key + '"] .ws-opslaan');
+  knoppen.forEach(b => { b.disabled = true; b.textContent = 'Opslaan…'; });
+  try {
+    const r = await fetch(apiUrl('/api/auth?action=schema'), {
+      method:      'POST',
+      headers:     { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body:        JSON.stringify({ schema: { [key]: dagen } }), // server vervangt alleen dit apparaat
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401) throw new Error('Inloggen vereist om het weekschema op te slaan');
+    if (!r.ok || !data.success) throw new Error(data.error || ('HTTP ' + r.status));
+    // Response bevat alleen dit apparaat → in de lokale cache mengen, niet vervangen.
+    const db = Object.assign({}, _weekschemaDb || {});
+    db[key] = (data.schema && data.schema[key]) || dagen;
+    _zetWeekschemaDb(db, Object.keys(db).some(k => Object.keys(db[k] || {}).length) ? 'db' : 'default');
+    _weekschemaLaadTs = Date.now();
+    delete _wsDraft[key];
+    _wsMsg[key] = { tekst: '✓ Weekschema opgeslagen', kleur: 'var(--green)', t: Date.now() };
+    renderSnelkaarten();
+    renderWeekschemaInstellingen(true);
+  } catch (e) {
+    _wsStatusZet(key, '✗ ' + e.message, '#a32d2d');
+  } finally {
+    knoppen.forEach(b => { b.disabled = false; b.textContent = 'Opslaan'; });
+  }
+}
+
+// ── Instellingen: per apparaat een uitklapbaar blok ─────────────────────────
+// `force` = ook renderen als een veld in de kaart focus heeft (na opslaan/toggle);
+// anders wordt een herbouw tijdens het typen overgeslagen — de draft bewaart de invoer sowieso.
+function renderWeekschemaInstellingen(force = false) {
   const card = document.getElementById('weekschemaCard');
   if (!card) return;
   const items = snelkaartApparaten();
@@ -329,85 +473,32 @@ function renderWeekschemaInstellingen() {
   }
   // Vers ophalen bij (her)openen van de tab; tijdens het laden de defaults tonen.
   if (_weekschemaDb === null || Date.now() - _weekschemaLaadTs > 60_000) {
-    laadWeekschema(true).then(renderWeekschemaInstellingen);
+    laadWeekschema(true).then(() => renderWeekschemaInstellingen());
   }
-  // Niet rerenderen als de data niet veranderde — dat zou onopgeslagen invoer
-  // wissen (renderInstellingen draait o.a. na de Homey-test en elke 5 min).
-  if (card.dataset.versie === String(_weekschemaVersie) && card.querySelector('.weekschema-tabel')) return;
-  card.dataset.versie = String(_weekschemaVersie);
+  if (!force && card.contains(document.activeElement) && document.activeElement !== document.body) return;
 
-  const dagen = [1, 2, 3, 4, 5, 6, 0];
-  const kop = '<tr><th>Dag</th>' + items.map(({ ap }) =>
-    '<th>' + escapeHtml((ap.icon && !String(ap.icon).includes('<') ? ap.icon + ' ' : '') + displayNaam(ap)) +
-    '<div style="font-weight:400;text-transform:none;letter-spacing:0">' + escapeHtml(ap.deadlineLabel || 'klaar om') + '</div></th>'
-  ).join('') + '</tr>';
-  const rijen = dagen.map(dag =>
-    '<tr><td style="color:var(--muted);text-transform:capitalize">' + _DAGNAMEN[dag] + '</td>' +
-    items.map(({ ap }) => {
-      const key = apSleutel(ap.naam);
-      const t   = weekschemaVoor(ap)[dag] || '';
-      return '<td><input type="time" data-key="' + key + '" data-dag="' + dag + '" value="' + escapeHtml(t) + '" aria-label="' + escapeHtml(displayNaam(ap) + ' ' + _DAGNAMEN[dag]) + '"></td>';
-    }).join('') + '</tr>'
-  ).join('');
-  const bronStr = _weekschemaBron === 'db' ? 'opgeslagen weekschema' : 'standaardwaarden uit configuratie';
-
-  card.innerHTML =
-    '<div style="padding:4px 10px 0;overflow-x:auto"><table class="weekschema-tabel">' + kop + rijen + '</table></div>' +
-    '<div style="padding:10px 14px 12px">' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-        '<button onclick="bewaarWeekschema()" id="weekschemaOpslaanBtn" style="flex:1;min-width:120px;padding:10px;border-radius:8px;border:none;background:var(--green);color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Opslaan</button>' +
-        '<button onclick="herstelWeekschemaDefaults()" style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;cursor:pointer;font-family:inherit">Standaard</button>' +
+  const blokken = items.map(({ ap }) => {
+    const key   = apSleutel(ap.naam);
+    const open  = !!_wsEditorOpen['inst:' + key];
+    const icon  = (ap.icon && !String(ap.icon).includes('<')) ? escapeHtml(ap.icon) + ' ' : '';
+    const draft = _wsDraft[key] && Object.keys(_wsDraft[key]).length;
+    return '<div class="tarief-row" style="align-items:flex-start">' +
+        '<div style="min-width:0;flex:1">' +
+          '<div class="tarief-key">' + icon + escapeHtml(displayNaam(ap)) +
+            ' <span style="font-size:10px">' + escapeHtml(ap.deadlineLabel || 'klaar om') + '</span></div>' +
+          '<div style="font-size:11px;color:var(--text);margin-top:2px;line-height:1.4">' + escapeHtml(weekschemaSamenvatting(_wsEffectief(ap))) +
+            (draft ? ' <span style="font-size:10px;color:#854f0b">· niet opgeslagen</span>' : '') + '</div>' +
+        '</div>' +
+        '<div style="flex-shrink:0;font-size:11px;padding-top:2px">' +
+          '<a href="#" onclick="event.preventDefault();weekschemaEditorToggle(\'inst\', \'' + key + '\')" style="color:var(--green)">' + (open ? '▲ verberg' : 'Bewerken') + '</a>' +
+        '</div>' +
       '</div>' +
-      '<div id="weekschemaStatus" style="font-size:11px;color:var(--muted);margin-top:8px;min-height:14px">Bron: ' + bronStr + '. Leeg veld = geen deadline die dag.</div>' +
-    '</div>';
-}
+      '<div style="display:' + (open ? 'block' : 'none') + ';border-bottom:0.5px solid var(--border)">' + (open ? weekschemaEditorHtml(ap, 'inst') : '') + '</div>';
+  }).join('');
 
-// Vul de invoervelden met de config-defaults (nog niet opgeslagen).
-function herstelWeekschemaDefaults() {
-  const card = document.getElementById('weekschemaCard');
-  if (!card) return;
-  snelkaartApparaten().forEach(({ ap }) => {
-    const key = apSleutel(ap.naam);
-    const def = weekschemaDefault(ap);
-    card.querySelectorAll('input[type=time][data-key="' + key + '"]').forEach(inp => { inp.value = def[inp.dataset.dag] || ''; });
-  });
-  const st = document.getElementById('weekschemaStatus');
-  if (st) { st.textContent = 'Standaardwaarden ingevuld — klik Opslaan om te bewaren'; st.style.color = 'var(--muted)'; }
-}
-
-async function bewaarWeekschema() {
-  const card   = document.getElementById('weekschemaCard');
-  const st     = document.getElementById('weekschemaStatus');
-  const btn    = document.getElementById('weekschemaOpslaanBtn');
-  if (!card) return;
-  const schema = {};
-  card.querySelectorAll('input[type=time][data-key]').forEach(inp => {
-    const key = inp.dataset.key, dag = inp.dataset.dag;
-    if (!schema[key]) schema[key] = {};
-    if (_WS_TIJD_RE.test(inp.value)) schema[key][dag] = inp.value;
-  });
-  if (!Object.keys(schema).length) return;
-
-  if (btn) { btn.disabled = true; btn.textContent = 'Opslaan…'; }
-  if (st)  { st.textContent = ''; }
-  try {
-    const r = await fetch(apiUrl('/api/auth?action=schema'), {
-      method:      'POST',
-      headers:     { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body:        JSON.stringify({ schema }),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (r.status === 401) throw new Error('Inloggen vereist om het weekschema op te slaan');
-    if (!r.ok || !data.success) throw new Error(data.error || ('HTTP ' + r.status));
-    _zetWeekschemaDb(data.schema || schema, 'db');
-    _weekschemaLaadTs = Date.now();
-    card.dataset.versie = String(_weekschemaVersie); // huidige tabel is al up-to-date
-    if (st) { st.textContent = '✓ Weekschema opgeslagen'; st.style.color = 'var(--green)'; }
-    renderSnelkaarten();
-  } catch (e) {
-    if (st) { st.textContent = '✗ ' + e.message; st.style.color = '#a32d2d'; }
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Opslaan'; }
-  }
+  const bronStr = (_weekschemaDb && Object.keys(_weekschemaDb).some(k => Object.keys(_weekschemaDb[k] || {}).length))
+    ? 'opgeslagen weekschema' : 'standaardwaarden uit configuratie';
+  card.innerHTML = blokken +
+    '<div style="font-size:11px;color:var(--muted);padding:10px 14px 12px;line-height:1.5">Bron: ' + bronStr +
+      '. Per apparaat aanpassen via "Bewerken" (of via 📅 weekschema op de kaart bovenaan de app); Opslaan geldt per apparaat.</div>';
 }

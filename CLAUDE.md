@@ -71,7 +71,14 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
 `snelkaart: true` in `users/<id>.js` een kaart die direct het aanbevolen startmoment toont
 ("Zet nu aan" / "Zet aan om HH:MM") o.b.v. een deadline uit een vast weekschema
 (`deadlineLabel`: "klaar om" voor de vaatwasser, "vertrek om" voor de auto).
-- **Code**: `js/weekschema.js` (kaarten, overrule, beheer in Instellingen) + gedeelde helper
+- **Beheer per apparaat (sinds v2.80.0)**: één generieke editor (`weekschemaEditorHtml(ap, locatie)` in
+  `js/weekschema.js`: 7 dagen, Opslaan, Standaard, bron-regel) klapt uit op de snelkaart zelf
+  ("📅 weekschema") én per apparaat in Instellingen → Weekschema ("Bewerken"; vervangt de vroegere
+  kruistabel). Opslaan gaat per apparaat (`POST ?action=schema` met alleen die sleutel; de server
+  vervangt per apparaat, de respons bevat alleen dat apparaat → lokaal mengen, niet vervangen).
+  Herbouw-bestendig: open/dicht per plek in `_wsEditorOpen`, onopgeslagen invoer in `_wsDraft[key]`,
+  feedback in `_wsMsg`; Instellingen rendert niet opnieuw zolang een veld in de kaart focus heeft.
+- **Code**: `js/weekschema.js` (kaarten, overrule, editor + beheer in Instellingen) + gedeelde helper
   `berekenBlokVoorDeadline(uren, kW, deadlineDate, planUren)` en `deadlineVanHHMM()` in
   `js/apparaten.js`. Die helper vervangt de vroeger gedupliceerde deadline-filtering in
   `herbereken()` (vertrekplanner) en `hcGoedkoopsteBlok()` (Home Connect).
