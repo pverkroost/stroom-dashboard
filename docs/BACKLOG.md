@@ -4,6 +4,14 @@
 
 ## 🟢 OPEN
 
+### 🔴 Urgent / deadline
+- **#104** [L] 🔴 **URGENT — SolarEdge Monitoring API V1 → V2 migratie (deadline 2026-11-01)**.
+  SolarEdge zet de V1 API (statische `?api_key=` in `api/solaredge.js`) uit op 1 november 2026;
+  daarna valt SolarEdge-data weg voor **alle** SolarEdge-users (001 Pieter + 003 Patrick). De
+  intermitterende HTTP 503 "Scheduled V1 deprecation window" van nu is de voorbode. V2 = OAuth 2.0
+  Site Access + Bearer-token (zelfde patroon als Home Connect), Free tier 2.000 credits/maand →
+  pollfrequentie moet omlaag — zie details
+
 ### Snel te doen (UX/bugs)
 - **#2** [M] UX review apparaatscherm tijdkeuze — slider/klaar-om/handmatig/overnemen; welke primair? mockup
 - **#3** [M] Laadstatus uit Homey — toon of de auto écht laadt
@@ -88,6 +96,43 @@ Afgewogen en afgewezen; hier vastgelegd zodat het niet opnieuw onderzocht wordt.
 
 
 ## 📖 DETAILS (uitgebreide context)
+
+### #104 — 🔴 SolarEdge Monitoring API V1 → V2 migratie (deadline 2026-11-01)
+SolarEdge zet de V1 Monitoring API (de statische `?api_key=` die `api/solaredge.js` nu
+gebruikt) uit op **1 november 2026**. Vanaf dan valt SolarEdge-data weg voor ALLE users
+met SolarEdge (001 Pieter + 003 Patrick). De intermitterende HTTP 503 "Scheduled V1
+deprecation window" die nu al optreedt is de voorbode.
+
+**Onderzoeksconclusie (okt 2026):**
+- V2 is gratis voor homeowners via de Free tier: 2.000 API-credits/maand, 10 calls/min,
+  1 credit per call. De "betaald voor derden"-waarschuwing betreft grote fleet-aggregators
+  (PVOutput e.d.), niet een 2-site setup.
+- V2 gebruikt GEEN statische key meer, maar OAuth 2.0 Site Access (Client ID + Client Secret,
+  consent per user, access token 2u + refresh token). Zelfde patroon als de bestaande
+  Home Connect-integratie — veel herbruikbaar (`api/_helpers.js` token-helpers).
+- Endpoints: `monitoringapi.solaredge.com/v2`, Bearer-token i.p.v. `?api_key=`.
+
+**Migratie-stappen (nog te plannen, niet in dit item bouwen):**
+1. Developer-app op developer.solaredge.com, type Site Access, scopes `SITE_DATA` +
+   `DEVICE_DATA`. Client ID/Secret globaal in Vercel (zoals `HOMECONNECT_*`).
+2. `api/solaredge.js` ombouwen naar V2-endpoints + Bearer-auth.
+3. OAuth-flow per user + tokens in Redis (`solaredge_tokens_<userId>`), hergebruik van het
+   homeconnect-token-patroon (state-nonce, refresh vóór expiry).
+4. Pieter (001) en Patrick (003) koppelen elk eenmalig via de SolarEdge consent-pagina.
+5. **KRITIEK — credit-budget**: 2.000/maand ≈ 66/dag per account. Huidig pollgedrag
+   (overview + power + energy, elke paar minuten) is te veel. Pollfrequentie verlagen,
+   's nachts niet pollen (geen zon), evt. server-side cachen in Redis. Anders zijn de
+   credits op vóór het einde van de maand → data valt alsnog weg.
+
+**Open checks vóór de bouw:**
+- Heeft Patricks mySolarEdge-account de homeowner self-access/developer-optie, of moet
+  de installateur die vrijgeven?
+- Geeft V2 alle velden terug die de app nu gebruikt? (V2 liet `dcVoltage`, inverter-temp
+  en per-fase-waarden vallen.) Inventariseer welke velden `js/solar.js` echt gebruikt.
+
+Let op de Vercel Hobby 12-functielimiet (`api/` zit op 11, #97 claimt de 12e): een
+OAuth-callback voor SolarEdge moet als `?action=` op `api/solaredge.js` zelf, niet als
+nieuwe function.
 
 ### #12 — Teruglevering stoppen bij verlies (geparkeerd)
 Oorspronkelijk idee: bij negatieve/verliesgevende EPEX-prijs de omvormer
