@@ -33,9 +33,9 @@
       lon:           6.69,
       totaalPiekKw:  10.344,
       rendement:     0.8,
-      // Eén installatie van 10,344 kWp op het huis in Almelo. Paneel-aantal nog niet
-      // bekend (0 = niet tonen); app overschrijft piekKw runtime met /api/solaredge?type=details.
-      solarEdge: { piekKw: 10.344, panelen: 0, locatie: 'huis' },
+      // Eén installatie van 24 panelen / 10,344 kWp op het huis in Almelo.
+      // App overschrijft piekKw runtime met /api/solaredge?type=details.
+      solarEdge: { piekKw: 10.344, panelen: 24, locatie: 'huis' },
       growatt:   { piekKw: 0,      panelen: 0, locatie: '—' },
     },
     // VOORLOPIGE DEFAULT — Patricks exacte apparatenlijst moet nog bevestigd worden.
