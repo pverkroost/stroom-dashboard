@@ -65,8 +65,8 @@
 - Geselecteerd-uur-lijn doortrekken op Morgen + Zon tab
 
 ### Open vragen
-- User 003 (Patrick): exacte apparatenlijst + heeft hij Homey? (`users/003.js` heeft nu een
-  voorlopige default: vaatwasser/wasmachine/droger, geen auto)
+- User 003 (Patrick): exacte apparatenlijst (`users/003.js` heeft nu een voorlopige default:
+  vaatwasser/wasmachine/droger, geen auto). Geen Homey — bevestigd.
 - Miele-apparaten (Patrick) vallen buiten Home Connect (eigen Miele-API) → niet ondersteund; alleen
   zijn Siemens-apparaten werken. Bekend gat.
 - ~~HomeWizard P1 aanschaffen?~~ → beantwoord: aangeschaft en geïntegreerd (#11, v2.74.0)

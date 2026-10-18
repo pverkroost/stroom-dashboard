@@ -121,8 +121,8 @@ Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
   Profielen: `001` = Pieter (Sepa Green; SolarEdge + Growatt + Homey + Home Connect),
   `002` = vriend (alleen SolarEdge; geen Growatt, geen Homey),
   `003` = Patrick, Almelo (Zonneplan; SolarEdge 10,344 kWp + Home Connect voor zijn
-  Siemens-apparaten; geen Growatt/Homey/HomeWizard. Apparatenlijst is nog een voorlopige
-  default; Miele-apparaten vallen buiten Home Connect en worden niet ondersteund).
+  Siemens-apparaten; geen Growatt, geen Homey (bevestigd), geen HomeWizard. Apparatenlijst is
+  nog een voorlopige default; Miele-apparaten vallen buiten Home Connect en worden niet ondersteund).
   Het `integraties`-veld per user bepaalt welke secties/tegels getoond worden (`heeftIntegratie()`).
 - **Server-side**: alle `/api/*` endpoints lezen `?u=<id>` (of body), valideren tegen
   `VALID_USERS = ['001', '002', '003']` (`api/_helpers.js`), en lezen env vars met userId-suffix
