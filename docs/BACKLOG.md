@@ -324,6 +324,13 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.80.0** — Weekschema per apparaat instelbaar
+- De centrale kruistabel in Instellingen → Weekschema is vervangen door een blok per apparaat
+  (samenvatting "ma–vr 07:00 · za–zo 09:00" + "Bewerken"). Dezelfde editor klapt ook uit op de
+  snelkaart zelf ("📅 weekschema"). Opslaan en Standaard gelden per apparaat; bron-regel onderaan
+  blijft. Onopgeslagen invoer en open/dicht-stand overleven de periodieke herbouw (`_wsDraft`,
+  `_wsEditorOpen`). Opslag/API ongewijzigd (`?action=schema`, Neon `user_schedule`).
+
 **v2.79.4** — Snelkaart + weekschema vaatwasser voor user 003
 - `users/003.js`: vaatwasser krijgt `snelkaart: true` + default-weekschema (ma–vr 07:00, za/zo
   09:00), zelfde als 001. Alleen de vaatwasser (geen auto-kolom); test bewaakt dat.
