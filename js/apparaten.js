@@ -1165,26 +1165,52 @@ function _hcPasVoorselectieToe(ap) {
   _hcVoorselectie = null;
 }
 
-// Instellingen-sectie: koppelstatus + per Home Connect-toestel een dropdown om
-// het aan een Energie IQ-apparaat te koppelen.
+// Open/dicht-stand van het Home Connect-beheerpaneel (#hcPanel in de integratielijst),
+// zodat een herbouw van de integratiekaart (renderInstellingen: elke 5 min, bij tab-open,
+// na de Homey-check, na acties) het paneel niet dichtklapt. De dropdown-selecties zelf
+// staan al in localStorage (hcMapping) en worden bij elke render daaruit gelezen.
+let _hcUi = { open: false };
+function bewaarHcUiState() {
+  const panel = document.getElementById('hcPanel');
+  if (panel) _hcUi.open = panel.style.display === 'block';
+  return _hcUi;
+}
+// Klap het beheerpaneel onder de rij "Home Connect" in/uit (link in de integratielijst).
+function toggleHcPanel(e) {
+  if (e) e.preventDefault();
+  const el = document.getElementById('hcPanel');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// Beheerpaneel onder de rij "Home Connect" in de integratielijst (sinds v2.79.3 de enige
+// plek; de losse sectie is weg): koppelstatus/OAuth-knop + per Home Connect-toestel een
+// dropdown om het aan een Energie IQ-apparaat te koppelen. De rij zelf is al gegate op
+// heeftIntegratie('homeConnect').
 async function renderHomeConnect() {
-  const card = document.getElementById('homeConnectCard');
-  if (!card) return;
-  const sectie = card.closest('.section');
-  if (!heeftIntegratie('homeConnect')) { if (sectie) sectie.style.display = 'none'; return; }
-  if (sectie) sectie.style.display = '';
+  const card = document.getElementById('hcPanel');
+  if (!card || !heeftIntegratie('homeConnect')) return;
 
   const status = await laadHcStatus(true);
   const badge = document.getElementById('hcIntegratieStatus');
   if (badge) badge.innerHTML = hcStatusBadge();
+  const label = document.getElementById('hcToggleLabel');
+  if (label) label.textContent = status.verbonden ? 'Beheer koppeling' : 'Koppelen';
 
   if (!status.verbonden) {
     card.innerHTML =
-      '<div class="tarief-row" style="align-items:center">' +
-        '<div><div class="tarief-key">Status</div><div style="font-size:10px;color:var(--muted)">wasmachine · droger · oven · kookplaat</div></div>' +
-        '<div style="text-align:right">' + hcStatusBadge() + '</div>' +
+      '<div style="font-size:11px;color:var(--text);line-height:1.6;padding:8px 14px 2px">' +
+        '<b>Home Connect koppelen:</b>' +
+        '<ol style="margin:4px 0 0;padding-left:18px">' +
+          '<li>Zorg dat je apparaten in de Home Connect-app staan</li>' +
+          '<li>Schakel "Remote Start" in op je apparaat</li>' +
+          '<li>Klik hieronder op "Koppel Home Connect"</li>' +
+          '<li>Log in met je Siemens/Bosch-account</li>' +
+          '<li>Koppel je apparaten in de lijst die dan verschijnt</li>' +
+        '</ol>' +
       '</div>' +
-      '<button class="ap-cta-btn ap-cta-groen" onclick="koppelHomeConnect()" style="margin-top:10px">🔌 Koppel Home Connect</button>';
+      '<div style="padding:10px 14px 12px">' +
+        '<button class="ap-cta-btn ap-cta-groen" onclick="koppelHomeConnect()" style="margin:0">🔌 Koppel Home Connect</button>' +
+      '</div>';
     return;
   }
 
@@ -1210,12 +1236,9 @@ async function renderHomeConnect() {
     : '<div class="tarief-row"><span style="font-size:11px;color:var(--muted)">Geen apparaten gevonden in je Home Connect account.</span></div>';
 
   card.innerHTML =
-    '<div class="tarief-row" style="align-items:center">' +
-      '<div class="tarief-key">Status</div>' +
-      '<div style="text-align:right">' + hcStatusBadge() + '</div>' +
-    '</div>' +
+    '<div style="font-size:11px;color:var(--muted);padding:8px 14px 2px;line-height:1.5">Koppel elk Home Connect-toestel aan het bijbehorende Energie IQ-apparaat:</div>' +
     appliancesHtml +
-    '<div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5">Oven en kookplaat zijn alleen-monitoring: Home Connect kan deze niet op afstand starten.</div>';
+    '<div style="font-size:10px;color:var(--muted);padding:8px 14px 12px;line-height:1.5">Oven en kookplaat zijn alleen-monitoring: Home Connect kan deze niet op afstand starten.</div>';
 }
 
 function renderApDetail() {

@@ -207,7 +207,8 @@ Voertuigspecs voor het laad-apparaat "Auto" via kenteken-lookup, **server-side i
 2. Vercel env: `HOMECONNECT_CLIENT_ID` + `HOMECONNECT_CLIENT_SECRET` (globaal), en `APP_URL` = `https://energieiq.nl`
    (redirect-URI wordt hieruit afgeleid en moet exact matchen).
 3. Home Connect-app op telefoon: apparaten koppelen, "Remote Start" aanzetten, programma selecteren.
-4. Energie IQ → Instellingen → Home Connect → "Koppel Home Connect" → inloggen → apparaten koppelen aan Energie IQ-apparaten.
+4. Energie IQ → Instellingen → Integraties → rij "Home Connect" → "Koppelen" (uitklappaneel, sinds v2.79.3 de enige plek)
+   → "Koppel Home Connect" → inloggen → apparaten koppelen aan Energie IQ-apparaten.
 
 **Implementatie:**
 - OAuth2 Authorization Code Flow (`api/homeconnect.js` + `api/homeconnect/callback.js`).

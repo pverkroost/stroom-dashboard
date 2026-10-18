@@ -324,6 +324,13 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.79.3** — Home Connect op één plek in de integratielijst
+- Instellingen: de losse sectie "Home Connect" is weg; OAuth-koppeling, apparaat-mapping
+  (dropdowns, `localStorage` `homeconnect_mapping`) en de monitoring-uitleg zitten nu als
+  uitklappaneel onder de rij "Home Connect" in de integratielijst (link "Koppelen" /
+  "Beheer koppeling", zelfde patroon als HomeWizard sinds v2.79.1). Open/dicht-stand overleeft
+  de periodieke herbouw van de kaart. Werking ongewijzigd.
+
 **v2.79.2** — Handmatige bron-keuze HomeWizard P1
 - In het HomeWizard-uitklappaneel (users met Homey-route én cloud): Automatisch / Alleen Homey /
   Alleen HomeWizard cloud, per user in `localStorage` (`hwBron_<id>`). "Alleen cloud" stuurt

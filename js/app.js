@@ -340,13 +340,6 @@ refreshOmvormerCapaciteit().then(veranderd => { if (veranderd) laadPrijzen().the
 })();
 
 
-// Klap de "Hoe koppel ik?"-uitleg bij de Home Connect-integratierij in/uit.
-function toggleHcHelp(e) {
-  if (e) e.preventDefault();
-  const el = document.getElementById('hcHelp');
-  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
-
 function renderInstellingen() {
   const alleBronnen = [
     { naam: 'EPEX day-ahead',  sub: 'via EnergyZero', key: 'epex' },
@@ -362,6 +355,7 @@ function renderInstellingen() {
   // Het HomeWizard-beheerpaneel zit ín deze kaart; bewaar open/dicht-stand en ingetypte
   // velden vóór de herbouw (deze functie draait ook elke 5 min en na de Homey-check).
   const hwUi = typeof bewaarHwCloudUiState === 'function' ? bewaarHwCloudUiState() : { open: false };
+  const hcUi = typeof bewaarHcUiState === 'function' ? bewaarHcUiState() : { open: false };
   if (card) {
     card.innerHTML = bronnen.map(b => {
       let statusStr, tijdStr = '', kleurStr = '';
@@ -392,29 +386,23 @@ function renderInstellingen() {
         kleurStr  = !s ? 'color:var(--muted)' : s.ok ? '' : 'color:#a32d2d';
       }
       if (b.homeConnect) {
-        // "Hoe koppel ik?"-link met uitvouwbare stap-voor-stap uitleg.
+        // Eén plek voor Home Connect (v2.79.3): de rij toont de status, de link klapt het
+        // beheerpaneel uit (OAuth-koppeling, apparaat-mapping, monitoring-uitleg). Inhoud
+        // komt uit renderHomeConnect() in js/apparaten.js. Zelfde patroon als HomeWizard.
         return `<div class="tarief-row" style="align-items:flex-start">
           <div>
             <div class="tarief-key">${b.naam}</div>
-            <div style="font-size:10px;color:var(--muted)">${b.sub || ''} · <a href="#" onclick="toggleHcHelp(event)" style="color:var(--green)">Hoe koppel ik?</a></div>
+            <div style="font-size:10px;color:var(--muted)">${b.sub || ''} · <a href="#" onclick="toggleHcPanel(event)" style="color:var(--green)"><span id="hcToggleLabel">${_hcStatus && _hcStatus.verbonden ? 'Beheer koppeling' : 'Koppelen'}</span></a></div>
           </div>
           <div style="text-align:right;flex-shrink:0;${kleurStr}"><div>${statusStr}</div></div>
         </div>
-        <div id="hcHelp" style="display:none;font-size:11px;color:var(--text);line-height:1.6;padding:6px 2px 8px;border-bottom:0.5px solid var(--border)">
-          <b>Home Connect koppelen:</b>
-          <ol style="margin:4px 0 0;padding-left:18px">
-            <li>Zorg dat je apparaten in de Home Connect-app staan</li>
-            <li>Schakel "Remote Start" in op je apparaat</li>
-            <li>Klik in de sectie <b>Home Connect</b> (hierboven) op "Koppel Home Connect"</li>
-            <li>Log in met je Siemens/Bosch-account</li>
-            <li>Koppel je apparaten in de lijst</li>
-          </ol>
+        <div id="hcPanel" style="display:${hcUi.open ? 'block' : 'none'};border-bottom:0.5px solid var(--border)">
+          <div class="tarief-row"><span class="tarief-key" style="color:var(--muted)">Laden…</span></div>
         </div>`;
       }
       if (b.hwCloud) {
         // Eén plek voor de HomeWizard-koppeling (v2.79.1): de rij zelf toont de status,
         // de link klapt het beheerpaneel uit (koppelen met e-mail+wachtwoord / ontkoppelen).
-        // Zelfde patroon als de "Hoe koppel ik?"-link bij Home Connect.
         return `<div class="tarief-row" style="align-items:flex-start">
           <div>
             <div class="tarief-key">${b.naam}</div>

@@ -166,7 +166,7 @@ Voor het aansturen/monitoren van BSH-apparaten.
 - Selecteer een programma op het apparaat zelf (nodig voor remote start)
 
 **4. In de Energie IQ-app:**
-- Ga naar **Instellingen → Home Connect**
+- Ga naar **Instellingen → Integraties → Home Connect → "Koppelen"** (uitklappaneel)
 - Klik "Koppel Home Connect" en log in met je Siemens/Bosch-account
 - Koppel de gevonden apparaten aan de Energie IQ-apparaten
 
