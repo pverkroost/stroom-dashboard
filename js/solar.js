@@ -239,6 +239,21 @@ function renderZonTab() {
   const verwachtRestKwh = (openMeteoVandaag?.hourly || [])
     .filter(e => e.hour > nowH).reduce((s, e) => s + e.watt, 0) / 1000;
 
+  // Omvormer-subtitels per user uit window.CONFIG.panelen (vroeger hardcoded
+  // voor user 001 in index.html). Paneel-aantal alleen tonen als het bekend is (> 0).
+  const omvormerSub = o => {
+    if (!o) return '—';
+    const delen = [];
+    if (o.panelen > 0) delen.push(o.panelen + ' panelen');
+    if (o.piekKw > 0)  delen.push(String(o.piekKw).replace('.', ',') + ' kWp');
+    if (o.locatie && o.locatie !== '—') delen.push(o.locatie);
+    return delen.length ? escapeHtml(delen.join(' · ')) : '—';
+  };
+  const seSub = document.getElementById('zonSESub');
+  const grSub = document.getElementById('zonGrowattSub');
+  if (seSub) seSub.textContent = omvormerSub(window.CONFIG.panelen?.solarEdge);
+  if (grSub) grSub.textContent = omvormerSub(window.CONFIG.panelen?.growatt);
+
   const seEl = document.getElementById('zonSEContent');
   if (!solarVandaag && !openMeteoVandaag) {
     seEl.innerHTML = '<div class="av-rij" style="margin-top:4px;color:var(--muted)">Laden...</div>';
