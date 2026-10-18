@@ -48,9 +48,14 @@ function _formatUrenVermogen(uren, vermogen) {
   return u + ' uur · ' + v + ' kW';
 }
 
-function renderApparatenInstellingen() {
+// `force` = ook herbouwen als een weekschema-veld in de lijst focus heeft (na toggle/
+// opslaan); anders wordt de periodieke herbouw (renderInstellingen) tijdens het typen
+// overgeslagen. De weekschema-draft bewaart de invoer sowieso (js/weekschema.js).
+function renderApparatenInstellingen(force = false) {
   const card = document.getElementById('apparatenLijst');
   if (!card) return;
+  if (!force && document.activeElement && document.activeElement.closest && document.activeElement.closest('#apparatenLijst .ws-editor')) return;
+  if (typeof weekschemaInstellingenVerversen === 'function') weekschemaInstellingenVerversen();
   const sorted = getApparatenSorted();
   card.innerHTML = sorted.map(({ ap }) => {
     const subStr = _formatUrenVermogen(ap.uren, ap.vermogen);
@@ -59,19 +64,26 @@ function renderApparatenInstellingen() {
     const autoSub = isAuto && info.kenteken
       ? `<div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(info.kenteken)}${info.bouwjaar ? ' · ' + escapeHtml(info.bouwjaar) : ''}${info.laadtypeLabel ? ' · ' + escapeHtml(info.laadtypeLabel.split('(')[0].trim()) : ''}</div>`
       : '';
-    const knop = isAuto
-      ? `<button onclick="event.stopPropagation();toonKentekenDialog()" style="flex-shrink:0;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-family:inherit;cursor:pointer">${info.kenteken ? 'Wijzigen' : 'Kenteken'}</button>`
-      : '';
+    // Weekschema bij het apparaat zelf (v2.80.1): samenvatting + knop + uitklap-editor,
+    // alleen voor apparaten met snelkaart/weekschema (weekschemaLijstDeel geeft anders null).
+    const ws = (typeof weekschemaLijstDeel === 'function') ? weekschemaLijstDeel(ap) : null;
+    const knoppen = [
+      isAuto ? `<button onclick="event.stopPropagation();toonKentekenDialog()" style="flex-shrink:0;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-family:inherit;cursor:pointer;white-space:nowrap">${info.kenteken ? 'Wijzigen' : 'Kenteken'}</button>` : '',
+      ws ? ws.knop : '',
+    ].filter(Boolean);
+    const knopHtml = knoppen.length ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:stretch;flex-shrink:0">${knoppen.join('')}</div>` : '';
     return `<div class="apparaat-row" draggable="true" data-naam="${escapeHtml(ap.naam)}"
-              style="display:flex;align-items:center;gap:12px;padding:8px 4px;border-bottom:0.5px solid var(--border)">
+              style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:8px 4px;border-bottom:0.5px solid var(--border)">
       <span class="drag-handle" style="cursor:grab;color:var(--muted);font-size:18px;user-select:none;flex-shrink:0;width:24px;text-align:center;touch-action:none;padding:8px 0">☰</span>
       ${instIconHtml(ap.icon)}
       <div style="flex:1;overflow:hidden;min-width:0">
         <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${displayNaam(ap)}</div>
         <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subStr}</div>
         ${autoSub}
+        ${ws ? ws.samenvatting : ''}
       </div>
-      ${knop}
+      ${knopHtml}
+      ${ws ? ws.editor : ''}
     </div>`;
   }).join('');
   setupApparaatDrag();
@@ -92,6 +104,8 @@ function setupApparaatDrag() {
 }
 
 function rowDragStart(e) {
+  // Geen rij-drag vanuit de weekschema-editor (tijdvelden/knoppen in de rij).
+  if (e.target.closest && e.target.closest('.ws-editor')) { e.preventDefault(); return; }
   const row = e.target.closest('.apparaat-row');
   if (!row) return;
   _draggedRow = row;

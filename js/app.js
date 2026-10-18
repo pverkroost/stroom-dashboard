@@ -516,7 +516,6 @@ function renderInstellingen() {
     zpCard.innerHTML = rows.join('');
   }
   if (typeof renderApparatenInstellingen === 'function') renderApparatenInstellingen();
-  if (typeof renderWeekschemaInstellingen === 'function') renderWeekschemaInstellingen();
   if (typeof renderHomeWizardCloudInstellingen === 'function') renderHomeWizardCloudInstellingen();
   if (typeof renderHomeConnect === 'function') renderHomeConnect();
   const gebruikerEl = document.getElementById('instGebruiker');

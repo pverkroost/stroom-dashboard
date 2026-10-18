@@ -6,8 +6,8 @@
 //     gedeelde helper berekenBlokVoorDeadline() in js/apparaten.js.
 //  2. Beheer per apparaat (v2.80.0): één generieke editor (7 dagen, Opslaan,
 //     Standaard, bron-regel) die op twee plekken uitklapt — op de snelkaart zelf
-//     ("📅 weekschema") en per apparaat in Instellingen → Weekschema (#weekschemaCard,
-//     vervangt de vroegere kruistabel). Opslaan gaat per apparaat via POST
+//     ("📅 weekschema") en bij het apparaat in Instellingen → Apparaten (knop
+//     "Weekschema", sinds v2.80.1; de losse Weekschema-sectie is weg). Opslaan gaat per apparaat via POST
 //     /api/auth?action=schema (de server vervangt per apparaat, dus andere apparaten
 //     blijven staan). Onopgeslagen invoer leeft in _wsDraft en overleeft de
 //     periodieke herbouw van kaarten en Instellingen.
@@ -390,7 +390,7 @@ function weekschemaEditorHtml(ap, locatie) {
 
 function _wsRender(locatie) {
   if (locatie === 'kaart') renderSnelkaarten();
-  else renderWeekschemaInstellingen(true);
+  else if (typeof renderApparatenInstellingen === 'function') renderApparatenInstellingen(true);
 }
 function weekschemaEditorToggle(locatie, key) {
   _wsEditorOpen[locatie + ':' + key] = !_wsEditorOpen[locatie + ':' + key];
@@ -452,7 +452,7 @@ async function bewaarWeekschemaApparaat(key) {
     delete _wsDraft[key];
     _wsMsg[key] = { tekst: '✓ Weekschema opgeslagen', kleur: 'var(--green)', t: Date.now() };
     renderSnelkaarten();
-    renderWeekschemaInstellingen(true);
+    _wsRender('inst');
   } catch (e) {
     _wsStatusZet(key, '✗ ' + e.message, '#a32d2d');
   } finally {
@@ -460,45 +460,30 @@ async function bewaarWeekschemaApparaat(key) {
   }
 }
 
-// ── Instellingen: per apparaat een uitklapbaar blok ─────────────────────────
-// `force` = ook renderen als een veld in de kaart focus heeft (na opslaan/toggle);
-// anders wordt een herbouw tijdens het typen overgeslagen — de draft bewaart de invoer sowieso.
-function renderWeekschemaInstellingen(force = false) {
-  const card = document.getElementById('weekschemaCard');
-  if (!card) return;
-  const items = snelkaartApparaten();
-  if (!items.length) {
-    card.innerHTML = '<div class="tarief-row"><span class="tarief-key">Geen apparaten met snelkaart in de configuratie</span></div>';
-    return;
-  }
-  // Vers ophalen bij (her)openen van de tab; tijdens het laden de defaults tonen.
+// ── Instellingen → Apparaten: weekschema bij het apparaat zelf (v2.80.1) ───
+// renderApparatenInstellingen (js/apparaten.js) vraagt per rij dit deel op; null voor
+// apparaten zonder weekschema (warmtepomp, e-bikes, …) → geen samenvatting, geen knop.
+// Vers ophalen bij (her)openen van Instellingen gebeurt via weekschemaInstellingenVerversen().
+function weekschemaInstellingenVerversen() {
+  if (!snelkaartApparaten().length) return;
   if (_weekschemaDb === null || Date.now() - _weekschemaLaadTs > 60_000) {
-    laadWeekschema(true).then(() => renderWeekschemaInstellingen());
+    laadWeekschema(true).then(() => _wsRender('inst'));
   }
-  if (!force && card.contains(document.activeElement) && document.activeElement !== document.body) return;
-
-  const blokken = items.map(({ ap }) => {
-    const key   = apSleutel(ap.naam);
-    const open  = !!_wsEditorOpen['inst:' + key];
-    const icon  = (ap.icon && !String(ap.icon).includes('<')) ? escapeHtml(ap.icon) + ' ' : '';
-    const draft = _wsDraft[key] && Object.keys(_wsDraft[key]).length;
-    return '<div class="tarief-row" style="align-items:flex-start">' +
-        '<div style="min-width:0;flex:1">' +
-          '<div class="tarief-key">' + icon + escapeHtml(displayNaam(ap)) +
-            ' <span style="font-size:10px">' + escapeHtml(ap.deadlineLabel || 'klaar om') + '</span></div>' +
-          '<div style="font-size:11px;color:var(--text);margin-top:2px;line-height:1.4">' + escapeHtml(weekschemaSamenvatting(_wsEffectief(ap))) +
-            (draft ? ' <span style="font-size:10px;color:#854f0b">· niet opgeslagen</span>' : '') + '</div>' +
-        '</div>' +
-        '<div style="flex-shrink:0;font-size:11px;padding-top:2px">' +
-          '<a href="#" onclick="event.preventDefault();weekschemaEditorToggle(\'inst\', \'' + key + '\')" style="color:var(--green)">' + (open ? '▲ verberg' : 'Bewerken') + '</a>' +
-        '</div>' +
-      '</div>' +
-      '<div style="display:' + (open ? 'block' : 'none') + ';border-bottom:0.5px solid var(--border)">' + (open ? weekschemaEditorHtml(ap, 'inst') : '') + '</div>';
-  }).join('');
-
-  const bronStr = (_weekschemaDb && Object.keys(_weekschemaDb).some(k => Object.keys(_weekschemaDb[k] || {}).length))
-    ? 'opgeslagen weekschema' : 'standaardwaarden uit configuratie';
-  card.innerHTML = blokken +
-    '<div style="font-size:11px;color:var(--muted);padding:10px 14px 12px;line-height:1.5">Bron: ' + bronStr +
-      '. Per apparaat aanpassen via "Bewerken" (of via 📅 weekschema op de kaart bovenaan de app); Opslaan geldt per apparaat.</div>';
+}
+function weekschemaLijstDeel(ap) {
+  if (!ap || ap.snelkaart !== true || !ap.weekschema || typeof ap.weekschema !== 'object') return null;
+  const key   = apSleutel(ap.naam);
+  const open  = !!_wsEditorOpen['inst:' + key];
+  const draft = _wsDraft[key] && Object.keys(_wsDraft[key]).length;
+  const samenvatting =
+    '<div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📅 ' +
+      escapeHtml(ap.deadlineLabel || 'klaar om') + ' · ' + escapeHtml(weekschemaSamenvatting(_wsEffectief(ap))) +
+      (draft ? ' <span style="color:#854f0b">· niet opgeslagen</span>' : '') +
+    '</div>';
+  const knop =
+    '<button onclick="event.stopPropagation();weekschemaEditorToggle(\'inst\', \'' + key + '\')" aria-expanded="' + open + '" style="flex-shrink:0;padding:5px 10px;border-radius:6px;border:1px solid ' +
+      (open ? 'var(--green)' : 'var(--border)') + ';background:transparent;color:' + (open ? 'var(--green)' : 'var(--text)') +
+      ';font-size:11px;font-family:inherit;cursor:pointer;white-space:nowrap">' + (open ? '▲ Weekschema' : '📅 Weekschema') + '</button>';
+  const editor = open ? '<div style="flex-basis:100%">' + weekschemaEditorHtml(ap, 'inst') + '</div>' : '';
+  return { samenvatting, knop, editor };
 }

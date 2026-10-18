@@ -324,6 +324,12 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.80.1** — Weekschema instelbaar vanuit het apparaat in de lijst
+- Instellingen → Apparaten: apparaten met weekschema (auto, vaatwasser) tonen een samenvattingsregel
+  en een knop "📅 Weekschema" die dezelfde editor (`weekschemaEditorHtml`) onder de rij uitklapt.
+  De losse sectie "Weekschema" is weg. Apparaten zonder weekschema tonen niets. Draft/open-stand
+  overleven de herbouw; rij-drag negeert de editor. Opslag/API ongewijzigd.
+
 **v2.80.0** — Weekschema per apparaat instelbaar
 - De centrale kruistabel in Instellingen → Weekschema is vervangen door een blok per apparaat
   (samenvatting "ma–vr 07:00 · za–zo 09:00" + "Bewerken"). Dezelfde editor klapt ook uit op de

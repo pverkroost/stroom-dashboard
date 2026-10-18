@@ -112,7 +112,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif; ba
 .ws-opslaan { flex:1; padding:8px; border-radius:8px; border:none; background:var(--green); color:white; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
 .ws-standaard { padding:8px 10px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); font-size:11px; cursor:pointer; font-family:inherit; }
 .ws-status { font-size:10px; color:var(--muted); margin-top:6px; min-height:12px; line-height:1.4; }
-#weekschemaCard .ws-editor { margin:0 14px 10px; }
+#apparatenLijst .ws-editor { margin:2px 0 4px 36px; }
 .advies-card { background:var(--card); border-radius:var(--radius); padding:12px 14px; box-shadow:0 2px 12px rgba(0,0,0,0.06); cursor:pointer; }
 .advies-device-icon { font-size:18px; line-height:1; margin-bottom:4px; }
 .advies-device-naam { font-size:11px; font-weight:600; color:var(--text); margin-bottom:2px; line-height:1.3; }
