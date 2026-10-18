@@ -50,6 +50,13 @@
 - **#77** [S] Solar HTML-blokken dedupe (zelf-verbruik vs terugleveren)
 - **#83** [M] KilowattApp lazy-load (1.5MB cold-start verkorten)
 - **#90** [XL] CSP `'unsafe-inline'` weghalen — ~50 inline `onclick` refactor — zie details
+- **#107** [M] Home Connect-tokens versleutelen in Redis. Ontdekt bij de HomeWizard cloud-bouw (v2.79.0):
+  `homeconnect_tokens_<userId>` staat plaintext in Redis. De nieuwe `lib/crypto.js` (AES-256-GCM) kan dit
+  oplossen. Actie: token-opslag/uitlezing (`storeHomeConnectTokens`/`getHomeConnectTokens` in
+  `api/_helpers.js`, gebruikt door `api/homeconnect.js` + `callback.js` + `cronLaden.js`) door `lib/crypto.js`
+  halen, met migratiepad voor bestaande plaintext-tokens: bij de eerstvolgende refresh versleuteld
+  terugschrijven (plaintext-JSON herkennen aan `{`-prefix vs `v1.`), of users opnieuw laten koppelen.
+  Vereist #106 (vaste `CREDS_ENCRYPTION_KEY`) om te voorkomen dat een `SESSION_SECRET`-rotatie alle koppelingen wist.
 
 ### Tests & validatie
 - **#61b** [M] Test framework opzetten (Jest/Vitest) + coverage op `berekenPrijs`, `berekenGoedkoopsteBlok`, `bepaalBrandstoftype`
@@ -70,6 +77,10 @@
 ### Multi-user / commercieel
 - **#19** [XL] Multi-tenant SaaS (Clerk/Supabase auth + Redis-config per user) — zie details
 - **#39** [XL] Lemon Squeezy freemium-betaalmuur (vereist #19) — zie details
+- **#108** [L] Self-service credentials voor alle per-user koppelingen: de gebruiker voert zijn eigen
+  credentials in via de app (versleuteld in Redis via `lib/crypto.js`) i.p.v. dat de beheerder ze per user
+  in Vercel env vars zet. Begonnen met HomeWizard cloud (v2.79.0). Nog om te zetten: SolarEdge (valt samen
+  met #104), Homey cloud-id, Home Connect (koppelt al via OAuth) — zie details
 
 ### Nice-to-have
 - Zonnebonus (Zonneplan, user 003) verfijnen: alleen overdag (Open-Meteo `sunrise`/`sunset`) en
@@ -167,6 +178,34 @@ migratie mag vervallen: de afgeleide `piekWatt`/`piekUur` in `fetchSolarEdge` (n
 **Open check vóór de bouw:**
 - Heeft Patricks mySolarEdge-account de homeowner self-access/developer-optie, of moet
   de installateur die vrijgeven?
+
+### #108 — Self-service credentials voor alle per-user koppelingen
+**Doel:** schaalbaar multi-user zonder handwerk per gebruiker. Nu moet de beheerder per nieuwe user
+env vars in Vercel zetten (`SOLAREDGE_API_KEY_<id>`, `SOLAREDGE_SITE_ID_<id>`, `HOMEY_CLOUD_ID_<id>`,
+`HOMEWIZARD_PUSH_TOKEN_<id>`, …) én redeployen. Met self-service voert de user zijn eigen
+credentials in via Instellingen; de server valideert live en slaat ze versleuteld op in Redis
+(`lib/crypto.js`, zelfde patroon als `hw_cloud_creds_<userId>`).
+
+**Status per koppeling:**
+- ✅ **HomeWizard cloud** (v2.79.0): e-mail + wachtwoord door de user, versleuteld, status/ontkoppelen in UI.
+- ✅ **Home Connect**: koppelt al via OAuth door de user zelf; alleen de globale `HOMECONNECT_CLIENT_ID`/
+  `_SECRET` blijven (dat hoort zo — één developer-app). Wel nog: tokens versleutelen (#107).
+- ⬜ **SolarEdge**: valt samen met de V1→V2 OAuth-migratie (#104, werkpakket 3): de user koppelt via de
+  SolarEdge consent-flow, tokens in `solaredge_tokens_<userId>`; de per-user `SOLAREDGE_API_KEY_<id>`/
+  `SITE_ID_<id>` env vars vervallen dan vanzelf. Niet apart bouwen — meeliften met #104.
+- ⬜ **Homey cloud-id**: user voert zijn Homey cloud-id in (Instellingen), opslag in Redis
+  (`homey_config_<userId>`), `api/homey.js` + `cronLaden.js` lezen daar i.p.v. `HOMEY_CLOUD_ID_<id>`.
+  Let op: cronLaden draait zonder sessie (QStash) → leest op userId uit de body, zoals nu.
+- ⬜ **HomeWizard push-token**: user-specifieke `HOMEWIZARD_PUSH_TOKEN_<id>` kan door de app gegenereerd
+  en getoond worden (eenmalig, voor in de Homey-flow), opslag gehasht in Redis. Lage prioriteit zodra de
+  cloud-fallback (#105) voor de meeste users volstaat.
+
+**Per koppeling:** Instellingen-sectie met invoer, live validatie bij opslaan, status (gekoppeld als …,
+nooit het secret terugtonen), ontkoppelen. Alle schrijf-acties achter `requireSessionUserId`. Env-var-
+fallback tijdelijk behouden (eerst Redis, dan env) zodat bestaande users niet breken tijdens de overgang.
+
+**Volgorde:** #106 (vaste encryptiesleutel) → #107 (HC-tokens) → Homey cloud-id → SolarEdge via #104.
+Dit is ook de voorwaarde voor #19 (multi-tenant): zonder self-service is elke nieuwe tenant handwerk.
 
 ### #12 — Teruglevering stoppen bij verlies (geparkeerd)
 Oorspronkelijk idee: bij negatieve/verliesgevende EPEX-prijs de omvormer
