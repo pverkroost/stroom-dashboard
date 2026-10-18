@@ -31,6 +31,7 @@
       'js/prijzen.js' + v,
       'js/apparaten.js' + v,
       'js/weekschema.js' + v,
+      'js/homewizardcloud.js' + v,
       'js/app.js' + v,
     ];
     for (var i = 0; i < bestanden.length; i++) {

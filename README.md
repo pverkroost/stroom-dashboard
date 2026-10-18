@@ -61,6 +61,7 @@ In Vercel → Settings → Environment Variables:
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST |
 | `DATABASE_URL` | Neon PostgreSQL connection string (automatisch gezet door de Vercel ↔ Neon-integratie) |
 | `SESSION_SECRET` | Sterk random secret voor HMAC-ondertekening van de sessie-cookie — **minimaal 32 tekens**. Genereer met `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `CREDS_ENCRYPTION_KEY` | Optioneel, 64 hex-tekens: sleutel voor de AES-256-GCM-versleuteling van per-user credentials in Redis (HomeWizard-cloud). Niet gezet → afgeleid uit `SESSION_SECRET` (roteren = users koppelen opnieuw) |
 | `MIGRATE_SECRET` | Token voor `/api/db/migrate` — **minimaal 32 tekens**, zelfde generator als `SESSION_SECRET` (maar een andere waarde). Zonder deze var weigert het endpoint (503) |
 
 ## Login / authenticatie
@@ -249,6 +250,22 @@ curl -o kilowatt-ev-data.json https://raw.githubusercontent.com/KilowattApp/open
 # regenereer kilowatt-meta.json met:
 node -e "const d=require('./kilowatt-ev-data.json'); require('fs').writeFileSync('kilowatt-meta.json', JSON.stringify({count:d.data.length,brands:d.brands.length,updated_at:d.meta.updated_at,source:'https://github.com/KilowattApp/open-ev-data'}, null, 2)+'\n')"
 ```
+
+### HomeWizard cloud-fallback (zonder Homey, v2.79.0)
+Heb je geen Homey, of hapert de push? Dan kan de app je P1-stand via je **HomeWizard-account**
+ophalen. Instellingen → **HomeWizard** → e-mail + wachtwoord van je HomeWizard Energy-account →
+**Koppelen**. De app controleert direct of het inloggen lukt en of er een P1-meter in je account
+zit, en slaat je gegevens daarna **versleuteld** op (AES-256-GCM, server-side in Redis; nooit in
+env vars, nooit zichtbaar in de app). Ontkoppelen wist ze weer.
+
+Hoe het werkt: de server logt in bij HomeWizard, zoekt je P1-meter en opent kort een WebSocket
+naar `energy-app-ws.homewizard.com`, pakt de eerste meetwaarde (`active_power_w` + meterstanden)
+en sluit weer — elke paar minuten, alleen als er geen verse Homey-data is. Homey heeft altijd
+voorrang (realtime). De tegel toont de bron: "via Homey" of "via HomeWizard cloud".
+
+⚠️ Dit is een **niet-officiële, gereverse-engineerde API** (dezelfde die de Homey-apps
+`homey-homewizard-energy-cloud` en `com.homewizard` gebruiken). HomeWizard kan hem zonder
+aankondiging wijzigen; dan toont de tegel "geen live data" tot de koppeling is bijgewerkt.
 
 ## Prijsformule
 Parametrisch per gebruiker (`users/<id>.js` → `tarieven`), rekenwerk in `js/prijsformule.js`

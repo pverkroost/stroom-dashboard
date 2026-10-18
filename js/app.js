@@ -355,6 +355,7 @@ function renderInstellingen() {
     { naam: 'Open-Meteo',      sub: null,             key: 'openMeteo' },
     { naam: 'Homey',           sub: null,             key: 'homey', homey: true, integratie: 'homey' },
     { naam: 'Home Connect',    sub: 'BSH wasmachine/droger/oven', key: 'homeConnect', homeConnect: true, integratie: 'homeConnect' },
+    { naam: 'HomeWizard cloud', sub: 'P1 via HomeWizard-account (fallback voor Homey)', key: 'homewizardCloud', hwCloud: true, integratie: 'homewizardCloud' },
   ];
   const bronnen = alleBronnen.filter(b => !b.integratie || heeftIntegratie(b.integratie));
   const card = document.getElementById('integratiesCard');
@@ -376,6 +377,9 @@ function renderInstellingen() {
         // Status wordt na renderHomeConnect() in deze span bijgewerkt.
         statusStr = '<span id="hcIntegratieStatus">' + hcStatusBadge() + '</span>';
         if (_hcStatus && !_hcStatus.verbonden) kleurStr = 'color:var(--muted)';
+      } else if (b.hwCloud) {
+        // Status wordt na renderHomeWizardCloudInstellingen() in deze span bijgewerkt.
+        statusStr = '<span id="hwCloudIntegratieStatus">' + (typeof hwCloudStatusBadge === 'function' ? hwCloudStatusBadge() : '') + '</span>';
       } else {
         const s = apiStatus[b.key];
         statusStr = !s   ? '⏳ Ophalen…'
@@ -507,6 +511,7 @@ function renderInstellingen() {
   }
   if (typeof renderApparatenInstellingen === 'function') renderApparatenInstellingen();
   if (typeof renderWeekschemaInstellingen === 'function') renderWeekschemaInstellingen();
+  if (typeof renderHomeWizardCloudInstellingen === 'function') renderHomeWizardCloudInstellingen();
   if (typeof renderHomeConnect === 'function') renderHomeConnect();
   const gebruikerEl = document.getElementById('instGebruiker');
   const versieEl    = document.getElementById('instVersie');
