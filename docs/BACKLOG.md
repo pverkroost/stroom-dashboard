@@ -59,6 +59,13 @@
 ### Docs & configuratie
 - **#93** [S] Docs: tariefverificatie-notitie in `CLAUDE.md` (Sepa Green tarieven wijzigen maandelijks, contractvoorwaarden art. 2.1.1) + salderingsregels (stroom per uur, energiebelasting per jaar). Geen versie-bump
 - **#94** [S] Veld `tarievenGeverifieerdOp: "YYYY-MM-DD"` in `users/<id>.js` + tonen in Instellingen; reminder om tarieven periodiek te verifiëren tegen mijn.sepagreen.nl
+- **#106** [S] `CREDS_ENCRYPTION_KEY` apart in Vercel zetten. De credential-versleuteling (`lib/crypto.js`,
+  AES-256-GCM, sinds v2.79.0 HomeWizard cloud — PR #4) gebruikt `CREDS_ENCRYPTION_KEY` als die bestaat,
+  anders een sleutel afgeleid uit `SESSION_SECRET`. Zolang de aparte sleutel ontbreekt, betekent roteren
+  van `SESSION_SECRET` dat alle users hun koppelingen opnieuw moeten maken. Actie: genereer een aparte
+  32-byte key (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) en zet die
+  als `CREDS_ENCRYPTION_KEY` in Vercel, bij voorkeur vóór de eerste koppeling. Daarna niet meer wijzigen.
+  Geen code, alleen een env var. (#105 = de cloud-fallback zelf, in PR #4.)
 
 ### Multi-user / commercieel
 - **#19** [XL] Multi-tenant SaaS (Clerk/Supabase auth + Redis-config per user) — zie details
