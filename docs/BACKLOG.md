@@ -324,6 +324,11 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.83.2** — Jacuzzi voor user 003 (advies-only, snelkaart + weekschema)
+- `users/003.js`: apparaat "Jacuzzi" (🛁, 3 kW, 8 u, type `inschakelen`, geen aansturing) met snelkaart
+  "klaar om" (ma–vr 19:00, za–zo 15:00). Vermogen en opwarmduur zijn schattingen die Patrick nog moet
+  bevestigen. Test voor 003 bijgewerkt: snelkaart voor vaatwasser én jacuzzi, beide advies-only.
+
 **v2.83.1** — Stabiele apparaat-key i.p.v. naam-identiteit (fundament user-apparaten)
 - Refactor zonder zichtbare functiewijziging: elk apparaat krijgt bij het laden `ap.key` via de nieuwe
   pure module `js/apparaatmodel.js` (`zetApparaatKeys`, geladen vóór `js/config.js`). Voor config-apparaten

@@ -240,7 +240,8 @@ Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
   `002` = vriend (alleen SolarEdge; geen Growatt, geen Homey),
   `003` = Patrick, Almelo (Zonneplan; SolarEdge 10,344 kWp + Home Connect voor zijn
   Siemens-apparaten; geen Growatt, geen Homey, geen auto (beide bevestigd); P1 via HomeWizard-cloud;
-  snelkaart + weekschema alleen voor de vaatwasser (v2.79.4).
+  snelkaart + weekschema voor de vaatwasser (v2.79.4) en de jacuzzi (v2.83.2, advies-only;
+  3 kW / 8 u zijn schattingen die Patrick nog moet bevestigen).
   Apparatenlijst is nog een voorlopige default; Miele-apparaten vallen buiten Home Connect en
   worden niet ondersteund).
   Het `integraties`-veld per user bepaalt welke secties/tegels getoond worden (`heeftIntegratie()`).

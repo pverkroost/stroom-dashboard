@@ -144,11 +144,19 @@ test('users/003.js is Zonneplan: opslag + zonnebonus 10%', () => {
   // Patrick heeft geen Homey en geen hybride/elektrische auto (bevestigd).
   assert.ok(!c.apparaten.some(a => a.batterij === true), 'geen auto-/laadapparaat voor 003');
   assert.ok(!c.apparaten.some(a => a.automatisering === true), 'geen Homey-automatisering voor 003');
-  // Snelkaart + weekschema alleen voor de vaatwasser (v2.79.4): geen auto-kolom voor 003.
+  // Snelkaart + weekschema voor vaatwasser (v2.79.4) en jacuzzi (v2.83.2): beide advies-only,
+  // geen auto-kolom voor 003.
   const snel = c.apparaten.filter(a => a.snelkaart === true);
-  assert.deepEqual(snel.map(a => a.naam), ['Vaatwasser'], 'alleen de vaatwasser heeft een snelkaart');
-  assert.deepEqual(Object.keys(snel[0].weekschema), ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']);
-  assert.ok(Object.values(snel[0].weekschema).every(t => /^\d{2}:\d{2}$/.test(t)), 'weekschema-tijden HH:MM');
-  assert.equal(snel[0].deadlineLabel, 'klaar om');
-  assert.deepEqual(c.apparaten.map(a => a.naam), ['Vaatwasser', 'Wasmachine', 'Droger']);
+  assert.deepEqual(snel.map(a => a.naam), ['Vaatwasser', 'Jacuzzi'], 'snelkaart alleen voor vaatwasser en jacuzzi');
+  snel.forEach(a => {
+    assert.deepEqual(Object.keys(a.weekschema), ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'], a.naam);
+    assert.ok(Object.values(a.weekschema).every(t => /^\d{2}:\d{2}$/.test(t)), a.naam + ': weekschema-tijden HH:MM');
+    assert.equal(a.deadlineLabel, 'klaar om', a.naam);
+    assert.ok(!a.homeConnect && !a.automatisering && !a.batterij, a.naam + ' is advies-only');
+  });
+  const jacuzzi = c.apparaten.find(a => a.naam === 'Jacuzzi');
+  assert.equal(jacuzzi.type, 'inschakelen');
+  assert.equal(jacuzzi.vermogen, 3);
+  assert.equal(jacuzzi.uren, 8);
+  assert.deepEqual(c.apparaten.map(a => a.naam), ['Vaatwasser', 'Wasmachine', 'Droger', 'Jacuzzi']);
 });

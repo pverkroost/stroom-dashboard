@@ -42,8 +42,9 @@
     // VOORLOPIGE DEFAULT — Patricks exacte apparatenlijst moet nog bevestigd worden.
     // Bevestigd: geen Homey (dus `automatisering: true` is hier nooit van toepassing) en
     // geen hybride/elektrische auto (dus géén apparaat met `batterij: true` — test/
-    // prijsformule.test.js bewaakt dat). Snelkaart + weekschema alleen voor de vaatwasser
-    // (sinds v2.79.4; puur advies, geen aansturing) — ook door de test bewaakt.
+    // prijsformule.test.js bewaakt dat). Snelkaart + weekschema voor de vaatwasser (sinds
+    // v2.79.4) en de jacuzzi (sinds v2.83.2) — beide puur advies, geen aansturing; ook door
+    // de test bewaakt.
     // Home Connect-koppeling (haId) gebeurt via Instellingen → Integraties → Home Connect.
     apparaten: [
       { naam: 'Vaatwasser', icon: '🍽️', uren: 3.5, vermogen: 1.8, type: 'starten', automatisering: false, batterij: false, volgorde: 1, grootverbruik: true, klaarOmTekst: 'Vaatwasser moet gereed zijn om', korteTekst: '🍽️ Gereed zijn om',
@@ -53,6 +54,13 @@
         weekschema: { ma: '07:00', di: '07:00', wo: '07:00', do: '07:00', vr: '07:00', za: '09:00', zo: '09:00' } },
       { naam: 'Wasmachine', icon: '👕', uren: 2,   vermogen: 1.5, type: 'starten', automatisering: false, batterij: false, volgorde: 2, grootverbruik: true, klaarOmTekst: 'Wasmachine moet gereed zijn om', korteTekst: '👕 Gereed zijn om', comboMet: 'Droger', homeConnect: true, homeConnectControl: true, haId: null },
       { naam: 'Droger',     icon: '🌀', uren: 2,   vermogen: 2.0, type: 'starten', automatisering: false, batterij: false, volgorde: 3, grootverbruik: true, klaarOmTekst: 'Droger moet gereed zijn om',     korteTekst: '🌀 Gereed zijn om', naApparaat: 'Wasmachine', homeConnect: true, homeConnectControl: true, haId: null },
+      // Jacuzzi: advies-only (geen aansturing op afstand, net als de vaatwasser).
+      // SCHATTINGEN — vermogen 3 kW en opwarmduur 8 u zijn aannames die Patrick nog moet
+      // bevestigen/aanpassen. Snelkaart "klaar om": doordeweeks 's avonds warm, in het
+      // weekend 's middags; Patrick kan dat zelf aanpassen via het weekschema (opslag in Neon).
+      { naam: 'Jacuzzi',    icon: '🛁', uren: 8,   vermogen: 3,   type: 'inschakelen', automatisering: false, batterij: false, volgorde: 4, grootverbruik: true, klaarOmTekst: 'Jacuzzi moet opgewarmd zijn om', korteTekst: '🛁 Opgewarmd zijn om',
+        snelkaart: true, deadlineLabel: 'klaar om',
+        weekschema: { ma: '19:00', di: '19:00', wo: '19:00', do: '19:00', vr: '19:00', za: '15:00', zo: '15:00' } },
     ],
   };
 })();
