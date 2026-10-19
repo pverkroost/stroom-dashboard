@@ -127,6 +127,8 @@ function getTomorrowStart() { const d = getTodayStart(); d.setDate(d.getDate() +
 function apIsBruikbaar(ap) {
   return !!ap && (ap.uren ?? 0) > 0 && (ap.vermogen ?? 0) > 0;
 }
+// Euro met komma (v2.81.0), gedeeld door detailscherm en kaarten — zie js/prijsformule.js.
+function fmtEuro(n)         { return PRIJSFORMULE.fmtEuro(n); }
 function hStr(d)            { return (d && typeof d.getHours === 'function') ? String(d.getHours()).padStart(2,'0') + ':00' : '—'; }
 
 const _DAGNAMEN = ['zo','ma','di','wo','do','vr','za'];

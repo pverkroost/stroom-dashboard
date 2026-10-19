@@ -76,5 +76,12 @@
     return basis * bonus * btw;
   }
 
-  return { normaliseerTeruglevering, berekenVerbruiksPrijs, berekenTerugleverPrijs };
+  // Euro-weergave met komma, zoals Instellingen → Tarieven: fmtEuro(1.5) → '€ 1,50'.
+  // Alleen weergave; rekenwerk blijft op floats. Ongeldige invoer → '€ 0,00'.
+  function fmtEuro(n) {
+    const v = Number.isFinite(n) ? n : 0;
+    return '€ ' + v.toFixed(2).replace('.', ',');
+  }
+
+  return { normaliseerTeruglevering, berekenVerbruiksPrijs, berekenTerugleverPrijs, fmtEuro };
 });
