@@ -80,7 +80,8 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
   Herbouw-bestendig: open/dicht per plek in `_wsEditorOpen`, onopgeslagen invoer in `_wsDraft[key]`,
   feedback in `_wsMsg`; de apparatenlijst wordt niet herbouwd zolang een editorveld focus heeft, en
   rij-drag start niet vanuit de editor.
-- **Code**: `js/weekschema.js` (kaarten, overrule, editor + beheer in Instellingen) + gedeelde helper
+- **Code**: `js/weekschema.js` (kaarten, overrule, editor + beheer in Instellingen; apparaat-sleutel =
+  `ap.key`, zie *Apparaat-identiteit*) + gedeelde helper
   `berekenBlokVoorDeadline(uren, kW, deadlineDate, planUren)` en `deadlineVanHHMM()` in
   `js/apparaten.js`. Die helper vervangt de vroeger gedupliceerde deadline-filtering in
   `herbereken()` (vertrekplanner) en `hcGoedkoopsteBlok()` (Home Connect).
@@ -101,6 +102,29 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
   (`_snelkaartOverride`), niet het opgeslagen weekschema.
 - **Randgeval**: deadline voorbij de bekende prijzen terwijl morgen-prijzen nog niet binnen
   zijn (vóór ~14:00) → "Wacht op morgen-prijzen" (helper geeft `wachtOpMorgen: true`).
+
+## Apparaat-identiteit: stabiele `key` (sinds v2.83.1)
+Elk apparaat in `APPARATEN` heeft een stabiele `ap.key` (`^[a-z0-9]{1,20}$`), gezet bij het laden door
+`APPARAATMODEL.zetApparaatKeys(window.CONFIG.apparaten)` in `js/config.js` (in place, zelfde array-referentie).
+`js/apparaatmodel.js` is een pure UMD-module (browser-namespace `APPARAATMODEL`, Node via require), geladen
+tussen `js/prijsformule.js` en `js/config.js`. Fundament voor user-bewerkbare apparaten (later): code
+identificeert een apparaat via `ap.key`, nooit meer via `ap.naam` of de array-index.
+- **KRITIEK**: voor config-apparaten uit `users/<id>.js` is `key = apSleutel(naam)` (lowercase, alleen
+  `[a-z0-9]`, max 20 tekens) — exact de sleutel die al in Neon (`user_schedule.apparaat_key`), Redis
+  (`laadplanning_<userId>_<key>`) en de Home Connect-planning staat. `test/apparaatkey.test.js` borgt
+  `key == apSleutel(naam)` voor 001/002/003 tegen de letterlijke oude implementatie. Een expliciete `key`
+  in de config wint; botsingen krijgen een volgnummer (`lamp1`, `lamp12`); lege naam → `apparaat`.
+- **Gebruik**: `ap.key` in `js/apparaten.js` (planning-API's, Home Connect, `apDetailState`) en
+  `js/weekschema.js` (`_wsDraft`, `_wsEditorOpen`, schema-POST). `apSleutel(naam)` bestaat nog als
+  compat-global in `js/config.js`, maar nieuwe code gebruikt `ap.key`.
+- **localStorage op key, met eenmalige migratie** van de oude naam-/index-sleutels:
+  `apparaten_config` `{ <key>: { volgorde } }` (was `{ <naam>: … }`; rijen in Instellingen → Apparaten
+  dragen `data-key`), `homeconnect_mapping` `{ <key>: haId }` (was naam; `koppelHcAppliance(haId, key)`),
+  `ap_voorkeur_<key>` (was `ap_voorkeur_<apIdx>`; wordt alleen geschreven). `getApparaatConfig()` en
+  `hcMapping()` verplaatsen bestaande naam-sleutels naar de key en schrijven dat meteen terug.
+- **Nog op naam**: de config-kruisverwijzingen `comboMet: 'Droger'` / `naApparaat: 'Wasmachine'` in
+  `users/<id>.js` (was/droger-chaining). Bewust buiten deze refactor; omzetten naar key zodra apparaten
+  user-bewerkbaar worden.
 
 ## Apparaat-detailscherm (renderApDetail in `js/apparaten.js`)
 Eén render-functie voor alle apparaten; de varianten (auto/Homey, Home Connect bestuurbaar of

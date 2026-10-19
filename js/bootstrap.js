@@ -26,6 +26,7 @@
     var bestanden = [
       'users/' + userId + '.js' + v,
       'js/prijsformule.js' + v,
+      'js/apparaatmodel.js' + v,
       'js/config.js' + v,
       'js/solar.js' + v,
       'js/prijzen.js' + v,
