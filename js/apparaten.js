@@ -72,10 +72,15 @@ function renderApparatenInstellingen(force = false) {
   if (!card) return;
   if (!force && document.activeElement && document.activeElement.closest && document.activeElement.closest('#apparatenLijst .ws-editor')) return;
   if (typeof weekschemaInstellingenVerversen === 'function') weekschemaInstellingenVerversen();
+  if (typeof apparaatOverridesVerversen === 'function') apparaatOverridesVerversen();
   const sorted = getApparatenSorted();
   card.innerHTML = sorted.map(({ ap }) => {
-    const subStr = APPARAATMODEL.isSeizoensadvies(ap) ? 'seizoensadvies · per maand' : _formatUrenVermogen(ap.uren, ap.vermogen);
     const isAuto = ap.batterij === true;
+    // Subregel: kW/uren + herkomst. Auto: via kenteken-flow (niet bewerkbaar, v2.85.0);
+    // apparaat met Neon-override: "aangepast" zodat de afwijking van de config zichtbaar is.
+    const subStr = APPARAATMODEL.isSeizoensadvies(ap)
+      ? 'seizoensadvies · per maand'
+      : _formatUrenVermogen(ap.uren, ap.vermogen) + (isAuto ? ' · kW/uren via kenteken' : '') + (ap.override ? ' · aangepast' : '');
     const info   = ap.autoInfo || {};
     const autoSub = isAuto && info.kenteken
       ? `<div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(info.kenteken)}${info.bouwjaar ? ' · ' + escapeHtml(info.bouwjaar) : ''}${info.laadtypeLabel ? ' · ' + escapeHtml(info.laadtypeLabel.split('(')[0].trim()) : ''}</div>`
@@ -83,8 +88,11 @@ function renderApparatenInstellingen(force = false) {
     // Weekschema bij het apparaat zelf (v2.80.1): samenvatting + knop + uitklap-editor,
     // alleen voor apparaten met snelkaart/weekschema (weekschemaLijstDeel geeft anders null).
     const ws = (typeof weekschemaLijstDeel === 'function') ? weekschemaLijstDeel(ap) : null;
+    // kW/uren-editor (v2.85.0, js/apparaatoverrides.js): null voor auto/seizoensadvies.
+    const ov = (typeof apparaatOverrideLijstDeel === 'function') ? apparaatOverrideLijstDeel(ap) : null;
     const knoppen = [
       isAuto ? `<button onclick="event.stopPropagation();toonKentekenDialog()" style="flex-shrink:0;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;font-family:inherit;cursor:pointer;white-space:nowrap">${info.kenteken ? 'Wijzigen' : 'Kenteken'}</button>` : '',
+      ov ? ov.knop : '',
       ws ? ws.knop : '',
     ].filter(Boolean);
     const knopHtml = knoppen.length ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:stretch;flex-shrink:0">${knoppen.join('')}</div>` : '';
@@ -99,6 +107,7 @@ function renderApparatenInstellingen(force = false) {
         ${ws ? ws.samenvatting : ''}
       </div>
       ${knopHtml}
+      ${ov ? ov.editor : ''}
       ${ws ? ws.editor : ''}
     </div>`;
   }).join('');

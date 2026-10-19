@@ -233,6 +233,16 @@ if (typeof laadWeekschema === 'function') {
   });
 }
 
+// Per-user kW/uren-overrides uit Neon (v2.85.0). Tot ze binnen zijn rekent de app met
+// de config-waarden; daarna één rerender als er daadwerkelijk iets afwijkt.
+if (typeof laadApparaatOverrides === 'function') {
+  laadApparaatOverrides().then(gewijzigd => {
+    if (!gewijzigd) return;
+    if (!isZonTab && !isInstTab && cacheVandaag && typeof renderLaadadvies === 'function') renderLaadadvies();
+    if (isInstTab && typeof renderApparatenInstellingen === 'function') renderApparatenInstellingen(true);
+  });
+}
+
 // Overschrijf SolarEdge piekKw met de waarde uit /details (single source of
 // truth = SolarEdge zelf). Eerst synchroon uit localStorage zodat de eerste
 // render direct goed is; dan async vers ophalen en bij verandering opnieuw

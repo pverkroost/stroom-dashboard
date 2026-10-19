@@ -32,8 +32,9 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   - `api/cronLaden.js` — wordt door QStash aangeroepen om Homey-webhook te triggeren
   - `api/auth.js` — login/logout/me samengevoegd in één function (routing via `?action=`),
     om onder de Vercel Hobby 12-functie-limiet te blijven (bcrypt + HMAC sessie-cookie).
-    Sinds v2.76.0 ook `?action=schema` (GET/POST weekschema snelkaarten, tabel `user_schedule`)
-  - `api/db/migrate.js` — maakt `app_user`- en `user_schedule`-tabel in Neon (idempotent).
+    Sinds v2.76.0 ook `?action=schema` (GET/POST weekschema snelkaarten, tabel `user_schedule`),
+    sinds v2.85.0 `?action=apparaten` (GET/POST kW/uren-overrides, tabel `user_apparaat`, sessie vereist)
+  - `api/db/migrate.js` — maakt `app_user`-, `user_schedule`- en `user_apparaat`-tabel in Neon (idempotent).
     Vereist `MIGRATE_SECRET` (Bearer-header of `?secret=`), anders 401 — zie *Security*
 - **Auth-libs** (root `lib/`, gedeeld door api): `lib/session.js` (HMAC encode/decode + `eq_session`-cookie),
   `lib/auth.js` (`getSession`/`requireSession` uit request-cookie), `lib/crypto.js` (AES-256-GCM voor
@@ -44,6 +45,7 @@ Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke comm
   HomeWizard-cloud: credentials versleuteld in `hw_cloud_creds_<userId>`, token + device_id in `hw_cloud_session_<userId>` (TTL 3000s).
   Gebruikers (email + bcrypt-hash + userId) in Neon PostgreSQL tabel `app_user`.
   Weekschema snelkaarten in Neon tabel `user_schedule` (user_id, apparaat_key, dag 0-6, tijd 'HH:MM').
+  kW/uren-overrides per apparaat in Neon tabel `user_apparaat` (user_id, apparaat_key, data JSONB) — zie *Apparaat-overrides*.
 
 ## Auth (sinds v2.72.0)
 Echte login met e-mail + wachtwoord i.p.v. de rauwe `?u=`-parameter. Login, logout
@@ -125,6 +127,36 @@ identificeert een apparaat via `ap.key`, nooit meer via `ap.naam` of de array-in
 - **Nog op naam**: de config-kruisverwijzingen `comboMet: 'Droger'` / `naApparaat: 'Wasmachine'` in
   `users/<id>.js` (was/droger-chaining). Bewust buiten deze refactor; omzetten naar key zodra apparaten
   user-bewerkbaar worden.
+
+## Apparaat-overrides: kW en uren per user bewerkbaar (sinds v2.85.0, PR B stap 1)
+Bestaande apparaten krijgen per user bewerkbare `vermogen` (kW) en `uren`, opgeslagen in Neon.
+Nog niet: apparaten toevoegen/verwijderen of naam/icoon/type wijzigen (latere stap; tabel en
+endpoint zijn daar generiek voor opgezet).
+- **Tabel** `user_apparaat (user_id, apparaat_key, data JSONB, updated_at)`, PK (user, apparaat).
+  Eén rij per apparaat met een JSON-object; nu alleen `{ vermogen?, uren? }` (server-whitelist).
+  Idempotent in `api/db/migrate.js` — na deploy éénmalig `/api/db/migrate` aanroepen (`MIGRATE_SECRET`).
+- **Endpoint** `GET/POST /api/auth?action=apparaten` (`handleApparaten`), **alleen met sessie** — géén
+  `?u=`-fallback, ook niet voor GET (legacy `?u=`-modus ziet dus de config-waarden). Rate limit 30/min/IP.
+  GET → `{ apparaten: { <key>: { vermogen?, uren? } }, bron }`; POST `{ key, vermogen?, uren? }` mengt in
+  de rij (JSONB `||`, respons = samengevoegde data); POST `{ key, reset: true }` wist de rij ("Standaard").
+  Ontbrekende tabel: GET degradeert naar `{}` met waarschuwing, POST → 503.
+- **Validatie** (gedeeld, `valideerOverride` in `js/apparaatmodel.js`, ook door de server gebruikt):
+  numeriek (komma toegestaan), vermogen > 0 en ≤ 50 kW, uren > 0 en ≤ 24, 2 decimalen, minstens één
+  veld; onbekende velden vallen weg. Ongeldige DB-data wordt op GET genegeerd.
+- **Merge-regel** (`pasApparaatOverridesToe(apparaten, overrides)`, puur): `ap.basis = { uren, vermogen }`
+  is de config-waarde, vastgezet door `zetApparaatBasis` in `js/config.js` direct na de keys en **nooit
+  meer overschreven**. Elke toepassing herberekent vanuit de basis: override-veld wint, anders config;
+  `ap.override` = actieve override of `null`. Geen override (001/002) = bitwise de config-waarden.
+  Uitgesloten (`isOverrideBewerkbaar`): auto (`batterij`, kenteken-flow zet kW/uren — rij toont
+  "kW/uren via kenteken"), seizoensadvies, en apparaten zonder numerieke config-basis.
+- **Frontend** `js/apparaatoverrides.js` (geladen na `js/weekschema.js`): `laadApparaatOverrides()` haalt
+  na het laden op (app.js; één rerender als iets afwijkt), past in place toe op `APPARATEN`;
+  Instellingen → Apparaten krijgt per bewerkbaar apparaat een knop "✏️ kW / uren" met uitklap-editor
+  (twee numerieke velden, Opslaan, Standaard, statusregel "Standaard: 8 uur · 3 kW"), rij-subregel
+  "· aangepast" bij een actieve override. Zelfde herbouw-bestendige state als de weekschema-editor
+  (`_apEditorOpen`, `_apDraft`, `_apMsg`); de editor draagt `class="ws-editor ap-editor"` zodat de
+  bestaande focus- en drag-guards gelden. Tests: `test/apparaatoverrides.test.js` (merge, grenzen,
+  endpoint met gestubde Neon + echte sessie-cookie).
 
 ## Kaarttype seizoensadvies (sinds v2.84.0)
 Derde smaak naast prijs-aansturing en advies-only: een apparaat met `type: 'seizoensadvies'`

@@ -324,6 +324,16 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.85.0** — Apparaten bewerken stap 1: kW + uren per user, opslag in Neon (PR B stap 1)
+- Neon-tabel `user_apparaat` (JSONB per apparaat, idempotente migratie) + `GET/POST /api/auth?action=apparaten`
+  (alleen sessie, geen `?u=`; whitelist vermogen 0–50 kW / uren 0–24, gedeelde `valideerOverride`;
+  `reset: true` = "Standaard"). Merge-regel `pasApparaatOverridesToe` in `js/apparaatmodel.js`: config is
+  de basis (`ap.basis`, nooit overschreven), override gaat eroverheen, geen override = config.
+- Instellingen → Apparaten: knop "✏️ kW / uren" met uitklap-editor (Opslaan/Standaard), rij toont
+  "· aangepast"; auto ("kW/uren via kenteken") en seizoensadvies uitgesloten. Nieuw `js/apparaatoverrides.js`.
+- Tests: `test/apparaatoverrides.test.js` (merge incl. basis-overleeft-wissen en 001/002 ongewijzigd,
+  grenzen, endpoint met gestubde Neon + sessie-cookie). Na deploy: `/api/db/migrate` éénmalig aanroepen.
+
 **v2.84.0** — Kaarttype seizoensadvies + Sunshower voor user 003
 - Nieuw apparaat-type `seizoensadvies`: advies per huidige kalendermaand (Europe/Amsterdam) i.p.v.
   prijs/starttijd. Teksten in de user-config (`seizoensadvies: [{ van, tot, tekst }]`, bereiken mogen

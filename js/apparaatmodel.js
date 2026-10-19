@@ -102,9 +102,86 @@
 
   function isSeizoensadvies(ap) { return !!ap && ap.type === 'seizoensadvies'; }
 
+  // ── Apparaat-overrides (v2.85.0): per user bewerkbare vermogen (kW) en uren ─────
+  // Opslag: Neon user_apparaat (JSONB per apparaat) via /api/auth?action=apparaten.
+  // Merge-regel: config-waarde (users/<id>.js) is de BASIS, een override gaat eroverheen,
+  // geen override = config. De basis wordt éénmalig vastgezet (zetApparaatBasis, in
+  // js/config.js direct na het laden) en daarna nooit meer overschreven — ook niet door
+  // een override — zodat "Standaard" (override wissen) altijd op de config terugvalt.
+  // Gedeeld door browser en server (api/auth.js valideert met dezelfde functie).
+  const OVERRIDE_VELDEN  = ['vermogen', 'uren'];
+  const OVERRIDE_GRENZEN = {
+    vermogen: { min: 0, max: 50, label: 'kW' },
+    uren:     { min: 0, max: 24, label: 'uur' },
+  };
+
+  function _parseGetal(v) {
+    if (typeof v === 'number') return v;
+    if (typeof v !== 'string') return NaN;
+    const s = v.trim().replace(',', '.');
+    return /^\d+(\.\d+)?$/.test(s) ? parseFloat(s) : NaN;
+  }
+
+  // { vermogen?, uren? } (getal of string, komma toegestaan) → { data } of { error }.
+  // Weggelaten/lege velden worden overgeslagen; minstens één veld vereist. Grenzen:
+  // strikt > 0 en ≤ max; afgerond op 2 decimalen.
+  function valideerOverride(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return { error: 'Ongeldige invoer' };
+    const data = {};
+    for (const veld of OVERRIDE_VELDEN) {
+      const raw = input[veld];
+      if (raw === undefined || raw === null || raw === '') continue;
+      const n = _parseGetal(raw);
+      const g = OVERRIDE_GRENZEN[veld];
+      if (!Number.isFinite(n)) return { error: (veld === 'uren' ? 'Uren' : 'Vermogen') + ': geen geldig getal' };
+      if (!(n > g.min) || n > g.max) return { error: (veld === 'uren' ? 'Uren' : 'Vermogen') + ': moet groter dan 0 en maximaal ' + g.max + ' ' + g.label + ' zijn' };
+      data[veld] = Math.round(n * 100) / 100;
+    }
+    if (!Object.keys(data).length) return { error: 'Geen waarde opgegeven' };
+    return { data };
+  }
+
+  // Zet ap.basis = { uren, vermogen } uit de config, alleen als die nog niet bestaat.
+  function zetApparaatBasis(apparaten) {
+    if (!Array.isArray(apparaten)) return apparaten;
+    apparaten.forEach(ap => {
+      if (!ap || typeof ap !== 'object' || ap.basis) return;
+      ap.basis = {
+        uren:     typeof ap.uren     === 'number' ? ap.uren     : null,
+        vermogen: typeof ap.vermogen === 'number' ? ap.vermogen : null,
+      };
+    });
+    return apparaten;
+  }
+
+  // Bewerkbaar = niet de auto (kenteken-flow zet kW/uren), geen seizoensadvies, en een
+  // numerieke config-basis voor beide velden.
+  function isOverrideBewerkbaar(ap) {
+    return !!ap && ap.batterij !== true && !isSeizoensadvies(ap) &&
+      !!ap.basis && typeof ap.basis.uren === 'number' && typeof ap.basis.vermogen === 'number';
+  }
+
+  // overrides = { <key>: { vermogen?, uren? } } (uit Neon; mag leeg/null zijn). Herberekent
+  // elk bewerkbaar apparaat vanuit ap.basis: override-veld wint, anders config. Ongeldige
+  // override-waarden worden genegeerd (config blijft). ap.override = actieve override of null.
+  function pasApparaatOverridesToe(apparaten, overrides) {
+    zetApparaatBasis(apparaten);
+    if (!Array.isArray(apparaten)) return apparaten;
+    const ov = (overrides && typeof overrides === 'object') ? overrides : {};
+    apparaten.forEach(ap => {
+      if (!isOverrideBewerkbaar(ap)) return;
+      const raw    = ov[ap.key];
+      const geldig = raw ? (valideerOverride(raw).data || {}) : {};
+      OVERRIDE_VELDEN.forEach(veld => { ap[veld] = geldig[veld] !== undefined ? geldig[veld] : ap.basis[veld]; });
+      ap.override = Object.keys(geldig).length ? geldig : null;
+    });
+    return apparaten;
+  }
+
   return {
     apSleutel, zetApparaatKeys,
     MAANDEN, MAAND_NAMEN, maandNummer, seizoensadviesTekst, seizoensadviesOntbrekendeMaanden,
     huidigeMaandAmsterdam, isSeizoensadvies,
+    OVERRIDE_VELDEN, OVERRIDE_GRENZEN, valideerOverride, zetApparaatBasis, isOverrideBewerkbaar, pasApparaatOverridesToe,
   };
 });
