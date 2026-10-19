@@ -324,6 +324,15 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.83.1** — Stabiele apparaat-key i.p.v. naam-identiteit (fundament user-apparaten)
+- Refactor zonder zichtbare functiewijziging: elk apparaat krijgt bij het laden `ap.key` via de nieuwe
+  pure module `js/apparaatmodel.js` (`zetApparaatKeys`, geladen vóór `js/config.js`). Voor config-apparaten
+  is de key exact de oude `apSleutel(naam)`, dus weekschema's (Neon), laadplanningen (Redis) en Home
+  Connect-mappings blijven gekoppeld — geborgd in `test/apparaatkey.test.js` (001/002/003).
+- `apSleutel(ap.naam)` overal vervangen door `ap.key` (`js/apparaten.js`, `js/weekschema.js`).
+  localStorage `apparaten_config`, `homeconnect_mapping` en `ap_voorkeur_*` nu op key, met eenmalige
+  migratie vanaf de oude naam-/index-sleutels. `comboMet`/`naApparaat` blijven (bewust) op naam.
+
 **v2.83.0** — Starttijd kiezen door tikken op de prijsgrafiek, balkjes-slider weg
 - Detailscherm: de losse balkjes-tijdlijn-slider is vervangen door tikken op de grote prijsgrafiek
   (`bouwPrijsGrafiek` krijgt `onKlik`; alleen dan `onClick` + pointer — hoofdtab blijft niet-klikbaar).

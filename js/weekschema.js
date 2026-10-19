@@ -13,7 +13,7 @@
 //     periodieke herbouw van kaarten en Instellingen.
 //
 // Weekschema-vorm (frontend én API): { <apparaatKey>: { <dag 0-6>: 'HH:MM' } }
-// met dag = Date.getDay() (0 = zondag). apparaatKey = apSleutel(ap.naam).
+// met dag = Date.getDay() (0 = zondag). apparaatKey = ap.key (= apSleutel(naam) voor config-apparaten; zie js/apparaatmodel.js).
 // Defaults staan per apparaat in users/<id>.js als { ma:'07:00', … } en worden
 // hier naar dag-indices vertaald; het opgeslagen schema uit Neon gaat voor.
 //
@@ -54,7 +54,7 @@ function weekschemaDefault(ap) {
 
 // Effectief schema voor een apparaat: opgeslagen waarden over de defaults heen.
 function weekschemaVoor(ap) {
-  const key = apSleutel(ap.naam);
+  const key = ap.key;
   const db  = (_weekschemaDb && _weekschemaDb[key]) || {};
   return Object.assign({}, weekschemaDefault(ap), db);
 }
@@ -189,7 +189,7 @@ function renderSnelkaarten() {
 }
 
 function _bouwSnelkaartHtml(ap, apIdx, planUren) {
-  const key        = apSleutel(ap.naam);
+  const key        = ap.key;
   const naam       = escapeHtml(displayNaam(ap));
   const icon       = (typeof ap.icon === 'string' && !ap.icon.includes('<')) ? escapeHtml(ap.icon) : '';
   const label      = escapeHtml(ap.deadlineLabel || 'klaar om');
@@ -314,7 +314,7 @@ function snelkaartOverruleReset(key) {
 async function snelkaartPlanIn(apIdx) {
   const ap = APPARATEN[apIdx];
   if (!ap) return;
-  const key  = apSleutel(ap.naam);
+  const key  = ap.key;
   const info = _snelkaartLaatste[key];
   openApDetail(apIdx);
   if (!apDetailState || apDetailState.apIdx !== apIdx) return;
@@ -342,12 +342,12 @@ const _wsMsg        = {};
 const _WS_DAGEN_VOLGORDE = [1, 2, 3, 4, 5, 6, 0]; // ma … zo
 
 function _wsApparaatVoorKey(key) {
-  const x = snelkaartApparaten().find(i => apSleutel(i.ap.naam) === key);
+  const x = snelkaartApparaten().find(i => i.ap.key === key);
   return x ? x.ap : null;
 }
 // Effectieve invoer: opgeslagen/default schema met de draft eroverheen ('' = dag leeg).
 function _wsEffectief(ap) {
-  return Object.assign({}, weekschemaVoor(ap), _wsDraft[apSleutel(ap.naam)] || {});
+  return Object.assign({}, weekschemaVoor(ap), _wsDraft[ap.key] || {});
 }
 function _wsBronVoor(key) {
   const db = _weekschemaDb && _weekschemaDb[key];
@@ -365,7 +365,7 @@ function weekschemaSamenvatting(schema) {
 }
 
 function weekschemaEditorHtml(ap, locatie) {
-  const key = apSleutel(ap.naam);
+  const key = ap.key;
   const eff = _wsEffectief(ap);
   const rijen = _WS_DAGEN_VOLGORDE.map(dag =>
     '<label class="ws-rij"><span>' + _DAGNAMEN[dag] + '</span>' +
@@ -472,7 +472,7 @@ function weekschemaInstellingenVerversen() {
 }
 function weekschemaLijstDeel(ap) {
   if (!ap || ap.snelkaart !== true || !ap.weekschema || typeof ap.weekschema !== 'object') return null;
-  const key   = apSleutel(ap.naam);
+  const key   = ap.key;
   const open  = !!_wsEditorOpen['inst:' + key];
   const draft = _wsDraft[key] && Object.keys(_wsDraft[key]).length;
   const samenvatting =

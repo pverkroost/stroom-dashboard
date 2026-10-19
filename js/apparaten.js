@@ -8,11 +8,27 @@ function updateApparaatKaarten() {
 // array-index in user-config (users/<id>.js APPARATEN). Voorheen werd
 // `ap.volgorde` als losse field per apparaat gebruikt — dat was redundant met
 // array-volgorde en bij array-reorder zonder volgorde-update onbetrouwbaar.
+// Sinds v2.83.1 gesleuteld op ap.key (stabiele apparaat-key, zie js/apparaatmodel.js)
+// i.p.v. ap.naam; een bestaande opslag met naam-sleutels wordt eenmalig gemigreerd.
 function getApparaatConfig() {
   const raw = localStorage.getItem('apparaten_config');
-  if (raw) { try { return JSON.parse(raw); } catch {} }
+  if (raw) {
+    try {
+      const cfg = JSON.parse(raw);
+      let gemigreerd = false;
+      APPARATEN.forEach(ap => {
+        if (ap.naam !== ap.key && cfg[ap.naam] !== undefined && cfg[ap.key] === undefined) {
+          cfg[ap.key] = cfg[ap.naam];
+          delete cfg[ap.naam];
+          gemigreerd = true;
+        }
+      });
+      if (gemigreerd) saveApparaatConfig(cfg);
+      return cfg;
+    } catch {}
+  }
   const cfg = {};
-  APPARATEN.forEach((ap, idx) => { cfg[ap.naam] = { volgorde: idx }; });
+  APPARATEN.forEach((ap, idx) => { cfg[ap.key] = { volgorde: idx }; });
   localStorage.setItem('apparaten_config', JSON.stringify(cfg));
   return cfg;
 }
@@ -24,7 +40,7 @@ function getApparatenSorted() {
   const cfg = getApparaatConfig();
   return APPARATEN.map((ap, originalIdx) => ({
     ap,
-    volgorde: cfg[ap.naam]?.volgorde ?? originalIdx,
+    volgorde: cfg[ap.key]?.volgorde ?? originalIdx,
     originalIdx,
   })).sort((a, b) => a.volgorde - b.volgorde);
 }
@@ -72,7 +88,7 @@ function renderApparatenInstellingen(force = false) {
       ws ? ws.knop : '',
     ].filter(Boolean);
     const knopHtml = knoppen.length ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:stretch;flex-shrink:0">${knoppen.join('')}</div>` : '';
-    return `<div class="apparaat-row" draggable="true" data-naam="${escapeHtml(ap.naam)}"
+    return `<div class="apparaat-row" draggable="true" data-key="${escapeHtml(ap.key)}"
               style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:8px 4px;border-bottom:0.5px solid var(--border)">
       <span class="drag-handle" style="cursor:grab;color:var(--muted);font-size:18px;user-select:none;flex-shrink:0;width:24px;text-align:center;touch-action:none;padding:8px 0">☰</span>
       ${instIconHtml(ap.icon)}
@@ -110,7 +126,7 @@ function rowDragStart(e) {
   if (!row) return;
   _draggedRow = row;
   e.dataTransfer.effectAllowed = 'move';
-  try { e.dataTransfer.setData('text/plain', row.dataset.naam || ''); } catch {}
+  try { e.dataTransfer.setData('text/plain', row.dataset.key || ''); } catch {}
   row.style.opacity = '0.4';
 }
 function rowDragOver(e) {
@@ -165,8 +181,8 @@ function rowTouchEnd() {
 function bewaarApparaatVolgorde() {
   const cfg = getApparaatConfig();
   document.querySelectorAll('#apparatenLijst .apparaat-row').forEach((row, i) => {
-    const naam = row.dataset.naam;
-    cfg[naam] = { ...(cfg[naam] || {}), volgorde: i + 1 };
+    const key = row.dataset.key;
+    cfg[key] = { ...(cfg[key] || {}), volgorde: i + 1 };
   });
   saveApparaatConfig(cfg);
   renderLaadadvies();
@@ -470,10 +486,6 @@ function _verversPrijsOverzicht(berekendeUren) {
 let apDetailState = null;
 let _planningActief = false;
 
-function apSleutel(naam) {
-  return naam.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 20);
-}
-
 function getPlanUren() {
   return getPrijzenVooruit();
 }
@@ -565,17 +577,17 @@ function selTijdWijzig(val) {
 
 function gebruikTijdDetail() {
   if (!apDetailState) return;
-  const { apIdx, currentStartIdx, planUren } = apDetailState;
+  const { ap, currentStartIdx, planUren } = apDetailState;
   const p = planUren[currentStartIdx];
-  if (p) localStorage.setItem('ap_voorkeur_' + apIdx, p.tijd.toISOString());
+  if (p) localStorage.setItem('ap_voorkeur_' + ap.key, p.tijd.toISOString());
   sluitApDetail();
 }
 
 function gebruikBesteTijdDetail() {
   if (!apDetailState) return;
-  const { apIdx, besteStartIdx, planUren } = apDetailState;
+  const { ap, besteStartIdx, planUren } = apDetailState;
   const p = planUren[besteStartIdx];
-  if (p) localStorage.setItem('ap_voorkeur_' + apIdx, p.tijd.toISOString());
+  if (p) localStorage.setItem('ap_voorkeur_' + ap.key, p.tijd.toISOString());
   sluitApDetail();
 }
 
@@ -641,13 +653,27 @@ function toggleHandmatig() {
 let _hcStatus     = null;   // { verbonden: bool } of null = nog niet opgehaald
 let _hcAppliances = null;   // [{ haId, name, brand, type, connected }] of null
 
+// Mapping { <ap.key>: haId }. Sinds v2.83.1 op ap.key i.p.v. ap.naam; een bestaande
+// opslag met naam-sleutels wordt eenmalig gemigreerd.
 function hcMapping() {
-  try { return JSON.parse(localStorage.getItem('homeconnect_mapping') || '{}'); } catch { return {}; }
+  let m;
+  try { m = JSON.parse(localStorage.getItem('homeconnect_mapping') || '{}'); } catch { return {}; }
+  if (!m || typeof m !== 'object') return {};
+  let gemigreerd = false;
+  APPARATEN.forEach(ap => {
+    if (ap.naam !== ap.key && m[ap.naam] !== undefined) {
+      if (m[ap.key] === undefined) m[ap.key] = m[ap.naam];
+      delete m[ap.naam];
+      gemigreerd = true;
+    }
+  });
+  if (gemigreerd) setHcMapping(m);
+  return m;
 }
 function setHcMapping(m) { localStorage.setItem('homeconnect_mapping', JSON.stringify(m)); }
 // haId voor een apparaat: eerst de client-side koppeling, anders de (statische)
 // haId uit de user-config.
-function hcHaIdVoor(ap) { return (ap && (hcMapping()[ap.naam] || ap.haId)) || null; }
+function hcHaIdVoor(ap) { return (ap && (hcMapping()[ap.key] || ap.haId)) || null; }
 
 async function laadHcStatus(force = false) {
   if (_hcStatus && !force) return _hcStatus;
@@ -681,10 +707,10 @@ function koppelHomeConnect() { window.location.href = apiUrl('/api/homeconnect?a
 
 // Koppel/ontkoppel een Home Connect-toestel aan een Energie IQ-apparaat. Eén
 // toestel kan maar aan één apparaat hangen.
-function koppelHcAppliance(haId, apparaatNaam) {
+function koppelHcAppliance(haId, apparaatKey) {
   const m = hcMapping();
   Object.keys(m).forEach(k => { if (m[k] === haId) delete m[k]; });
-  if (apparaatNaam) m[apparaatNaam] = haId;
+  if (apparaatKey) m[apparaatKey] = haId;
   setHcMapping(m);
   renderHomeConnect();
 }
@@ -699,7 +725,7 @@ async function hcActie(action) {
   if (!apDetailState) return;
   const ap       = apDetailState.ap;
   const haId     = hcHaIdVoor(ap);
-  const apparaat = apSleutel(ap.naam);
+  const apparaat = ap.key;
   try {
     if (!haId) throw new Error('Apparaat niet gekoppeld');
 
@@ -1170,7 +1196,7 @@ function renderHcPlanBlok(ap) {
 
 // Lees de actieve Home Connect-planning uit /api/planLaden en toon de status.
 async function hcLaadPlanningStatus(ap) {
-  const apparaat = apSleutel(ap.naam);
+  const apparaat = ap.key;
   const statusEl = document.getElementById('hcPlanStatus');
   const btn      = document.getElementById('hcPlanBtn');
   if (!statusEl) return;
@@ -1317,7 +1343,7 @@ async function renderHomeConnect() {
         const huidige = Object.keys(m).find(k => m[k] === a.haId) || '';
         const opts = ['<option value="">— niet gekoppeld —</option>']
           .concat(koppelbaar.map(ap =>
-            '<option value="' + escapeHtml(ap.naam) + '"' + (ap.naam === huidige ? ' selected' : '') + '>' + escapeHtml(displayNaam(ap)) + '</option>'))
+            '<option value="' + escapeHtml(ap.key) + '"' + (ap.key === huidige ? ' selected' : '') + '>' + escapeHtml(displayNaam(ap)) + '</option>'))
           .join('');
         const dot = a.connected ? '<span style="color:var(--green)">&#9679;</span>' : '<span style="color:var(--muted)">&#9675;</span>';
         return '<div class="tarief-row" style="align-items:center;gap:8px">' +
@@ -1348,7 +1374,7 @@ function renderApDetail() {
 
   const heeftAutomatisering = !!ap.automatisering && heeftIntegratie('homey');
   const heeftHomeConnect    = !!ap.homeConnect && heeftIntegratie('homeConnect');
-  const apparaat           = apSleutel(naam);
+  const apparaat           = ap.key;
   const heeftBatterij       = !!ap.batterij;
   const vpOpen             = !!apDetailState._vertrekplannerOpen;
   const handmatigOpen      = !!apDetailState._handmatigOpen;
@@ -1728,7 +1754,7 @@ function herbereken() {
 }
 
 async function laadPlanningStatus(apparaat) {
-  if (!apparaat && apDetailState) apparaat = apSleutel(apDetailState.ap.naam);
+  if (!apparaat && apDetailState) apparaat = apDetailState.ap.key;
   const statusEl = document.getElementById('planningStatusEl');
   const btn      = document.getElementById('planInladenBtn');
   if (!statusEl) return;
@@ -1790,7 +1816,7 @@ function _zetPlanKnop() {
 async function planInladen(stilUpdate = false) {
   if (!apDetailState) return;
   const btn      = document.getElementById('planInladenBtn');
-  const apparaat = apSleutel(apDetailState.ap.naam);
+  const apparaat = apDetailState.ap.key;
 
   // Actieve planning aanpassen via een expliciete klik: eerst annuleren, daarna laat de gebruiker
   // opnieuw "Plan dit in" klikken om een nieuwe planning te starten.
@@ -1826,7 +1852,7 @@ async function planInladen(stilUpdate = false) {
 }
 
 async function annuleerPlanning(apparaat) {
-  if (!apparaat && apDetailState) apparaat = apSleutel(apDetailState.ap.naam);
+  if (!apparaat && apDetailState) apparaat = apDetailState.ap.key;
   const statusEl = document.getElementById('planningStatusEl');
   try {
     await _bedienFetch('/api/planLaden?apparaat=' + (apparaat || ''), { method: 'DELETE' });
@@ -1849,7 +1875,7 @@ async function homeyActie(action) {
   try {
     await _bedienFetch('/api/homey', { method: 'POST', body: JSON.stringify({ action }) });
     if (action === 'start' && _planningActief) {
-      const apparaat = apSleutel(apDetailState.ap.naam);
+      const apparaat = apDetailState.ap.key;
       try {
         await _bedienFetch('/api/planLaden?apparaat=' + apparaat, { method: 'DELETE' });
         _planningActief = false;
@@ -2382,7 +2408,7 @@ function bevestigAutoConfig(data, contextId) {
   if (typeof bewaarAutoConfig === 'function') bewaarAutoConfig(config);
   if (typeof laadPrijzen === 'function') laadPrijzen();
   if (apDetailState) {
-    const idx = APPARATEN.findIndex(a => a === apDetailState.ap || a.naam === apDetailState.ap.naam);
+    const idx = APPARATEN.findIndex(a => a === apDetailState.ap || a.key === apDetailState.ap.key);
     if (idx >= 0) openApDetail(idx);
   }
   if (isInstTab && typeof renderInstellingen === 'function') renderInstellingen();

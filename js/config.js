@@ -43,7 +43,13 @@ const GROWATT_LOCATION      = window.CONFIG.panelen.growatt.locatie;
 
 // Apparaten — direct via window.CONFIG.apparaten zodat editor-acties (in
 // instellingen) automatisch doorwerken in alle code zonder rebind.
-const APPARATEN = window.CONFIG.apparaten;
+// Elk apparaat krijgt hier een stabiele `key` (v2.83.1, js/apparaatmodel.js): voor
+// config-apparaten = apSleutel(naam), identiek aan de sleutel die weekschema, Redis-
+// planning en localStorage al gebruikten. In place: dezelfde array-referentie als
+// window.CONFIG.apparaten (app.js pasAutoConfigToe muteert daarin).
+const APPARATEN = APPARAATMODEL.zetApparaatKeys(window.CONFIG.apparaten);
+// Compat-global; nieuwe code gebruikt ap.key, niet apSleutel(ap.naam).
+function apSleutel(naam) { return APPARAATMODEL.apSleutel(naam); }
 
 // Integraties — fallback alle false (safe-by-default): users die het veld in
 // users/<id>.js niet expliciet aanzetten krijgen geen "Homey niet verbonden"-
