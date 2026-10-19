@@ -3,7 +3,8 @@
 //   curl -H "Authorization: Bearer $MIGRATE_SECRET" https://energieiq.nl/api/db/migrate
 //   (of in de browser: https://energieiq.nl/api/db/migrate?secret=<MIGRATE_SECRET>)
 // CREATE TABLE IF NOT EXISTS — veilig om vaker te draaien.
-// Tabellen: app_user (auth, v2.72.0) + user_schedule (weekschema snelkaarten, v2.76.0).
+// Tabellen: app_user (auth, v2.72.0) + user_schedule (weekschema snelkaarten, v2.76.0)
+// + user_apparaat (kW/uren-overrides per apparaat, v2.85.0).
 //
 // Beveiliging: het endpoint raakt het databaseschema aan en staat daarom niet
 // open. Zonder geldige token → 401 zonder schema-informatie en zonder migratie.
@@ -87,7 +88,20 @@ module.exports = async (req, res) => {
         PRIMARY KEY (user_id, apparaat_key, dag)
       )
     `;
-    res.json({ success: true, message: 'Database klaar (app_user + user_schedule)' });
+    // Per-user overrides op bestaande apparaten (v2.85.0, PR B stap 1): één rij per
+    // (user, apparaat) met een JSONB-object; nu alleen { vermogen, uren } (whitelist in
+    // api/auth.js ?action=apparaten). Bewust generiek zodat een latere stap (apparaten
+    // toevoegen/bewerken: naam, icoon, type) dezelfde rij kan vullen.
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_apparaat (
+        user_id      TEXT        NOT NULL,
+        apparaat_key TEXT        NOT NULL CHECK (apparaat_key ~ '^[a-z0-9]{1,20}$'),
+        data         JSONB       NOT NULL DEFAULT '{}'::jsonb,
+        updated_at   TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (user_id, apparaat_key)
+      )
+    `;
+    res.json({ success: true, message: 'Database klaar (app_user + user_schedule + user_apparaat)' });
   } catch (e) {
     res.status(500).json({ error: 'Migratie mislukt: ' + e.message });
   }

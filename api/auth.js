@@ -10,6 +10,8 @@
 //  - action=schema (GET):  weekschema van de gebruiker uit Neon (tabel user_schedule).
 //                          userId via getValidUserId (sessie, fallback ?u=). Lege
 //                          set = frontend gebruikt de defaults uit users/<id>.js.
+//  - action=apparaten (GET/POST, v2.85.0): per-user kW/uren-overrides in Neon
+//                          (tabel user_apparaat), alleen met sessie — zie handleApparaten.
 //  - action=schema (POST): { schema: { <apparaatKey>: { <dag 0-6>: 'HH:MM' } } }
 //                          opslaan (vervangt per apparaat). Vereist geldige sessie; rate limit 30/min/IP.
 //
@@ -22,6 +24,7 @@ const { neon } = require('@neondatabase/serverless');
 const { applyGate, setCors, handlePreflight, VALID_USERS, getValidUserId } = require('./_helpers');
 const { setSessionCookie, clearSessionCookie } = require('../lib/session');
 const { requireSession } = require('../lib/auth');
+const { valideerOverride } = require('../js/apparaatmodel.js');
 
 // Goed-gevormde dummy-hash voor de "user bestaat niet"-tak: we doen tóch een
 // bcrypt.compare zodat de responstijd niet verraadt of het e-mailadres bestaat.
@@ -102,8 +105,8 @@ const SCHEMA_KEY_RE   = /^[a-z0-9]{1,20}$/;
 const SCHEMA_TIJD_RE  = /^([01]\d|2[0-3]):[0-5]\d$/;
 const SCHEMA_MAX_KEYS = 20;
 
-function isMigratieFout(e) {
-  return /user_schedule/.test(e?.message || '') && /does not exist/.test(e.message);
+function isMigratieFout(e, tabel = 'user_schedule') {
+  return (e?.message || '').includes(tabel) && /does not exist/.test(e.message);
 }
 
 // Body → genormaliseerd { key: { dag: 'HH:MM' } } of { error } bij ongeldige input.
@@ -192,12 +195,77 @@ async function handleSchema(req, res) {
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
+// ── action=apparaten: per-user kW/uren-overrides op bestaande apparaten (v2.85.0) ──
+// Tabel user_apparaat (user_id, apparaat_key, data JSONB). Alleen met sessie — géén
+// ?u=-fallback, ook niet voor GET. Whitelist van velden: valideerOverride in
+// js/apparaatmodel.js (gedeeld met de browser): vermogen 0–50 kW, uren 0–24, numeriek.
+//   GET  → { apparaten: { <key>: { vermogen?, uren? } }, bron: 'db'|'default' }
+//   POST { key, vermogen?, uren? } → mengt in de bestaande rij (JSONB ||), { success, key, data }
+//   POST { key, reset: true }      → wist de rij ("Standaard"), { success, key, data: null }
+function _parseData(d) {
+  if (d && typeof d === 'object') return d;
+  try { return JSON.parse(d); } catch { return {}; }
+}
+async function handleApparaten(req, res) {
+  if (!(await applyGate(req, res, { endpoint: 'apparaten', max: 30, windowSec: 60 }))) return;
+  const auth = requireSession(req);
+  if (!auth.ok) return res.status(auth.status || 401).json(auth.body || { error: 'Niet ingelogd' });
+  const userId = auth.session.userId;
+  if (!VALID_USERS.includes(userId)) return res.status(400).json({ error: 'Ongeldige gebruiker in sessie' });
+  if (!process.env.DATABASE_URL) return res.status(503).json({ error: 'Database niet geconfigureerd' });
+  const sql = neon(process.env.DATABASE_URL);
+
+  if (req.method === 'GET') {
+    try {
+      const rows = await sql`SELECT apparaat_key, data FROM user_apparaat WHERE user_id = ${userId}`;
+      const apparaten = {};
+      for (const r of rows) {
+        const v = valideerOverride(_parseData(r.data));
+        if (v.data) apparaten[r.apparaat_key] = v.data;   // alleen whitelist-velden, nooit rauwe data
+      }
+      return res.json({ apparaten, bron: rows.length ? 'db' : 'default' });
+    } catch (e) {
+      if (isMigratieFout(e, 'user_apparaat')) return res.json({ apparaten: {}, bron: 'default', waarschuwing: 'Tabel user_apparaat ontbreekt — roep /api/db/migrate aan' });
+      return res.status(500).json({ error: 'Apparaten ophalen mislukt' });
+    }
+  }
+
+  if (req.method === 'POST') {
+    const b   = req.body || {};
+    const key = typeof b.key === 'string' ? b.key : '';
+    if (!SCHEMA_KEY_RE.test(key)) return res.status(400).json({ error: 'Ongeldige apparaat-key' });
+    try {
+      if (b.reset === true) {
+        await sql`DELETE FROM user_apparaat WHERE user_id = ${userId} AND apparaat_key = ${key}`;
+        return res.json({ success: true, key, data: null });
+      }
+      const { data, error } = valideerOverride({ vermogen: b.vermogen, uren: b.uren });
+      if (error) return res.status(400).json({ error });
+      const rows = await sql`
+        INSERT INTO user_apparaat (user_id, apparaat_key, data, updated_at)
+        VALUES (${userId}, ${key}, ${JSON.stringify(data)}::jsonb, NOW())
+        ON CONFLICT (user_id, apparaat_key)
+        DO UPDATE SET data = user_apparaat.data || EXCLUDED.data, updated_at = NOW()
+        RETURNING data
+      `;
+      const opgeslagen = rows && rows[0] ? (valideerOverride(_parseData(rows[0].data)).data || data) : data;
+      return res.json({ success: true, key, data: opgeslagen });
+    } catch (e) {
+      if (isMigratieFout(e, 'user_apparaat')) return res.status(503).json({ error: 'Database niet gemigreerd — roep /api/db/migrate aan' });
+      return res.status(500).json({ error: 'Apparaat opslaan mislukt' });
+    }
+  }
+
+  return res.status(405).json({ error: 'Method not allowed' });
+}
+
 module.exports = async (req, res) => {
   const action = req.query?.action || req.body?.action;
-  if (action === 'login')  return handleLogin(req, res);
-  if (action === 'logout') return handleLogout(req, res);
-  if (action === 'me')     return handleMe(req, res);
-  if (action === 'schema') return handleSchema(req, res);
+  if (action === 'login')     return handleLogin(req, res);
+  if (action === 'logout')    return handleLogout(req, res);
+  if (action === 'me')        return handleMe(req, res);
+  if (action === 'schema')    return handleSchema(req, res);
+  if (action === 'apparaten') return handleApparaten(req, res);
 
   setCors(req, res);
   if (handlePreflight(req, res)) return;

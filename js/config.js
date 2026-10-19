@@ -47,7 +47,9 @@ const GROWATT_LOCATION      = window.CONFIG.panelen.growatt.locatie;
 // config-apparaten = apSleutel(naam), identiek aan de sleutel die weekschema, Redis-
 // planning en localStorage al gebruikten. In place: dezelfde array-referentie als
 // window.CONFIG.apparaten (app.js pasAutoConfigToe muteert daarin).
-const APPARATEN = APPARAATMODEL.zetApparaatKeys(window.CONFIG.apparaten);
+const APPARATEN = APPARAATMODEL.zetApparaatBasis(APPARAATMODEL.zetApparaatKeys(window.CONFIG.apparaten));
+// ap.basis = config-waarde van uren/vermogen (v2.85.0), vastgezet vóór iets ze muteert —
+// de Neon-overrides (js/apparaatoverrides.js) rekenen altijd vanuit deze basis.
 // Compat-global; nieuwe code gebruikt ap.key, niet apSleutel(ap.naam).
 function apSleutel(naam) { return APPARAATMODEL.apSleutel(naam); }
 
