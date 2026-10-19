@@ -1962,13 +1962,20 @@ function renderLaadadvies() {
   }
 
   const veiligRender = (ap, i) => { try { return renderApparaat(ap, i); } catch(e) { console.error(`[${ap.naam}]`, e); return `<div class="advies-card" style="color:#a32d2d;font-size:11px">${ap.icon} ${ap.naam}: ${e.message}</div>`; } };
-  const sortedAll = getApparatenSorted();
+  // Apparaten met een snelkaart (auto, vaatwasser) staan al bovenaan in "Nu bij het
+  // apparaat" (js/weekschema.js) en komen hier niet nóg een keer (v2.80.2). Zelfde
+  // criterium als snelkaartApparaten(); originalIdx blijft de index in APPARATEN, dus
+  // openApDetail(idx) wijst nog naar het juiste apparaat.
+  const heeftSnelkaart = ap => !!ap && ap.snelkaart === true && !!ap.weekschema && typeof ap.weekschema === 'object';
+  const sortedAll = getApparatenSorted().filter(x => !heeftSnelkaart(x.ap));
   const top4      = sortedAll.slice(0, 4);
   const meer      = sortedAll.slice(4);
   const top4Html  = top4.map(x => veiligRender(x.ap, x.originalIdx)).join('');
   const meerHtml  = meer.map(x => veiligRender(x.ap, x.originalIdx)).join('');
   dbg('[Slim inplannen] top4:', top4.map(x => x.ap.naam), '| meer:', meer.map(x => x.ap.naam), '| containerMeer:', !!containerMeer);
-  container.innerHTML = `<div class="advies-grid">${top4Html}</div>`;
+  container.innerHTML = top4.length
+    ? `<div class="advies-grid">${top4Html}</div>`
+    : `<div class="advies-grid"><div class="advies-card" style="grid-column:1/-1"><div class="advies-row" style="color:var(--muted)">Al je apparaten staan bovenaan bij "Nu bij het apparaat".</div></div></div>`;
   if (containerMeer) {
     containerMeer.innerHTML = `<div class="advies-grid">${meerHtml}</div>
 <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 16px">* Berekeningen zijn per apparaat afzonderlijk. Bij gelijktijdig gebruik is de zonne-energie dekking lager.</p>`;

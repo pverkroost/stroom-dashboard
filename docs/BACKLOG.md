@@ -324,6 +324,11 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.80.2** — Snelkaart-apparaten niet dubbel in "Slim inplannen"
+- Hoofdtab: apparaten met `snelkaart: true` (auto, vaatwasser) staan alleen nog bovenaan bij
+  "Nu bij het apparaat", niet nóg een keer in "Slim inplannen"/"Meer apparaten". Generiek per
+  user (003: alleen de vaatwasser verdwijnt daar). Lege lijst → korte melding i.p.v. leeg blok.
+
 **v2.80.1** — Weekschema instelbaar vanuit het apparaat in de lijst
 - Instellingen → Apparaten: apparaten met weekschema (auto, vaatwasser) tonen een samenvattingsregel
   en een knop "📅 Weekschema" die dezelfde editor (`weekschemaEditorHtml`) onder de rij uitklapt.
