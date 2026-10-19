@@ -113,9 +113,13 @@ heeftIntegratie('homey')`, `ap.homeConnect && heeftIntegratie('homeConnect')` (+
   beste moment" / na kiezen "Beste tijd is € X goedkoper" of "✓ Dit is het beste moment") · 5 actie-zone
   per variant (Homey: Plan dit in + Opgeladen zijn om/Handmatig + Nu starten/stoppen; Home Connect:
   Deze tijd overnemen + `#hcDetailSectie`; advies-only: tip-strook `#adviesTip` "✋ Zet 'm zelf aan om
-  HH:MM") · **6 grafiek/slider onderaan** ("Zelf een andere tijd kiezen", `bouwTijdlijnHtml`, regel
-  "gekozen: HH:MM–HH:MM · € X · Y% op zon"). Tegels + balk + tip zijn één implementatie voor alle
-  varianten; alleen de actie-zone verschilt.
+  HH:MM") · **6 slider + prijsgrafiek onderaan** ("Zelf een andere tijd kiezen": `bouwTijdlijnHtml` om
+  te kiezen, daaronder sinds v2.82.0 dezelfde prijsgrafiek als op de hoofdtab ter informatie —
+  `bouwPrijsGrafiek()` uit `js/prijzen.js` in `#apChart`, gekozen venster omlijnd en beste venster
+  licht gevuld; `renderApGrafiek()` bouwt hem één keer per render, `zetGrafiekMarkering()` hertekent
+  alleen de markering bij schuiven, `sluitApDetail` ruimt de instantie op). De vroegere tekstregel
+  "gekozen: …" onder de slider is weg (dubbel met tegels/balk). Tegels + balk + tip zijn één
+  implementatie voor alle varianten; alleen de actie-zone verschilt.
 - **Rekenen/verversen**: `berekenBesparingNu(uren, kW, planUren, besteIdx)` (naast `effectieveKosten`)
   → `{ kostenNu, kostenBeste, besparing, nuIsBeste, gedeeltelijk, dekkingBeste/Nu, beste/nu-tijden }`.
   `_prijsOverzicht(berekendeUren)` leest `apDetailState` (gekozen = `_handmatigGekozen`, rest-laadtijd
@@ -126,8 +130,12 @@ heeftIntegratie('homey')`, `ap.homeConnect && heeftIntegratie('homeConnect')` (+
   `test/besparing.test.js` (laadt `js/apparaten.js` in een vm-context met zon-stubs).
 - **Weergave**: `fmtEuro(n)` (in `js/prijsformule.js`, compat-wrapper in `js/config.js`) → komma
   (`€ 1,50`); gebruikt in het detailscherm en de "Slim inplannen"-kaarten. `zonDekkingTekst()`
-  → "volledig op eigen zonnestroom" / "60% op zon" in tegels, balk en de "gekozen"-regel onder de
-  grafiek (handmatig-blok en vertrekplanner tonen nog "☀️ 60%"). De berekening zelf is ongewijzigd.
+  → "volledig op eigen zonnestroom" / "60% op zon" in tegels en balk (handmatig-blok en
+  vertrekplanner tonen nog "☀️ 60%"). De berekening zelf is ongewijzigd.
+- **Prijsgrafiek gedeeld**: `bouwPrijsGrafiek(canvas, prijzen, { tooltipEl?, onSelect?, markering? })`
+  in `js/prijzen.js` is de enige Chart.js-opbouw van de prijsgrafiek (bars, terugleverlijn, zon,
+  dag-overgang, "nu"-lijn). Hoofdtab: `renderGrafiek(prijzen)` koppelt `onSelect` aan
+  `geselecteerdStartTijd` (de "Keuze"-rij van de kaarten). Detailscherm: zonder `onSelect`, mét markering.
 
 ## HomeWizard cloud-fallback (sinds v2.79.0)
 Live P1-verbruik komt primair via de Homey-push (`POST /api/homewizard` met `HOMEWIZARD_PUSH_TOKEN_<id>`).

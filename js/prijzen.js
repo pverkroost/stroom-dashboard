@@ -31,7 +31,20 @@ function renderGeenData() {
     '<div class="no-data">Geen prijzen beschikbaar. Probeer te verversen.</div>';
 }
 
-function renderGrafiek(prijzen, min, max, gem) {
+// ── Prijsgrafiek-bouwer (v2.82.0) ───────────────────────────────────────────
+// Eén Chart.js-opbouw (verbruiksprijs-bars, terugleverlijn, zonne-opbrengst,
+// dag-overgang, "nu"-lijn) voor de hoofdtab én het apparaat-detailscherm.
+//  opts.tooltipEl  element voor de zwevende tooltip (optioneel)
+//  opts.onSelect   (tijd|null) → aangeroepen bij hover/touch (hoofdtab koppelt zo
+//                  de "Keuze"-rij van de Slim inplannen-kaarten); optioneel
+//  opts.markering  { startIdx, aantal, besteIdx } → gekozen venster (omlijnd) en
+//                  beste venster (licht gevuld) achter de bars; later aanpasbaar via
+//                  zetGrafiekMarkering(chart, markering) zonder herbouw.
+// Geeft de Chart-instantie terug; de caller beheert destroy().
+function bouwPrijsGrafiek(canvas, prijzen, opts = {}) {
+  const totalen = prijzen.map(p => p.totaal);
+  const min = Math.min(...totalen), max = Math.max(...totalen);
+  const gem = totalen.reduce((a, b) => a + b, 0) / (totalen.length || 1);
   const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
   const todayStart  = getTodayStart();
   const morgenStart = getTomorrowStart();
@@ -96,12 +109,33 @@ function renderGrafiek(prijzen, min, max, gem) {
     spanGaps: true
   }] : [];
 
-  if (chart) chart.destroy();
-
-  const tooltip = document.getElementById('chartTooltip');
+  const tooltip = opts.tooltipEl || null;
 
   const verticalLinePlugin = {
     id: 'verticalLine',
+    // Markering (detailscherm): beste venster licht gevuld, gekozen venster omlijnd —
+    // vóór de bars getekend zodat de bars erbovenop blijven.
+    beforeDatasetsDraw(chartInstance) {
+      const m = chartInstance.$markering;
+      if (!m) return;
+      const meta = chartInstance.getDatasetMeta(0);
+      const band = (startIdx, aantal) => {
+        const a = meta.data[startIdx], b = meta.data[Math.min(startIdx + aantal - 1, meta.data.length - 1)];
+        if (!a || !b || !(aantal > 0)) return null;
+        return { x: a.x - a.width / 2, w: (b.x + b.width / 2) - (a.x - a.width / 2) };
+      };
+      const ctx = chartInstance.ctx, top = chartInstance.chartArea.top, h = chartInstance.chartArea.bottom - top;
+      ctx.save();
+      const beste = Number.isInteger(m.besteIdx) ? band(m.besteIdx, m.aantal) : null;
+      if (beste) { ctx.fillStyle = isDark ? 'rgba(192,221,151,0.14)' : 'rgba(99,153,34,0.14)'; ctx.fillRect(beste.x, top, beste.w, h); }
+      const sel = Number.isInteger(m.startIdx) ? band(m.startIdx, m.aantal) : null;
+      if (sel) {
+        ctx.strokeStyle = isDark ? 'rgba(192,221,151,0.95)' : 'rgba(39,80,10,0.85)';
+        ctx.lineWidth = 1.5; ctx.setLineDash([]);
+        ctx.strokeRect(sel.x + 0.75, top + 0.75, sel.w - 1.5, h - 1.5);
+      }
+      ctx.restore();
+    },
     afterDraw(chartInstance) {
       const ctx  = chartInstance.ctx;
       const meta = chartInstance.getDatasetMeta(0);
@@ -143,7 +177,7 @@ function renderGrafiek(prijzen, min, max, gem) {
     }
   };
 
-  chart = new Chart(document.getElementById('chart'), {
+  const grafiek = new Chart(canvas, {
     type: 'bar',
     plugins: [verticalLinePlugin],
     data: {
@@ -164,25 +198,25 @@ function renderGrafiek(prijzen, min, max, gem) {
           external(context) {
             const { chart: c, tooltip: t } = context;
             if (t.opacity === 0) {
-              tooltip.classList.remove('visible');
-              if (geselecteerdStartTijd !== null) { geselecteerdStartTijd = null; updateApparaatKaarten(); }
+              if (tooltip) tooltip.classList.remove('visible');
+              if (opts.onSelect) opts.onSelect(null);
               return;
             }
             const idx = t.dataPoints?.[0]?.dataIndex;
             if (idx == null) return;
             const p = prijzen[idx];
-            const tijdStr  = dagHStrPlain(p.tijd) + '–' + String(p.tijd.getHours()+1).padStart(2,'0') + ':00';
-            const terugStr = p.terug !== undefined
-              ? (p.terug < 0 ? ' · ↩ € ' + p.terug.toFixed(3) + ' ⚠️ kost geld' : ' · ↩ € ' + p.terug.toFixed(3) + ' / kWh bij teruglevering')
-              : '';
-            tooltip.textContent = tijdStr + ' · € ' + p.totaal.toFixed(3) + terugStr;
-            const x = t.caretX, containerWidth = c.canvas.parentElement.offsetWidth;
-            let left = x; if (left < 60) left = 60; if (left > containerWidth - 60) left = containerWidth - 60;
-            tooltip.style.left = left + 'px';
-            tooltip.classList.add('visible');
-            if (!geselecteerdStartTijd || geselecteerdStartTijd.getTime() !== p.tijd.getTime()) {
-              geselecteerdStartTijd = p.tijd; updateApparaatKaarten();
+            if (tooltip) {
+              const tijdStr  = dagHStrPlain(p.tijd) + '–' + String(p.tijd.getHours()+1).padStart(2,'0') + ':00';
+              const terugStr = p.terug !== undefined
+                ? (p.terug < 0 ? ' · ↩ € ' + p.terug.toFixed(3) + ' ⚠️ kost geld' : ' · ↩ € ' + p.terug.toFixed(3) + ' / kWh bij teruglevering')
+                : '';
+              tooltip.textContent = tijdStr + ' · € ' + p.totaal.toFixed(3) + terugStr;
+              const x = t.caretX, containerWidth = c.canvas.parentElement.offsetWidth;
+              let left = x; if (left < 60) left = 60; if (left > containerWidth - 60) left = containerWidth - 60;
+              tooltip.style.left = left + 'px';
+              tooltip.classList.add('visible');
             }
+            if (opts.onSelect) opts.onSelect(p.tijd);
           }
         }
       },
@@ -208,6 +242,40 @@ function renderGrafiek(prijzen, min, max, gem) {
         }
       }
     }
+  });
+  grafiek.$markering = opts.markering || null;
+  return grafiek;
+}
+
+// Markering van gekozen/beste venster aanpassen zonder de grafiek te herbouwen
+// (alleen hertekenen — goedkoop genoeg voor elke slider-stap).
+function zetGrafiekMarkering(grafiek, markering) {
+  if (!grafiek) return;
+  grafiek.$markering = markering || null;
+  if (typeof grafiek.draw === 'function') grafiek.draw();
+}
+
+// Legenda onder de prijsgrafiek (zelfde als op de hoofdtab, voor hergebruik in het detailscherm).
+function prijsGrafiekLegendaHtml() {
+  return '<div style="display:flex;gap:14px;justify-content:center;font-size:11px;color:var(--muted);margin-top:6px;flex-wrap:wrap">' +
+    '<span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#639922;margin-right:4px;vertical-align:middle"></span>Verbruiksprijs</span>' +
+    '<span><span style="display:inline-block;width:16px;height:2px;background:#f5c842;margin-right:4px;vertical-align:middle"></span>Zonne-opbrengst</span>' +
+    '<span><span style="display:inline-block;width:16px;height:2px;background:rgba(200,50,50,0.8);margin-right:4px;vertical-align:middle"></span>Terugleverprijs</span>' +
+  '</div>';
+}
+
+// Hoofdtab: grafiek in #chart, hover/touch koppelt de "Keuze"-rij van de kaarten.
+function renderGrafiek(prijzen) {
+  if (chart) chart.destroy();
+  chart = bouwPrijsGrafiek(document.getElementById('chart'), prijzen, {
+    tooltipEl: document.getElementById('chartTooltip'),
+    onSelect(tijd) {
+      if (tijd === null) {
+        if (geselecteerdStartTijd !== null) { geselecteerdStartTijd = null; updateApparaatKaarten(); }
+      } else if (!geselecteerdStartTijd || geselecteerdStartTijd.getTime() !== tijd.getTime()) {
+        geselecteerdStartTijd = tijd; updateApparaatKaarten();
+      }
+    },
   });
 }
 
@@ -246,7 +314,7 @@ function renderDashboard(prijzen) {
     titel.innerHTML = `Komende ${prijzen.length} uur${hint}`;
   }
 
-  renderGrafiek(prijzen, min, max, gem);
+  renderGrafiek(prijzen);
   renderUurOverzicht(prijzen, min, max, gem);
 }
 

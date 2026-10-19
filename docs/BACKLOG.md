@@ -324,6 +324,13 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.82.0** — Prijsgrafiek in het detailscherm + dubbele gekozen-regel weg
+- Onder "Zelf een andere tijd kiezen" staat nu de prijsgrafiek van de hoofdtab (verbruiksprijs,
+  zonne-opbrengst, terugleverprijs) met het gekozen venster omlijnd en het beste venster licht
+  gevuld. Eén gedeelde bouwer `bouwPrijsGrafiek()` (`js/prijzen.js`) voor hoofdtab én detail;
+  één keer gebouwd per render, schuiven hertekent alleen de markering. De tekstregel "gekozen:
+  HH:MM–HH:MM · € X · …" onder de slider is verwijderd (stond al in tegels/balk).
+
 **v2.81.0** — Apparaat-detailscherm herontworpen: prijstegels + besparingsbalk bovenaan
 - Twee prijstegels ("Beste tijd" groen · "Nu meteen", wordt "Gekozen tijd" na kiezen in de grafiek)
   + besparingsbalk ("⬇ Bespaar € Z door te wachten tot HH:MM" / "✓ Nu is al het beste moment" /
