@@ -158,5 +158,17 @@ test('users/003.js is Zonneplan: opslag + zonnebonus 10%', () => {
   assert.equal(jacuzzi.type, 'inschakelen');
   assert.equal(jacuzzi.vermogen, 3);
   assert.equal(jacuzzi.uren, 8);
-  assert.deepEqual(c.apparaten.map(a => a.naam), ['Vaatwasser', 'Wasmachine', 'Droger', 'Jacuzzi']);
+  // Sunshower (v2.84.0): seizoensadvies — geen snelkaart/weekschema/aansturing, wel een
+  // adviestekst voor elke maand.
+  const sun = c.apparaten.find(a => a.naam === 'Sunshower');
+  assert.ok(sun, 'Sunshower aanwezig');
+  assert.equal(sun.type, 'seizoensadvies');
+  assert.ok(Array.isArray(sun.seizoensadvies) && sun.seizoensadvies.length > 0, 'seizoensadvies-lijst');
+  const { seizoensadviesTekst, seizoensadviesOntbrekendeMaanden } = require('../js/apparaatmodel.js');
+  assert.deepEqual(seizoensadviesOntbrekendeMaanden(sun.seizoensadvies), [], 'alle 12 maanden hebben een tekst');
+  for (let m = 1; m <= 12; m++) assert.ok(seizoensadviesTekst(sun.seizoensadvies, m).length > 10, 'maand ' + m);
+  assert.ok(sun.snelkaart !== true && !sun.weekschema, 'Sunshower: geen snelkaart/weekschema');
+  assert.ok(!sun.homeConnect && !sun.automatisering && !sun.batterij, 'Sunshower: geen aansturing');
+  assert.ok(!snel.some(a => a.naam === 'Sunshower'), 'Sunshower zit niet bij de snelkaarten');
+  assert.deepEqual(c.apparaten.map(a => a.naam), ['Vaatwasser', 'Wasmachine', 'Droger', 'Jacuzzi', 'Sunshower']);
 });

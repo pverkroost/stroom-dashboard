@@ -324,6 +324,14 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.84.0** — Kaarttype seizoensadvies + Sunshower voor user 003
+- Nieuw apparaat-type `seizoensadvies`: advies per huidige kalendermaand (Europe/Amsterdam) i.p.v.
+  prijs/starttijd. Teksten in de user-config (`seizoensadvies: [{ van, tot, tekst }]`, bereiken mogen
+  over de jaarwisseling lopen). Pure helpers in `js/apparaatmodel.js`, kaart via
+  `seizoensadviesKaartHtml` in de "Slim inplannen"-grid; geen snelkaart/weekschema/plan-knop/grafiek/
+  detailscherm. Test: `test/seizoensadvies.test.js`.
+- `users/003.js`: Sunshower (🌞, infrarood + UV) met UV-/IR-advies per seizoen. 003-test uitgebreid.
+
 **v2.83.2** — Jacuzzi voor user 003 (advies-only, snelkaart + weekschema)
 - `users/003.js`: apparaat "Jacuzzi" (🛁, 3 kW, 8 u, type `inschakelen`, geen aansturing) met snelkaart
   "klaar om" (ma–vr 19:00, za–zo 15:00). Vermogen en opwarmduur zijn schattingen die Patrick nog moet

@@ -61,6 +61,18 @@
       { naam: 'Jacuzzi',    icon: '🛁', uren: 8,   vermogen: 3,   type: 'inschakelen', automatisering: false, batterij: false, volgorde: 4, grootverbruik: true, klaarOmTekst: 'Jacuzzi moet opgewarmd zijn om', korteTekst: '🛁 Opgewarmd zijn om',
         snelkaart: true, deadlineLabel: 'klaar om',
         weekschema: { ma: '19:00', di: '19:00', wo: '19:00', do: '19:00', vr: '19:00', za: '15:00', zo: '15:00' } },
+      // Sunshower (infrarood + UV): verbruik te klein om op prijs te sturen. Type
+      // 'seizoensadvies' (v2.84.0) → geen snelkaart, starttijd, weekschema, plan-knop of
+      // prijsgrafiek; de kaart in "Slim inplannen" toont per huidige maand een advies
+      // (UV = vitamine D, IR = warmte). Bereiken zijn inclusief en mogen over de
+      // jaarwisseling lopen; uren/vermogen zijn hier bewust leeg (niet relevant).
+      { naam: 'Sunshower',  icon: '🌞', uren: null, vermogen: null, type: 'seizoensadvies', automatisering: false, batterij: false, volgorde: 5, grootverbruik: false,
+        seizoensadvies: [
+          { van: 'okt', tot: 'mrt', tekst: 'UV-seizoen: de zon staat te laag voor vitamine D. 2 à 3 UV-sessies per week, overdag. IR naar wens.' },
+          { van: 'apr', tot: 'mei', tekst: 'Afbouwen: de natuurlijke zon neemt het over. IR naar wens.' },
+          { van: 'jun', tot: 'aug', tekst: 'UV niet nodig, je krijgt genoeg buiten. IR naar wens.' },
+          { van: 'sep', tot: 'sep', tekst: 'Rustig opstarten met UV. IR naar wens.' },
+        ] },
     ],
   };
 })();

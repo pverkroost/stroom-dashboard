@@ -126,6 +126,23 @@ identificeert een apparaat via `ap.key`, nooit meer via `ap.naam` of de array-in
   `users/<id>.js` (was/droger-chaining). Bewust buiten deze refactor; omzetten naar key zodra apparaten
   user-bewerkbaar worden.
 
+## Kaarttype seizoensadvies (sinds v2.84.0)
+Derde smaak naast prijs-aansturing en advies-only: een apparaat met `type: 'seizoensadvies'`
+(bv. Patricks Sunshower, infrarood + UV — verbruik te klein om op prijs te sturen) adviseert op
+basis van de **huidige kalendermaand** (Europe/Amsterdam), niet op prijs of starttijd.
+- **Config** per apparaat: `seizoensadvies: [ { van: 'okt', tot: 'mrt', tekst }, … ]` — bereiken
+  inclusief, NL-maandafkorting (`jan`…`dec`) of 1–12, mogen over de jaarwisseling lopen; eerste
+  passende bereik wint. `uren`/`vermogen` mogen `null` zijn. Teksten staan in `users/<id>.js`,
+  niet in `js/`.
+- **Helpers** (puur, `js/apparaatmodel.js`): `seizoensadviesTekst(lijst, maand)`,
+  `seizoensadviesOntbrekendeMaanden(lijst)` (test-borging: `[]`), `huidigeMaandAmsterdam()`,
+  `isSeizoensadvies(ap)`, `MAANDEN`/`MAAND_NAMEN`. Test: `test/seizoensadvies.test.js`.
+- **Weergave**: `seizoensadviesKaartHtml(ap)` in `js/apparaten.js` rendert in de gewone
+  "Slim inplannen"-grid (`renderApparaat` kiest 'm op type) als `.advies-card` met icoon, naam,
+  "Seizoensadvies · <maand>" en de maandtekst. Geen snelkaart, weekschema, starttijd, plan-knop
+  of prijsgrafiek; `openApDetail` doet niets voor dit type. Instellingen → Apparaten toont
+  "seizoensadvies · per maand" als subregel.
+
 ## Apparaat-detailscherm (renderApDetail in `js/apparaten.js`)
 Eén render-functie voor alle apparaten; de varianten (auto/Homey, Home Connect bestuurbaar of
 alleen-monitoring, advies-only) komen uit drie vlaggen: `ap.batterij`, `ap.automatisering &&
@@ -241,7 +258,8 @@ Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
   `003` = Patrick, Almelo (Zonneplan; SolarEdge 10,344 kWp + Home Connect voor zijn
   Siemens-apparaten; geen Growatt, geen Homey, geen auto (beide bevestigd); P1 via HomeWizard-cloud;
   snelkaart + weekschema voor de vaatwasser (v2.79.4) en de jacuzzi (v2.83.2, advies-only;
-  3 kW / 8 u zijn schattingen die Patrick nog moet bevestigen).
+  3 kW / 8 u zijn schattingen die Patrick nog moet bevestigen); Sunshower als
+  `seizoensadvies`-apparaat (v2.84.0, zie *Kaarttype seizoensadvies*).
   Apparatenlijst is nog een voorlopige default; Miele-apparaten vallen buiten Home Connect en
   worden niet ondersteund).
   Het `integraties`-veld per user bepaalt welke secties/tegels getoond worden (`heeftIntegratie()`).

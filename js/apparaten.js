@@ -74,7 +74,7 @@ function renderApparatenInstellingen(force = false) {
   if (typeof weekschemaInstellingenVerversen === 'function') weekschemaInstellingenVerversen();
   const sorted = getApparatenSorted();
   card.innerHTML = sorted.map(({ ap }) => {
-    const subStr = _formatUrenVermogen(ap.uren, ap.vermogen);
+    const subStr = APPARAATMODEL.isSeizoensadvies(ap) ? 'seizoensadvies · per maand' : _formatUrenVermogen(ap.uren, ap.vermogen);
     const isAuto = ap.batterij === true;
     const info   = ap.autoInfo || {};
     const autoSub = isAuto && info.kenteken
@@ -516,6 +516,8 @@ function defaultKlaarOmHHMM(uren) {
 function openApDetail(apIdx) {
   const ap = APPARATEN[apIdx];
   if (!ap) return;
+  // Seizoensadvies-apparaten hebben geen starttijd/prijs → geen detailscherm (v2.84.0).
+  if (APPARAATMODEL.isSeizoensadvies(ap)) return;
   const planUren = getPlanUren();
   if (!planUren.length) return;
   // Auto zonder specs (geen kenteken: uren/vermogen onbekend) → geen blokberekening;
@@ -1892,6 +1894,22 @@ async function homeyActie(action) {
   }
 }
 
+// Kaart voor type 'seizoensadvies' (v2.84.0): zelfde .advies-card-stramien als de andere
+// apparaten in "Slim inplannen", maar zonder prijs, starttijd, plan-knop of detailscherm.
+// De tekst komt uit ap.seizoensadvies (user-config) voor de huidige maand in Europe/Amsterdam;
+// de maand→tekst-mapping zelf is puur en zit in js/apparaatmodel.js.
+function seizoensadviesKaartHtml(ap, nu) {
+  const maand = APPARAATMODEL.huidigeMaandAmsterdam(nu);
+  const tekst = APPARAATMODEL.seizoensadviesTekst(ap.seizoensadvies, maand);
+  const icon  = (typeof ap.icon === 'string' && !ap.icon.includes('<')) ? escapeHtml(ap.icon) : '';
+  return `<div class="advies-card seizoensadvies-card" style="cursor:default">
+      <div class="advies-device-icon">${icon}</div>
+      <div class="advies-device-naam">${escapeHtml(displayNaam(ap))}</div>
+      <div class="advies-device-sub">Seizoensadvies · ${escapeHtml(APPARAATMODEL.MAAND_NAMEN[maand - 1])}</div>
+      <div class="advies-row" style="font-size:11px;color:var(--text);line-height:1.4;margin-top:4px">${tekst ? escapeHtml(tekst) : '<span style="color:var(--muted)">Geen advies voor deze maand</span>'}</div>
+    </div>`;
+}
+
 function renderLaadadvies() {
   const container     = document.getElementById('laadadviesContainer');
   const containerMeer = document.getElementById('meerApparatenContainer');
@@ -2036,6 +2054,8 @@ function renderLaadadvies() {
   const selLabel = heeftSelectie ? 'Keuze' : 'Nu';
 
   function renderApparaat(ap, apIdx) {
+    // Seizoensadvies (v2.84.0): geen prijs/starttijd, alleen de tekst van de huidige maand.
+    if (APPARAATMODEL.isSeizoensadvies(ap)) return seizoensadviesKaartHtml(ap);
     // Auto zonder kenteken/specs → vriendelijke call-to-action ipv crashende berekeningen.
     // apIsBruikbaar() vangt zowel `null`/`undefined` als `0` af; voorheen liet `!ap.uren`
     // bv. `uren: 0.5` door (truthy) maar `vermogen: 0` crashte downstream in `* vermogen`.
