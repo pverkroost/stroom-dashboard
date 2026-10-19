@@ -28,6 +28,9 @@ function laadApparaten(zonWattPerUur = {}) {
     getTomorrowStart: () => { const d = today(); d.setDate(d.getDate() + 1); return d; },
     fmtEuro, escapeHtml: s => String(s),
     dagHStr: d => String(d.getHours()).padStart(2, '0') + ':00',
+    hStr:    d => String(d.getHours()).padStart(2, '0') + ':00',
+    hMStr:   d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'),
+    dagHMStrPlain: d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'),
     localStorage: { getItem: () => null, setItem() {} },
   };
   ctx.window = ctx;
@@ -58,12 +61,26 @@ test('besparing zonder zon: nu € 0,60 vs beste € 0,20 → bespaar € 0,40',
   assert.equal(r.gedeeltelijk, false);
   assert.equal(r.besteStartTijd.getTime(), planUren[2].tijd.getTime());
   eq(r.dekkingBeste, 0, 'geen zon');
-  const html = app.besparingBlokHtml(r);
-  assert.ok(html.includes('id="besparingBlok"'));
-  assert.ok(html.includes('Nu aanzetten <b>€ 0,60</b>'));
-  assert.ok(html.includes('beste tijd <b>€ 0,20</b>'));
-  assert.ok(html.includes('Bespaar € 0,40 door te wachten tot 02:00'));
-  assert.ok(!html.includes('op zon'));
+  // Tegels: links beste tijd, rechts "Nu meteen"
+  const tegels = app.prijsTegelsHtml(r, null);
+  assert.ok(tegels.includes('id="tegelBeste"') && tegels.includes('02:00–04:00') && tegels.includes('€ 0,20'));
+  assert.ok(tegels.includes('id="tegelRechts"') && tegels.includes('Nu meteen') && tegels.includes('tot 02:00') && tegels.includes('€ 0,60'));
+  assert.ok(!tegels.includes('op zon'));
+  // Balk zonder keuze: bespaar nu vs beste
+  const balk = app.besparingBalkHtml(r, null);
+  assert.ok(balk.includes('id="besparingBalk"') && balk.includes('Bespaar € 0,40 door te wachten tot 02:00'));
+  // Keuze in de grafiek: gekozen tijd = uur 1 (0,30+0,10 = 0,40) → beste is € 0,20 goedkoper
+  const sel = { startTijd: planUren[1].tijd, eindTijd: planUren[3].tijd, kosten: 0.40, dekking: 0 };
+  const tegels2 = app.prijsTegelsHtml(r, sel);
+  assert.ok(tegels2.includes('Gekozen tijd') && tegels2.includes('01:00–03:00') && tegels2.includes('€ 0,40'));
+  const balk2 = app.besparingBalkHtml(r, sel);
+  assert.ok(balk2.includes('Beste tijd is € 0,20 goedkoper (02:00)') && balk2.includes('neutraal'));
+  // Keuze = beste → "Dit is het beste moment"
+  const balk3 = app.besparingBalkHtml(r, { startTijd: planUren[2].tijd, eindTijd: planUren[3].tijd, kosten: 0.20, dekking: 0 });
+  assert.ok(balk3.includes('✓ Dit is het beste moment'));
+  // Zelf-aanzetten-tip
+  assert.ok(app.adviesTipHtml('02:00').includes('Zet \'m zelf aan om <b>02:00</b>'));
+  assert.ok(app.adviesTipHtml('').includes('display:none'));
 });
 
 test('nu is al het beste moment → nuIsBeste, geen bedragen in het blok', () => {
@@ -74,7 +91,7 @@ test('nu is al het beste moment → nuIsBeste, geen bedragen in het blok', () =>
   const r = app.berekenBesparingNu(2, 1, planUren, beste.startIndex, { morgenBekend: true });
   eq(r.besparing, 0, 'besparing');
   assert.equal(r.nuIsBeste, true);
-  const html = app.besparingBlokHtml(r);
+  const html = app.besparingBalkHtml(r, null);
   assert.ok(html.includes('✓ Nu is al het beste moment'));
   assert.ok(!html.includes('Bespaar'));
 });
@@ -90,7 +107,7 @@ test('zon dekt het beste blok volledig: kostenBeste 0, tekst "volledig op eigen 
   assert.equal(app.zonDekkingTekst(r.dekkingBeste), 'volledig op eigen zonnestroom');
   assert.equal(app.zonDekkingTekst(0.6), '60% op zon');
   assert.equal(app.zonDekkingTekst(0), '');
-  assert.ok(app.besparingBlokHtml(r).includes('beste tijd: volledig op eigen zonnestroom'));
+  assert.ok(app.prijsTegelsHtml(r, null).includes('volledig op eigen zonnestroom'));
 });
 
 test('gedeeltelijk: blok loopt voorbij de bekende prijzen en morgen is nog niet binnen', () => {
@@ -99,7 +116,7 @@ test('gedeeltelijk: blok loopt voorbij de bekende prijzen en morgen is nog niet 
   const r = app.berekenBesparingNu(2, 1, planUren, 0, { morgenBekend: false });
   assert.equal(r.gedeeltelijk, true);
   assert.equal(r.nuIsBeste, true);
-  assert.ok(app.besparingBlokHtml(r).includes('morgen-prijzen nog niet beschikbaar'));
+  assert.ok(app.besparingBalkHtml(r, null).includes('morgen-prijzen nog niet beschikbaar'));
   const r2 = app.berekenBesparingNu(2, 1, planUren, 0, { morgenBekend: true });
   assert.equal(r2.gedeeltelijk, false);
 });
@@ -110,5 +127,7 @@ test('randgevallen: geen prijzen / ongeldig vermogen / index buiten bereik → n
   assert.equal(app.berekenBesparingNu(2, 1, [], 0), null);
   assert.equal(app.berekenBesparingNu(2, 0, planUren, 0), null);
   assert.equal(app.berekenBesparingNu(2, 1, planUren, 5), null);
-  assert.ok(app.besparingBlokHtml(null).includes('display:none'));
+  assert.ok(app.besparingBalkHtml(null, null).includes('display:none'));
+  assert.ok(app.besparingBalkHtml(null, null, 'Batterij al vol 🎉').includes('Batterij al vol'));
+  assert.ok(app.prijsTegelsHtml(null, null).includes('display:none'));
 });

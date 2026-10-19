@@ -324,13 +324,14 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
-**v2.81.0** — Besparing-blok in het apparaat-detailscherm
-- Direct onder "Beste tijd": "Nu aanzetten € X · beste tijd € Y" + prominent groen "Bespaar € Z
-  door te wachten tot HH:MM" (of "✓ Nu is al het beste moment"); zon-dekking als tekst
-  ("volledig op eigen zonnestroom" / "60% op zon"); noot bij ontbrekende morgen-prijzen.
-  Generiek voor alle varianten via één plek in `renderApDetail`; bedien-flows ongewijzigd.
-  Helper `berekenBesparingNu` + `test/besparing.test.js`. Euro's nu met komma (`fmtEuro`) in
-  detailscherm en Slim inplannen-kaarten. Vervolg: "☀️ 60%" in tooltip/vertrekplanner ook als tekst.
+**v2.81.0** — Apparaat-detailscherm herontworpen: prijstegels + besparingsbalk bovenaan
+- Twee prijstegels ("Beste tijd" groen · "Nu meteen", wordt "Gekozen tijd" na kiezen in de grafiek)
+  + besparingsbalk ("⬇ Bespaar € Z door te wachten tot HH:MM" / "✓ Nu is al het beste moment" /
+  "Beste tijd is € X goedkoper" / "✓ Dit is het beste moment") bovenaan, generiek voor alle
+  varianten. Grafiek/slider naar onder ("Zelf een andere tijd kiezen"); schuiven werkt tegels, balk
+  en "gekozen"-regel live bij. Advies-only apparaten: tip-strook "✋ Zet 'm zelf aan om HH:MM" i.p.v.
+  grijze tekst. Bedien-flows ongewijzigd. Helper `berekenBesparingNu` + `test/besparing.test.js`.
+  Euro's met komma (`fmtEuro`), zon-dekking als tekst. Vervolg: "☀️ 60%" in handmatig-blok/vertrekplanner.
 
 **v2.80.3** — Duidelijke tab-labels
 - Tabs bovenaan: "⚡ Plannen" / "☀️ Zon" / "⚙️ Instellingen", alle drie icoon + tekst, gelijke
