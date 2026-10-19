@@ -332,6 +332,71 @@ function gemSolarDekking(startIdx, aantalUren, vermogenKw, planUren) {
   return n > 0 && vermogenKw > 0 ? gedektKwh / (n * vermogenKw) : 0;
 }
 
+// ── Besparing "nu" vs "beste tijd" (v2.81.0) ────────────────────────────────
+// Eén bron voor het besparing-blok in het detailscherm. Hergebruikt
+// effectieveKosten/berekenKostenVanaf en gemSolarDekking — zelf geen prijslogica.
+//  - kostenNu     = meteen aanzetten: blok vanaf index 0, allowPartial (zelfde als
+//                   de "Nu"-regel van de compacte kaart in renderLaadadvies)
+//  - kostenBeste  = effectieve kosten van het ONBEGRENSDE goedkoopste blok (besteIdx,
+//                   consistent met de kopregel "Beste tijd"; deadline-blokken van de
+//                   vertrekplanner en Home Connect houden hun eigen vergelijking)
+//  - besparing    = max(0, kostenNu − kostenBeste); nuIsBeste als besteIdx 0 of < 0,005
+//  - gedeeltelijk = het "nu"-blok loopt voorbij de bekende prijzen terwijl morgen nog
+//                   niet binnen is (zelfde regel als selGedeeltelijk in renderLaadadvies)
+// opts.morgenBekend overschrijft cacheMorgen (tests zonder app-globals). null als er
+// niets te berekenen valt (geen prijzen, geen vermogen/duur, blok past nergens).
+function berekenBesparingNu(uren, vermogenKw, prijzenLijst, besteIdx, opts = {}) {
+  if (!prijzenLijst || !prijzenLijst.length || !(uren > 0) || !(vermogenKw > 0)) return null;
+  if (!Number.isInteger(besteIdx) || besteIdx < 0 || besteIdx >= prijzenLijst.length) return null;
+  const blok   = Math.ceil(uren);
+  const kosten = (idx, partial) => effectieveKosten(uren, vermogenKw, prijzenLijst, idx, partial)
+    ?? berekenKostenVanaf(uren, vermogenKw, prijzenLijst, idx, partial);
+  const kostenNu    = kosten(0, true);
+  // Als "nu" ook het beste blok is (bv. past niets meer in de bekende uren), dezelfde
+  // deelberekening gebruiken zodat beide kanten vergelijkbaar zijn; anders alleen een vol blok.
+  const kostenBeste = kosten(besteIdx, besteIdx === 0);
+  if (kostenNu == null || kostenBeste == null) return null;
+  const morgenBekend = opts.morgenBekend ?? (typeof cacheMorgen !== 'undefined' && !!cacheMorgen);
+  const besparing    = Math.max(0, kostenNu - kostenBeste);
+  return {
+    kostenNu, kostenBeste, besparing,
+    nuIsBeste:      besteIdx === 0 || besparing < 0.005,
+    gedeeltelijk:   !morgenBekend && blok > prijzenLijst.length,
+    besteStartTijd: prijzenLijst[besteIdx].tijd,
+    dekkingBeste:   gemSolarDekking(besteIdx, blok, vermogenKw, prijzenLijst),
+    dekkingNu:      gemSolarDekking(0, blok, vermogenKw, prijzenLijst),
+  };
+}
+
+// Zon-dekking (fractie 0–1) als tekst: 'volledig op eigen zonnestroom' / '60% op zon' / ''.
+function zonDekkingTekst(fractie) {
+  const pct = Math.round((fractie || 0) * 100);
+  if (pct >= 100) return 'volledig op eigen zonnestroom';
+  if (pct > 0)    return pct + '% op zon';
+  return '';
+}
+
+// HTML van het besparing-blok (#besparingBlok). Altijd een element met die id
+// teruggeven, ook verborgen, zodat updateKostenWeergave het kan vervangen.
+function besparingBlokHtml(r) {
+  if (!r) return '<div id="besparingBlok" style="display:none"></div>';
+  const zonBeste = zonDekkingTekst(r.dekkingBeste);
+  const noot = r.gedeeltelijk
+    ? '<div class="besparing-noot">* morgen-prijzen nog niet beschikbaar — "nu" is deels geschat</div>'
+    : '';
+  if (r.nuIsBeste) {
+    return '<div id="besparingBlok" class="besparing-blok">' +
+      '<div class="besparing-kop">✓ Nu is al het beste moment</div>' +
+      (zonBeste ? '<div class="besparing-sub">' + zonBeste + '</div>' : '') +
+      noot + '</div>';
+  }
+  return '<div id="besparingBlok" class="besparing-blok">' +
+    '<div class="besparing-regel">Nu aanzetten <b>' + fmtEuro(r.kostenNu) + '</b> · beste tijd <b>' + fmtEuro(r.kostenBeste) + '</b></div>' +
+    '<div class="besparing-kop">Bespaar ' + fmtEuro(r.besparing) + ' door te wachten tot ' + dagHStr(r.besteStartTijd) + '</div>' +
+    (zonBeste ? '<div class="besparing-sub">beste tijd: ' + zonBeste + '</div>' : '') +
+    noot + '</div>';
+}
+
 // ── Apparaat detail slide-in panel ───────────────────────────────────────────
 let apDetailState = null;
 let _planningActief = false;
@@ -535,9 +600,9 @@ function updateTijdlijnHighlights() {
   const solStr   = dekPct > 0 ? ' · ☀️ ' + dekPct + '%' : '';
   const vergStr  = diff === null ? '' :
     Math.abs(diff) < 0.005 ? ' · ✓ beste tijd' :
-    diff < 0 ? ' · ✓ € ' + Math.abs(diff).toFixed(2) + ' goedkoper' :
-    ' · beste tijd: € ' + diff.toFixed(2) + ' goedkoper';
-  tip.textContent = dagHStrPlain(selStart) + '–' + hStr(eindDat) + ' · € ' + (eff ?? 0).toFixed(2) + solStr + vergStr;
+    diff < 0 ? ' · ✓ ' + fmtEuro(Math.abs(diff)) + ' goedkoper' :
+    ' · beste tijd: ' + fmtEuro(diff) + ' goedkoper';
+  tip.textContent = dagHStrPlain(selStart) + '–' + hStr(eindDat) + ' · ' + fmtEuro(eff ?? 0) + solStr + vergStr;
   tip.style.color = (diff === null || diff < 0.005) ? 'var(--color-text-success)' : 'var(--color-text-secondary)';
 }
 
@@ -1061,7 +1126,7 @@ function renderHcPlanBlok(ap) {
     const planUren = apDetailState.planUren || [];
     const eind     = new Date(hand.date.getTime() + Math.ceil(uren) * 3600000);
     const eff      = effectieveKosten(uren, kw, planUren, hand.idx) ?? berekenKostenVanaf(uren, kw, planUren, hand.idx);
-    regel = 'Gekozen start: <b>' + dagHMStrPlain(hand.date) + '–' + hMStr(eind) + '</b> · verwachte kosten € ' + (eff ?? 0).toFixed(2) +
+    regel = 'Gekozen start: <b>' + dagHMStrPlain(hand.date) + '–' + hMStr(eind) + '</b> · verwachte kosten ' + fmtEuro(eff ?? 0) +
       ' <button onclick="hcHerstelGoedkoopste()" style="margin-left:4px;font-size:11px;border:none;background:none;color:#27500a;cursor:pointer;padding:0;text-decoration:underline">↺ goedkoopste</button>';
     apDetailState._hcPlan = { startTijd: hand.date };
     kanPlannen = true;
@@ -1073,7 +1138,7 @@ function renderHcPlanBlok(ap) {
     if (!res) regel = '<span style="color:var(--muted)">Prijzen nog niet beschikbaar</span>';
     else if (res.geenMoment) regel = '<span style="color:#a32d2d">⚠️ Geen geschikt moment vóór ' + escapeHtml(klaarOm || '') + '</span>';
     else {
-      regel = 'Goedkoopste start: <b>' + dagHStr(res.startTijd) + '–' + hStr(res.eindDatum) + '</b> · verwachte kosten € ' + res.kosten.toFixed(2);
+      regel = 'Goedkoopste start: <b>' + dagHStr(res.startTijd) + '–' + hStr(res.eindDatum) + '</b> · verwachte kosten ' + fmtEuro(res.kosten);
       kanPlannen = true;
     }
     apDetailState._hcPlan = kanPlannen ? { startTijd: res.startTijd } : null;
@@ -1289,7 +1354,7 @@ function renderApDetail() {
     : 0;
   const besteSimpleStr = berekendeUren < 0.25
     ? 'Batterij al vol 🎉'
-    : besteLabel + ': ' + besteStartStr + '–' + besteEindStr + ' · € ' + besteEff.toFixed(2);
+    : besteLabel + ': ' + besteStartStr + '–' + besteEindStr + ' · ' + fmtEuro(besteEff);
 
   // Geselecteerde tijd (met minuut-offset) — kosten op basis van berekendeUren
   const minuteOffset     = apDetailState._minuteOffset ?? 0;
@@ -1315,7 +1380,7 @@ function renderApDetail() {
   const canGoFwd         = (currentStartIdx * 60 + minuteOffset + 15) <= maxIdx * 60;
   const selInfoStr       = berekendeUren < 0.25
     ? 'Batterij al vol'
-    : dagHMStrPlain(selStartActual) + '–' + selEindStr + ' · € ' + selEff.toFixed(2) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
+    : dagHMStrPlain(selStartActual) + '–' + selEindStr + ' · ' + fmtEuro(selEff) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
 
   const isBeste = currentStartIdx === besteIdxBer && minuteOffset === 0;
 
@@ -1324,8 +1389,8 @@ function renderApDetail() {
   const vergelijkHtml = Math.abs(_vDiff) < 0.005
     ? '<div id="selVergelijkDiv" style="font-size:11px;color:var(--color-text-success);margin-top:6px">✓ Dit is de beste tijd</div>'
     : _vDiff < 0
-      ? '<div id="selVergelijkDiv" style="font-size:11px;color:var(--color-text-success);margin-top:6px">✓ € ' + Math.abs(_vDiff).toFixed(2) + ' goedkoper dan beste tijd</div>'
-      : '<div id="selVergelijkDiv" style="font-size:11px;color:var(--color-text-secondary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;padding:4px 8px;margin-top:6px">beste tijd: € ' + _vDiff.toFixed(2) + ' goedkoper</div>';
+      ? '<div id="selVergelijkDiv" style="font-size:11px;color:var(--color-text-success);margin-top:6px">✓ ' + fmtEuro(Math.abs(_vDiff)) + ' goedkoper dan beste tijd</div>'
+      : '<div id="selVergelijkDiv" style="font-size:11px;color:var(--color-text-secondary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;padding:4px 8px;margin-top:6px">beste tijd: ' + fmtEuro(_vDiff) + ' goedkoper</div>';
 
   // Teruglevering waarschuwing
   const morgenStart = getTomorrowStart();
@@ -1391,6 +1456,13 @@ function renderApDetail() {
     '<div style="padding:14px 16px 4px;font-size:14px;font-weight:500;color:var(--text)">' +
       '<span id="besteTijdInfoDiv">' + besteSimpleStr + '</span>' +
     '</div>' +
+
+    // 2x. BESPARING — nu meteen aanzetten vs beste tijd (v2.81.0). Generiek voor alle
+    //    varianten (auto/Homey, Home Connect, advies-only), vóór de apparaat-specifieke
+    //    knoppen. Zelfde gate als de tijdlijn; updateKostenWeergave ververst het blok.
+    (berekendeUren >= 0.25
+      ? besparingBlokHtml(berekenBesparingNu(berekendeUren, vermogen, planUren, besteIdxBer))
+      : besparingBlokHtml(null)) +
 
     // 2a. TIJDLIJN SLIDER — visuele scrubber over alle uren met prijs-mini-bars.
     //    Prijsinformatie: altijd tonen, ook voor Home Connect.
@@ -1506,7 +1578,11 @@ function updateKostenWeergave(berekendeUren) {
   const besteTijdInfoEl = document.getElementById('besteTijdInfoDiv');
   if (besteTijdInfoEl) besteTijdInfoEl.innerHTML = berekendeUren < 0.25
     ? 'Batterij al vol 🎉'
-    : besteLabel + ': ' + dagHStr(besteStartBer) + '–' + hStr(besteEindBerDat) + ' · € ' + besteEff.toFixed(2);
+    : besteLabel + ': ' + dagHStr(besteStartBer) + '–' + hStr(besteEindBerDat) + ' · ' + fmtEuro(besteEff);
+
+  // Besparing-blok (v2.81.0) volgt de rest-laadtijd uit de batterij-slider.
+  const bespEl = document.getElementById('besparingBlok');
+  if (bespEl) bespEl.outerHTML = besparingBlokHtml(berekendeUren >= 0.25 ? berekenBesparingNu(berekendeUren, vermogen, planUren, besteIdxBer) : null);
 
   const selStartActual = planUren[currentStartIdx]?.tijd
     ? new Date(planUren[currentStartIdx].tijd.getTime() + minuteOffset * 60000)
@@ -1524,7 +1600,7 @@ function updateKostenWeergave(berekendeUren) {
 
   const selInfoEl = document.getElementById('selInfoDiv');
   if (selInfoEl) selInfoEl.textContent = berekendeUren < 0.25 ? 'Batterij al vol'
-    : dagHMStrPlain(selStartActual) + '–' + hMStr(selEindActual) + ' · € ' + selEff.toFixed(2) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
+    : dagHMStrPlain(selStartActual) + '–' + hMStr(selEindActual) + ' · ' + fmtEuro(selEff) + (dekSelPct > 0 ? ' · ☀️ ' + dekSelPct + '%' : '');
 
   const _vDiff = selEff - besteEff;
   const vergelijkEl = document.getElementById('selVergelijkDiv');
@@ -1534,10 +1610,10 @@ function updateKostenWeergave(berekendeUren) {
       vergelijkEl.textContent = '✓ Dit is de beste tijd';
     } else if (_vDiff < 0) {
       vergelijkEl.style.cssText = 'font-size:11px;color:var(--color-text-success);margin-top:6px';
-      vergelijkEl.textContent = '✓ € ' + Math.abs(_vDiff).toFixed(2) + ' goedkoper dan beste tijd';
+      vergelijkEl.textContent = '✓ ' + fmtEuro(Math.abs(_vDiff)) + ' goedkoper dan beste tijd';
     } else {
       vergelijkEl.style.cssText = 'font-size:11px;color:var(--color-text-secondary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;padding:4px 8px;margin-top:6px';
-      vergelijkEl.textContent = 'beste tijd: € ' + _vDiff.toFixed(2) + ' goedkoper';
+      vergelijkEl.textContent = 'beste tijd: ' + fmtEuro(_vDiff) + ' goedkoper';
     }
   }
 
@@ -1592,11 +1668,11 @@ function herbereken() {
   const diffVP = (besteEffVP != null && effVP != null) ? effVP - besteEffVP : null;
   const vpVergelijkHtml = diffVP === null ? '' :
     Math.abs(diffVP) < 0.005 ? '<div style="font-size:11px;color:var(--color-text-success);margin-top:4px">✓ Zelfde als beste tijd</div>' :
-    diffVP < 0 ? '<div style="font-size:11px;color:var(--color-text-success);margin-top:4px">↕️ € ' + Math.abs(diffVP).toFixed(2) + ' goedkoper dan beste tijd</div>' :
-    '<div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px">beste tijd: € ' + diffVP.toFixed(2) + ' goedkoper</div>';
+    diffVP < 0 ? '<div style="font-size:11px;color:var(--color-text-success);margin-top:4px">↕️ ' + fmtEuro(Math.abs(diffVP)) + ' goedkoper dan beste tijd</div>' :
+    '<div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px">beste tijd: ' + fmtEuro(diffVP) + ' goedkoper</div>';
 
   // Generiek format: "Start om HH:MM — klaar om HH:MM — € X.XX"
-  const adviesRegel = 'Start om ' + hStr(res.startTijd) + ' — klaar om ' + hStr(eindDat) + ' — € ' + effVP.toFixed(2) + (dekVPPct > 0 ? ' · ☀️ ' + dekVPPct + '%' : '');
+  const adviesRegel = 'Start om ' + hStr(res.startTijd) + ' — klaar om ' + hStr(eindDat) + ' — ' + fmtEuro(effVP) + (dekVPPct > 0 ? ' · ☀️ ' + dekVPPct + '%' : '');
 
   resultEl.innerHTML =
     '<div style="padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);margin-top:8px">' +
@@ -1833,8 +1909,8 @@ function renderLaadadvies() {
       } else {
         const diff = selEff - besteEff;
         if (diff > 0.005) {
-          vergelijkBadge = `<div class="advies-badge neutraal">beste tijd: € ${diff.toFixed(2)} goedkoper</div>`;
-          besparingStr   = `bespaar € ${diff.toFixed(2)}`;
+          vergelijkBadge = `<div class="advies-badge neutraal">beste tijd: ${fmtEuro(diff)} goedkoper</div>`;
+          besparingStr   = `bespaar ${fmtEuro(diff)}`;
         } else {
           vergelijkBadge = `<div class="advies-badge groen">beste tijd ✓</div>`;
         }
@@ -1859,7 +1935,7 @@ function renderLaadadvies() {
         : `<div class="advies-status later">${laterVerb} om ${besteStartStr}</div>`;
 
     function blokRijen(sectieLabel, tijdStr, netstroom, heeftZonHier, dekking, isGedeeltelijk = false, bespaarStr = '') {
-      const priceStr = netstroom == null ? '—' : `€ ${netstroom.toFixed(2)}`;
+      const priceStr = netstroom == null ? '—' : `${fmtEuro(netstroom)}`;
       const bronStr  = heeftZonHier ? `☀️ ${dekking}%` : 'geen zon';
       const subParts = [tijdStr, bronStr].filter(Boolean);
       const noteStr = isGedeeltelijk

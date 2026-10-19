@@ -102,6 +102,23 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
 - **Randgeval**: deadline voorbij de bekende prijzen terwijl morgen-prijzen nog niet binnen
   zijn (vóór ~14:00) → "Wacht op morgen-prijzen" (helper geeft `wachtOpMorgen: true`).
 
+## Apparaat-detailscherm (renderApDetail in `js/apparaten.js`)
+Eén render-functie voor alle apparaten; de varianten (auto/Homey, Home Connect bestuurbaar of
+alleen-monitoring, advies-only) komen uit drie vlaggen: `ap.batterij`, `ap.automatisering &&
+heeftIntegratie('homey')`, `ap.homeConnect && heeftIntegratie('homeConnect')` (+ `homeConnectControl`).
+- **Besparing-blok (sinds v2.81.0)**: `#besparingBlok` direct onder de kopregel "Beste tijd", vóór
+  de tijdlijn en alle bedien-knoppen, dus generiek voor elke variant. `berekenBesparingNu(uren, kW,
+  planUren, besteIdx)` (naast `effectieveKosten`) geeft `{ kostenNu, kostenBeste, besparing,
+  nuIsBeste, gedeeltelijk, dekkingBeste }`; `besparingBlokHtml(r)` bouwt de HTML;
+  `updateKostenWeergave` ververst het blok bij slider/batterij-wijziging. Vergelijkt met de
+  **onbegrensde** beste tijd (zoals de kopregel); de deadline-blokken (vertrekplanner, Home Connect
+  plan-blok) houden hun eigen vergelijking. Test: `test/besparing.test.js` (laadt `js/apparaten.js`
+  in een vm-context met zon-stubs).
+- **Weergave**: `fmtEuro(n)` (in `js/prijsformule.js`, compat-wrapper in `js/config.js`) → komma
+  (`€ 1,50`); gebruikt in het detailscherm en de "Slim inplannen"-kaarten. `zonDekkingTekst()`
+  → "volledig op eigen zonnestroom" / "60% op zon" (alleen in het besparing-blok; de tooltip en
+  vertrekplanner tonen nog "☀️ 60%"). De berekening zelf is ongewijzigd.
+
 ## HomeWizard cloud-fallback (sinds v2.79.0)
 Live P1-verbruik komt primair via de Homey-push (`POST /api/homewizard` met `HOMEWIZARD_PUSH_TOKEN_<id>`).
 Voor users zonder Homey (003) of als de push hapert (001) is er een fallback via de

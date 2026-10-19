@@ -133,6 +133,12 @@ body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif; ba
 .advies-status.snel { color:#633806; }
 .advies-status.later { color:var(--muted); }
 
+/* Besparing-blok in het apparaat-detailscherm (v2.81.0): nu vs beste tijd */
+.besparing-blok  { margin:6px 16px 4px; padding:10px 12px; border-radius:10px; background:var(--color-background-success); }
+.besparing-regel { font-size:12px; color:var(--text); line-height:1.4; }
+.besparing-kop   { font-size:16px; font-weight:700; color:var(--color-text-success); line-height:1.3; margin-top:2px; }
+.besparing-sub   { font-size:11px; color:var(--color-text-success); margin-top:3px; }
+.besparing-noot  { font-size:10px; color:var(--muted); margin-top:4px; }
 .ap-detail-panel { position:fixed; top:0; right:0; bottom:0; left:0; background:var(--bg); transform:translateX(100%); transition:transform 0.3s cubic-bezier(0.4,0,0.2,1); z-index:100; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 .ap-detail-panel.open { transform:translateX(0); }
 .ap-detail-header { background:var(--green); padding:env(safe-area-inset-top,44px) 20px 0; }
