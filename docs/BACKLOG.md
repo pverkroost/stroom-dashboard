@@ -324,6 +324,10 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.80.3** — Duidelijke tab-labels
+- Tabs bovenaan: "⚡ Plannen" / "☀️ Zon" / "⚙️ Instellingen", alle drie icoon + tekst, gelijke
+  breedte en opmaak (`.day-tab` flex, nowrap). Ids en `switchTab`-logica ongewijzigd.
+
 **v2.80.2** — Snelkaart-apparaten niet dubbel in "Slim inplannen"
 - Hoofdtab: apparaten met `snelkaart: true` (auto, vaatwasser) staan alleen nog bovenaan bij
   "Nu bij het apparaat", niet nóg een keer in "Slim inplannen"/"Meer apparaten". Generiek per

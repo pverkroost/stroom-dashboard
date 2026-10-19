@@ -28,9 +28,10 @@
 </div>
 
 <div class="day-nav">
-  <div class="day-tab active" id="tab-0" onclick="switchTab(0)">▶</div>
-  <div class="day-tab" id="tab-2" onclick="switchTab('zon')">☀️ Zon</div>
-  <div class="day-tab" id="tab-3" onclick="switchTab('inst')" style="flex:0;padding-left:14px;padding-right:14px">⚙️</div>
+  <!-- Drie gelijke tabs: icoon + kort label (v2.80.3). Ids/onclicks ongewijzigd (switchTab in js/app.js). -->
+  <div class="day-tab active" id="tab-0" onclick="switchTab(0)"><span class="day-tab-icon">⚡</span>Plannen</div>
+  <div class="day-tab" id="tab-2" onclick="switchTab('zon')"><span class="day-tab-icon">☀️</span>Zon</div>
+  <div class="day-tab" id="tab-3" onclick="switchTab('inst')"><span class="day-tab-icon">⚙️</span>Instellingen</div>
 </div>
 
 <div id="mainContent">
@@ -236,7 +237,7 @@
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.80.2</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.80.3</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -274,11 +275,11 @@
   // APP_VERSION = single source voor de versie-stamp en cache-bust querystrings.
   // js/bootstrap.js gebruikt dit om de user-config + app-modules met `?v=` te laden
   // (vroeger statische script-tags). Het moet vóór bootstrap.js gezet worden.
-  window.APP_VERSION = '2.80.2';
+  window.APP_VERSION = '2.80.3';
 </script>
 <!-- bootstrap.js bepaalt de gebruiker (echte sessie via /api/auth?action=me, of legacy ?u=)
      en laadt daarna pas users/<id>.js + js/config|solar|prijzen|apparaten|app.js.
      Zonder geldige sessie toont het de #loginOverlay hierboven. -->
-<script src="js/bootstrap.js?v=2.80.2"></script>
+<script src="js/bootstrap.js?v=2.80.3"></script>
 </body>
 </html>
