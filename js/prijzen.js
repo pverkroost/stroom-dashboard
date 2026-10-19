@@ -37,9 +37,13 @@ function renderGeenData() {
 //  opts.tooltipEl  element voor de zwevende tooltip (optioneel)
 //  opts.onSelect   (tijd|null) → aangeroepen bij hover/touch (hoofdtab koppelt zo
 //                  de "Keuze"-rij van de Slim inplannen-kaarten); optioneel
-//  opts.markering  { startIdx, aantal, besteIdx } → gekozen venster (omlijnd) en
-//                  beste venster (licht gevuld) achter de bars; later aanpasbaar via
-//                  zetGrafiekMarkering(chart, markering) zonder herbouw.
+//  opts.markering  { startIdx, aantal, besteIdx, maxIdx? } → gekozen venster (omlijnd) en
+//                  beste venster (licht gevuld) achter de bars; uren voorbij maxIdx (blok
+//                  past niet meer vóór de horizon) gedimd; later aanpasbaar via
+//                  updateGrafiekMarkering(chart, markering) zonder herbouw.
+//  opts.onKlik     (idx) → tik/klik op een uur (v2.83.0). Alleen dan wordt options.onClick
+//                  gezet en de cursor een pointer; zonder onKlik is de grafiek niet klikbaar
+//                  (hoofdtab: hover via onSelect, klikken doet niets).
 // Geeft de Chart-instantie terug; de caller beheert destroy().
 function bouwPrijsGrafiek(canvas, prijzen, opts = {}) {
   const totalen = prijzen.map(p => p.totaal);
@@ -136,6 +140,21 @@ function bouwPrijsGrafiek(canvas, prijzen, opts = {}) {
       }
       ctx.restore();
     },
+    // Niet-kiesbare uren (blok past niet meer vóór de horizon) dimmen — ná de bars,
+    // vóór de dag-overgang/"nu"-lijn. Alleen als de markering een maxIdx meegeeft.
+    afterDatasetsDraw(chartInstance) {
+      const m = chartInstance.$markering;
+      if (!m || !Number.isInteger(m.maxIdx)) return;
+      const meta = chartInstance.getDatasetMeta(0);
+      const eerste = meta.data[m.maxIdx + 1];
+      if (!eerste) return;
+      const ctx = chartInstance.ctx, area = chartInstance.chartArea;
+      const x = eerste.x - eerste.width / 2;
+      ctx.save();
+      ctx.fillStyle = isDark ? 'rgba(20,20,20,0.62)' : 'rgba(245,245,243,0.68)';
+      ctx.fillRect(x, area.top, area.right - x, area.bottom - area.top);
+      ctx.restore();
+    },
     afterDraw(chartInstance) {
       const ctx  = chartInstance.ctx;
       const meta = chartInstance.getDatasetMeta(0);
@@ -191,6 +210,15 @@ function bouwPrijsGrafiek(canvas, prijzen, opts = {}) {
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
+      // Klikbaar alleen met opts.onKlik (detailscherm). 'index' + intersect:false → ook een
+      // tik tússen twee balken levert het dichtstbijzijnde uur op.
+      ...(opts.onKlik ? {
+        onClick(event, _elements, c) {
+          const els = c.getElementsAtEventForMode(event, 'index', { intersect: false }, true);
+          const idx = els && els.length ? els[0].index : null;
+          if (idx != null) opts.onKlik(idx);
+        },
+      } : {}),
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -244,12 +272,13 @@ function bouwPrijsGrafiek(canvas, prijzen, opts = {}) {
     }
   });
   grafiek.$markering = opts.markering || null;
+  if (opts.onKlik && canvas && canvas.style) canvas.style.cursor = 'pointer';
   return grafiek;
 }
 
-// Markering van gekozen/beste venster aanpassen zonder de grafiek te herbouwen
-// (alleen hertekenen — goedkoop genoeg voor elke slider-stap).
-function zetGrafiekMarkering(grafiek, markering) {
+// Markering van gekozen/beste venster (+ gedimde zone) aanpassen zonder de grafiek te
+// herbouwen — alleen hertekenen, goedkoop genoeg voor elke tik.
+function updateGrafiekMarkering(grafiek, markering) {
   if (!grafiek) return;
   grafiek.$markering = markering || null;
   if (typeof grafiek.draw === 'function') grafiek.draw();

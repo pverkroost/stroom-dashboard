@@ -113,13 +113,20 @@ heeftIntegratie('homey')`, `ap.homeConnect && heeftIntegratie('homeConnect')` (+
   beste moment" / na kiezen "Beste tijd is € X goedkoper" of "✓ Dit is het beste moment") · 5 actie-zone
   per variant (Homey: Plan dit in + Opgeladen zijn om/Handmatig + Nu starten/stoppen; Home Connect:
   Deze tijd overnemen + `#hcDetailSectie`; advies-only: tip-strook `#adviesTip` "✋ Zet 'm zelf aan om
-  HH:MM") · **6 slider + prijsgrafiek onderaan** ("Zelf een andere tijd kiezen": `bouwTijdlijnHtml` om
-  te kiezen, daaronder sinds v2.82.0 dezelfde prijsgrafiek als op de hoofdtab ter informatie —
-  `bouwPrijsGrafiek()` uit `js/prijzen.js` in `#apChart`, gekozen venster omlijnd en beste venster
-  licht gevuld; `renderApGrafiek()` bouwt hem één keer per render, `zetGrafiekMarkering()` hertekent
-  alleen de markering bij schuiven, `sluitApDetail` ruimt de instantie op). De vroegere tekstregel
-  "gekozen: …" onder de slider is weg (dubbel met tegels/balk). Tegels + balk + tip zijn één
-  implementatie voor alle varianten; alleen de actie-zone verschilt.
+  HH:MM") · **6 klikbare prijsgrafiek onderaan** ("Tik op een uur om een andere starttijd te kiezen",
+  sinds v2.83.0 het enige visuele tijd-element; de balkjes-slider is weg): dezelfde prijsgrafiek
+  als op de hoofdtab via `bouwPrijsGrafiek()` uit `js/prijzen.js` in `#apChart`, met
+  `onKlik: kiesStartIdx` — een tik op een uur kiest dat startuur. Gekozen venster omlijnd, beste
+  venster licht gevuld, uren voorbij `maxIdx` (blok past niet meer vóór de horizon) gedimd; een tik
+  daar clampt naar de laatst mogelijke start. `renderApGrafiek()` bouwt hem één keer per render,
+  `updateApGrafiekMarkering()` → `updateGrafiekMarkering()` hertekent alleen de markering,
+  `sluitApDetail` ruimt de instantie op. Het handmatig-blok (tijdveld + 15-min-steppers) blijft
+  de precisie-/toetsenbordroute. Tegels + balk + tip zijn één implementatie voor alle varianten;
+  alleen de actie-zone verschilt.
+- **Kiezen**: `kiesStartIdx(idx)` is de ene gedeelde kies-functie (clamp op `maxIdx`, `_minuteOffset`
+  0, `_handmatigGekozen` true → rechtertegel "Gekozen tijd", `updateKostenWeergave`, bij actieve
+  planning `planInladen(true)`). Grafiekklik, vertrekplanner-"Overnemen" (`overneemSuggestie`) en het
+  handmatig-blok (`adjustApDetail`/`selTijdWijzig`) schrijven allemaal `apDetailState.currentStartIdx`.
 - **Rekenen/verversen**: `berekenBesparingNu(uren, kW, planUren, besteIdx)` (naast `effectieveKosten`)
   → `{ kostenNu, kostenBeste, besparing, nuIsBeste, gedeeltelijk, dekkingBeste/Nu, beste/nu-tijden }`.
   `_prijsOverzicht(berekendeUren)` leest `apDetailState` (gekozen = `_handmatigGekozen`, rest-laadtijd
@@ -132,10 +139,12 @@ heeftIntegratie('homey')`, `ap.homeConnect && heeftIntegratie('homeConnect')` (+
   (`€ 1,50`); gebruikt in het detailscherm en de "Slim inplannen"-kaarten. `zonDekkingTekst()`
   → "volledig op eigen zonnestroom" / "60% op zon" in tegels en balk (handmatig-blok en
   vertrekplanner tonen nog "☀️ 60%"). De berekening zelf is ongewijzigd.
-- **Prijsgrafiek gedeeld**: `bouwPrijsGrafiek(canvas, prijzen, { tooltipEl?, onSelect?, markering? })`
+- **Prijsgrafiek gedeeld**: `bouwPrijsGrafiek(canvas, prijzen, { tooltipEl?, onSelect?, markering?, onKlik? })`
   in `js/prijzen.js` is de enige Chart.js-opbouw van de prijsgrafiek (bars, terugleverlijn, zon,
   dag-overgang, "nu"-lijn). Hoofdtab: `renderGrafiek(prijzen)` koppelt `onSelect` aan
-  `geselecteerdStartTijd` (de "Keuze"-rij van de kaarten). Detailscherm: zonder `onSelect`, mét markering.
+  `geselecteerdStartTijd` (de "Keuze"-rij van de kaarten) en is **niet** klikbaar (geen `onKlik`).
+  Detailscherm: zonder `onSelect`, mét markering en `onKlik`. `options.onClick` en de pointer-cursor
+  worden alleen gezet als `onKlik` meegegeven is. Test: `test/prijsgrafiek.test.js`.
 
 ## HomeWizard cloud-fallback (sinds v2.79.0)
 Live P1-verbruik komt primair via de Homey-push (`POST /api/homewizard` met `HOMEWIZARD_PUSH_TOKEN_<id>`).
