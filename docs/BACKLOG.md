@@ -324,6 +324,13 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.83.0** — Starttijd kiezen door tikken op de prijsgrafiek, balkjes-slider weg
+- Detailscherm: de losse balkjes-tijdlijn-slider is vervangen door tikken op de grote prijsgrafiek
+  (`bouwPrijsGrafiek` krijgt `onKlik`; alleen dan `onClick` + pointer — hoofdtab blijft niet-klikbaar).
+  Eén gedeelde kies-functie `kiesStartIdx(idx)` (voorheen `tijdlijnSelect`). Uren voorbij `maxIdx`
+  gedimd; tik daar clampt naar de laatst mogelijke start. Handmatig-blok blijft als precisie-route.
+  Test: `test/prijsgrafiek.test.js`.
+
 **v2.82.0** — Prijsgrafiek in het detailscherm + dubbele gekozen-regel weg
 - Onder "Zelf een andere tijd kiezen" staat nu de prijsgrafiek van de hoofdtab (verbruiksprijs,
   zonne-opbrengst, terugleverprijs) met het gekozen venster omlijnd en het beste venster licht

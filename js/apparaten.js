@@ -595,37 +595,13 @@ function getSelStartActual() {
   return new Date(p.tijd.getTime() + (apDetailState._minuteOffset ?? 0) * 60000);
 }
 
-// Tijdlijn-slider met prijs-mini-bars over alle planUren.
-// Bars tonen relatieve prijs per uur (kleur via kleur()); range-slider laat
-// de gebruiker een geldig startuur kiezen (0..maxIdx).
-function bouwTijdlijnHtml(planUren, currentStartIdx, besteIdx, berekendeBlok, maxIdx) {
-  const totalen = planUren.map(p => p.totaal);
-  const pMin = Math.min(...totalen);
-  const pMax = Math.max(...totalen);
-  const pGem = totalen.reduce((a, b) => a + b, 0) / (totalen.length || 1);
-  const span = (pMax - pMin) || 1;
-
-  const bars = planUren.map((p, i) => {
-    const k = kleur(p.totaal, pMin, pMax, pGem);
-    const h = Math.max(6, Math.round(((p.totaal - pMin) / span) * 26) + 6);
-    const inSel  = i >= currentStartIdx && i < currentStartIdx + berekendeBlok;
-    const inBest = i >= besteIdx        && i < besteIdx        + berekendeBlok;
-    const op     = inSel ? 1 : (inBest ? 0.85 : 0.35);
-    const sel    = inSel ? 'box-shadow:inset 0 0 0 1.5px rgba(39,80,10,0.95);' : '';
-    return '<div data-i="' + i + '" data-best="' + (inBest ? 1 : 0) + '" data-sel="' + (inSel ? 1 : 0) + '"' +
-           ' style="flex:1;min-width:0;height:' + h + 'px;background:' + k.bar + ';opacity:' + op +
-           ';border-radius:2px 2px 0 0;transition:opacity 0.12s,box-shadow 0.12s;' + sel + '"></div>';
-  }).join('');
-
-  return '<div style="padding:2px 16px 6px">' +
-    '<div id="tijdlijnBars" style="display:flex;align-items:flex-end;gap:1px;height:34px">' + bars + '</div>' +
-    '<input type="range" id="tijdlijnSlider" min="0" max="' + Math.max(0, maxIdx) + '" step="1" value="' + currentStartIdx + '"' +
-      ' oninput="tijdlijnSelect(+this.value)"' +
-      ' style="display:block;width:100%;margin-top:0;accent-color:var(--green);height:20px">' +
-  '</div>';
-}
-
-function tijdlijnSelect(idx) {
+// Eén gedeelde kies-functie voor het startuur (v2.83.0): tik op de prijsgrafiek
+// (renderApGrafiek → onKlik) en eventuele andere bronnen. Clampt op maxIdx (laatste
+// start waarbij het hele blok nog vóór de horizon past), zet de minuut-offset op 0,
+// markeert "handmatig gekozen" (rechtertegel → "Gekozen tijd") en werkt tegels, balk,
+// tip, plan-knop en grafiek-markering bij via updateKostenWeergave. Bij een actieve
+// planning wordt direct herpland.
+function kiesStartIdx(idx) {
   if (!apDetailState) return;
   const { maxIdx } = apDetailState;
   apDetailState.currentStartIdx   = Math.max(0, Math.min(maxIdx, idx | 0));
@@ -635,31 +611,15 @@ function tijdlijnSelect(idx) {
   if (_planningActief) planInladen(true);
 }
 
-function updateTijdlijnHighlights() {
+// Grafiek-markering (gekozen + beste venster, gedimde zone voorbij maxIdx) bijwerken —
+// alleen hertekenen, geen herbouw. Draait vanuit updateKostenWeergave bij elke keuze.
+function updateApGrafiekMarkering() {
   if (!apDetailState) return;
-  const { ap, planUren, currentStartIdx } = apDetailState;
+  const { currentStartIdx, maxIdx } = apDetailState;
   const berekendeUren = benodigdeLaadUren();
   const berekendeBlok = berekendeUren > 0 ? Math.ceil(berekendeUren) : 0;
   const besteIdx      = apDetailState._besteIdxBer ?? apDetailState.besteStartIdx;
-
-  const wrap = document.getElementById('tijdlijnBars');
-  if (wrap) {
-    Array.from(wrap.children).forEach((bar, i) => {
-      const inSel  = i >= currentStartIdx && i < currentStartIdx + berekendeBlok;
-      const inBest = i >= besteIdx        && i < besteIdx        + berekendeBlok;
-      bar.style.opacity   = inSel ? 1 : (inBest ? 0.85 : 0.35);
-      bar.style.boxShadow = inSel ? 'inset 0 0 0 1.5px rgba(39,80,10,0.95)' : 'none';
-      bar.dataset.best    = inBest ? '1' : '0';
-      bar.dataset.sel     = inSel ? '1' : '0';
-    });
-  }
-
-  const sliderEl = document.getElementById('tijdlijnSlider');
-  if (sliderEl && +sliderEl.value !== currentStartIdx) sliderEl.value = currentStartIdx;
-
-  // Prijsgrafiek (v2.82.0): alleen de markering hertekenen, geen herbouw. De
-  // "gekozen …"-tekstregel is weg — tegels en balk bovenaan tonen dat al.
-  zetGrafiekMarkering(_apChart, berekendeBlok > 0 ? { startIdx: currentStartIdx, aantal: berekendeBlok, besteIdx } : null);
+  updateGrafiekMarkering(_apChart, berekendeBlok > 0 ? { startIdx: currentStartIdx, aantal: berekendeBlok, besteIdx, maxIdx } : null);
 }
 
 function toggleVertrekplanner() {
@@ -1580,18 +1540,16 @@ function renderApDetail() {
     // 5a. HOME CONNECT — koppeling/status/start-stop (apart van Homey)
     (heeftHomeConnect ? '<div id="hcDetailSectie"></div>' : '') +
 
-    // 6. GRAFIEK/SLIDER onderaan (v2.81.0): zelf een andere tijd kiezen. Schuiven werkt
-    //    de rechtertegel, de balk en de "gekozen"-regel live bij (updateKostenWeergave /
-    //    updateTijdlijnHighlights), zonder volledige herrender.
+    // 6. PRIJSGRAFIEK onderaan (v2.82.0, klikbaar sinds v2.83.0): dezelfde grafiek als op
+    //    de hoofdtab (verbruiksprijs, zonne-opbrengst, terugleverprijs). Een tik op een uur
+    //    kiest dat startuur (renderApGrafiek → onKlik → kiesStartIdx); tegels, balk, tip en
+    //    plan-knop volgen via updateKostenWeergave, de markering via updateApGrafiekMarkering.
+    //    Gekozen venster omlijnd, beste venster licht gevuld, uren voorbij maxIdx gedimd.
+    //    Het handmatig-blok (4b) blijft de precisie-/toetsenbordroute.
     (berekendeUren >= 0.25
       ? '<div class="section" style="padding-top:6px;padding-bottom:0">' +
-          '<div class="section-title" style="margin-bottom:2px">Zelf een andere tijd kiezen</div>' +
+          '<div class="section-title" style="margin-bottom:2px">Tik op een uur om een andere starttijd te kiezen</div>' +
         '</div>' +
-        bouwTijdlijnHtml(planUren, currentStartIdx, besteIdxBer, berekendeBlok, maxIdx) +
-        // 6a. PRIJSGRAFIEK (v2.82.0): dezelfde grafiek als op de hoofdtab (verbruiksprijs,
-        //     zonne-opbrengst, terugleverprijs) ter informatie — waarom is een uur goedkoop?
-        //     Gekozen venster omlijnd, beste venster licht gevuld. Eén keer gebouwd in
-        //     renderApGrafiek(); schuiven hertekent alleen de markering.
         '<div style="padding:8px 16px 0;position:relative">' +
           '<div class="chart-tooltip" id="apChartTooltip"></div>' +
           '<div class="chart-wrap" style="height:150px"><canvas id="apChart" role="img" aria-label="Stroomprijs per uur"></canvas></div>' +
@@ -1613,14 +1571,15 @@ function renderApGrafiek() {
   if (_apChart) { _apChart.destroy(); _apChart = null; }
   const canvas = document.getElementById('apChart');
   if (!canvas || !apDetailState || typeof bouwPrijsGrafiek !== 'function' || typeof Chart === 'undefined') return;
-  const { planUren, currentStartIdx } = apDetailState;
+  const { planUren, currentStartIdx, maxIdx } = apDetailState;
   const berekendeUren = benodigdeLaadUren();
   const blok     = berekendeUren > 0 ? Math.ceil(berekendeUren) : 0;
   const besteIdx = apDetailState._besteIdxBer ?? apDetailState.besteStartIdx;
   try {
     _apChart = bouwPrijsGrafiek(canvas, planUren, {
       tooltipEl: document.getElementById('apChartTooltip'),
-      markering: blok > 0 ? { startIdx: currentStartIdx, aantal: blok, besteIdx } : null,
+      markering: blok > 0 ? { startIdx: currentStartIdx, aantal: blok, besteIdx, maxIdx } : null,
+      onKlik: kiesStartIdx, // tik op een uur = startuur kiezen (clampt op maxIdx)
     });
   } catch (e) {
     console.warn('[detail] prijsgrafiek niet gebouwd:', e.message);
@@ -1704,7 +1663,7 @@ function updateKostenWeergave(berekendeUren) {
     btn.textContent = '📅 Plan dit in' + (t ? ' op ' + dagHMStrPlain(t) : '');
   }
 
-  updateTijdlijnHighlights();
+  updateApGrafiekMarkering();
 }
 
 function herbereken() {
