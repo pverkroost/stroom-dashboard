@@ -530,6 +530,7 @@ function openApDetail(apIdx) {
 }
 
 function sluitApDetail() {
+  if (_apChart) { _apChart.destroy(); _apChart = null; }
   document.getElementById('apparaatDetail').classList.remove('open');
   document.body.style.overflow = '';
   apDetailState = null;
@@ -621,7 +622,6 @@ function bouwTijdlijnHtml(planUren, currentStartIdx, besteIdx, berekendeBlok, ma
     '<input type="range" id="tijdlijnSlider" min="0" max="' + Math.max(0, maxIdx) + '" step="1" value="' + currentStartIdx + '"' +
       ' oninput="tijdlijnSelect(+this.value)"' +
       ' style="display:block;width:100%;margin-top:0;accent-color:var(--green);height:20px">' +
-    '<div id="tijdlijnTooltip" style="font-size:11px;text-align:center;margin-top:2px;min-height:14px;color:var(--muted)"></div>' +
   '</div>';
 }
 
@@ -657,27 +657,9 @@ function updateTijdlijnHighlights() {
   const sliderEl = document.getElementById('tijdlijnSlider');
   if (sliderEl && +sliderEl.value !== currentStartIdx) sliderEl.value = currentStartIdx;
 
-  // Live tooltip-regel onder de slider met tijd · kosten · zon% · vergelijking
-  const tip = document.getElementById('tijdlijnTooltip');
-  if (!tip) return;
-  if (berekendeUren < 0.25) { tip.textContent = ''; return; }
-  const selStart = planUren[currentStartIdx]?.tijd;
-  if (!selStart) { tip.textContent = ''; return; }
-  const eindDat  = new Date(selStart.getTime() + berekendeBlok * 3600000);
-  const eff      = effectieveKosten(berekendeUren, ap.vermogen, planUren, currentStartIdx)
-                ?? berekenKostenVanaf(berekendeUren, ap.vermogen, planUren, currentStartIdx);
-  const dekPct   = Math.round(gemSolarDekking(currentStartIdx, berekendeBlok, ap.vermogen, planUren) * 100);
-  const besteEff = effectieveKosten(berekendeUren, ap.vermogen, planUren, besteIdx)
-                ?? berekenKostenVanaf(berekendeUren, ap.vermogen, planUren, besteIdx);
-  const diff     = (eff != null && besteEff != null) ? eff - besteEff : null;
-  const zonTxt   = zonDekkingTekst(dekPct / 100);
-  const solStr   = zonTxt ? ' · ' + zonTxt : '';
-  const vergStr  = diff === null ? '' :
-    Math.abs(diff) < 0.005 ? ' · ✓ beste tijd' :
-    diff < 0 ? ' · ✓ ' + fmtEuro(Math.abs(diff)) + ' goedkoper' :
-    ' · beste tijd: ' + fmtEuro(diff) + ' goedkoper';
-  tip.textContent = 'gekozen: ' + dagHStrPlain(selStart) + '–' + hStr(eindDat) + ' · ' + fmtEuro(eff ?? 0) + solStr + vergStr;
-  tip.style.color = (diff === null || diff < 0.005) ? 'var(--color-text-success)' : 'var(--color-text-secondary)';
+  // Prijsgrafiek (v2.82.0): alleen de markering hertekenen, geen herbouw. De
+  // "gekozen …"-tekstregel is weg — tegels en balk bovenaan tonen dat al.
+  zetGrafiekMarkering(_apChart, berekendeBlok > 0 ? { startIdx: currentStartIdx, aantal: berekendeBlok, besteIdx } : null);
 }
 
 function toggleVertrekplanner() {
@@ -1605,13 +1587,44 @@ function renderApDetail() {
       ? '<div class="section" style="padding-top:6px;padding-bottom:0">' +
           '<div class="section-title" style="margin-bottom:2px">Zelf een andere tijd kiezen</div>' +
         '</div>' +
-        bouwTijdlijnHtml(planUren, currentStartIdx, besteIdxBer, berekendeBlok, maxIdx)
+        bouwTijdlijnHtml(planUren, currentStartIdx, besteIdxBer, berekendeBlok, maxIdx) +
+        // 6a. PRIJSGRAFIEK (v2.82.0): dezelfde grafiek als op de hoofdtab (verbruiksprijs,
+        //     zonne-opbrengst, terugleverprijs) ter informatie — waarom is een uur goedkoop?
+        //     Gekozen venster omlijnd, beste venster licht gevuld. Eén keer gebouwd in
+        //     renderApGrafiek(); schuiven hertekent alleen de markering.
+        '<div style="padding:8px 16px 0;position:relative">' +
+          '<div class="chart-tooltip" id="apChartTooltip"></div>' +
+          '<div class="chart-wrap" style="height:150px"><canvas id="apChart" role="img" aria-label="Stroomprijs per uur"></canvas></div>' +
+          (typeof prijsGrafiekLegendaHtml === 'function' ? prijsGrafiekLegendaHtml() : '') +
+        '</div>'
       : '') +
     '<div style="padding-bottom:40px"></div>';
 
+  renderApGrafiek();
   if (vpOpen) herbereken();
   if (heeftAutomatisering) laadPlanningStatus(apparaat);
   if (heeftHomeConnect) vulHcDetailSectie(ap);
+}
+
+// Prijsgrafiek in het detailscherm: één Chart-instantie per (her)render van het
+// paneel; sluitApDetail ruimt op. Markering = gekozen venster + beste venster.
+let _apChart = null;
+function renderApGrafiek() {
+  if (_apChart) { _apChart.destroy(); _apChart = null; }
+  const canvas = document.getElementById('apChart');
+  if (!canvas || !apDetailState || typeof bouwPrijsGrafiek !== 'function' || typeof Chart === 'undefined') return;
+  const { planUren, currentStartIdx } = apDetailState;
+  const berekendeUren = benodigdeLaadUren();
+  const blok     = berekendeUren > 0 ? Math.ceil(berekendeUren) : 0;
+  const besteIdx = apDetailState._besteIdxBer ?? apDetailState.besteStartIdx;
+  try {
+    _apChart = bouwPrijsGrafiek(canvas, planUren, {
+      tooltipEl: document.getElementById('apChartTooltip'),
+      markering: blok > 0 ? { startIdx: currentStartIdx, aantal: blok, besteIdx } : null,
+    });
+  } catch (e) {
+    console.warn('[detail] prijsgrafiek niet gebouwd:', e.message);
+  }
 }
 
 function updateKostenWeergave(berekendeUren) {
