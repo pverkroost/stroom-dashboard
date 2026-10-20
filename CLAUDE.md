@@ -285,7 +285,8 @@ Gecentraliseerd in `api/_helpers.js` (gedeeld door alle endpoints):
 Eén Vercel deploy, meerdere gebruikers via `?u=001` URL-parameter.
 - **`users/<id>.js`** zet `window.CONFIG` (niet-gevoelige config: tarieven, panelen, apparaten).
   Geldige user-id's hardcoded in `js/bootstrap.js` (`GELDIGE_USERS`); onbekend → fallback naar `001`.
-  Profielen: `001` = Pieter (Sepa Green; SolarEdge + Growatt + Homey + Home Connect),
+  Profielen: `001` = Pieter (Sepa Green; SolarEdge + Growatt + Homey + Home Connect; snelkaart +
+  weekschema voor auto, vaatwasser en heater — de heater is advies-only, 2 kW / 2 u, v2.85.3),
   `002` = vriend (alleen SolarEdge; geen Growatt, geen Homey),
   `003` = Patrick, Almelo (Zonneplan; SolarEdge 10,344 kWp + Home Connect voor zijn
   Siemens-apparaten; geen Growatt, geen Homey, geen auto (beide bevestigd); P1 via HomeWizard-cloud;

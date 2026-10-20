@@ -55,6 +55,12 @@
       // Daarom homeConnect: true zonder homeConnectControl → alleen koppeling/status.
       { naam: 'Oven',                    icon: '🔥',       uren: 1,   vermogen: 2.0, type: 'inschakelen', automatisering: false, batterij: false, volgorde: 9,  grootverbruik: true,  klaarOmTekst: 'Oven moet gereed zijn om',          korteTekst: '🔥 Gereed zijn om',    homeConnect: true, haId: null },
       { naam: 'Kookplaat',               icon: '🍳',       uren: 0.5, vermogen: 3.5, type: 'inschakelen', automatisering: false, batterij: false, volgorde: 10, grootverbruik: true,  klaarOmTekst: 'Kookplaat moet gereed zijn om',     korteTekst: '🍳 Gereed zijn om',    homeConnect: true, haId: null },
+      // Heater (v2.85.3): advies-only, net als de vaatwasser — geen Homey-aansturing, geen Home
+      // Connect, geen batterij. Snelkaart "klaar om" met weekschema: doordeweeks 's avonds warm
+      // (18:00), in het weekend rond de middag (12:00); aanpasbaar via het weekschema (Neon).
+      { naam: 'Heater',                  icon: '🌡️',      uren: 2,   vermogen: 2.0, type: 'starten',     automatisering: false, batterij: false, volgorde: 11, grootverbruik: true,  klaarOmTekst: 'Heater moet warm zijn om',      korteTekst: '🌡️ Warm zijn om',
+        snelkaart: true, deadlineLabel: 'klaar om',
+        weekschema: { ma: '18:00', di: '18:00', wo: '18:00', do: '18:00', vr: '18:00', za: '12:00', zo: '12:00' } },
     ],
   };
 })();
