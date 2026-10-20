@@ -332,6 +332,13 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.85.2** — Snelkaart: "klaar om HH:MM" alleen als het blok kort vóór de deadline klaar is
+- Puur weergave (`_bouwSnelkaartHtml`, `js/weekschema.js`): de deadline-regel wordt alleen getoond
+  als het gekozen blok binnen `_WS_DEADLINE_TOON_MS` (3 uur) vóór de deadline eindigt. Vaatwasser
+  09:00–13:00 met deadline morgen 07:00 → alleen "Zet aan om 09:00"; jacuzzi 09:00–17:00 met
+  "klaar om 19:00" → regel blijft. Een handmatige overrule blijft altijd zichtbaar. De deadline
+  telt onveranderd mee in de berekening (`berekenBlokVoorDeadline` ongewijzigd).
+
 **v2.85.1** — Snelkaart: gratis vandaag-venster wint van "wacht op morgen-prijzen"
 - Bug: de snelkaart ("Nu bij het apparaat") toonde vóór ~14:00 "⏳ Wacht op morgen-prijzen" zodra de
   weekschema-deadline morgen viel, ook als er vandaag al een venster was dat de deadline haalt en
