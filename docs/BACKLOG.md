@@ -13,6 +13,14 @@
   pollfrequentie moet omlaag — zie details
 
 ### Snel te doen (UX/bugs)
+- **#109** [M] Besparingsberekening rekent in hele uurslots — "bespaar € X door te wachten tot 09:00" is
+  eigenlijk "sla het uur 08:00 over". `getPrijzenVooruit` start op het begin van het huidige uur en
+  `berekenBesparingNu`/`effectieveKosten` tellen dat hele slot mee (om 08:16 dus 60 min i.p.v. 44).
+  Het detailscherm, de "Slim inplannen"-kaarten en de snelkaart-besparing delen die slot-granulariteit.
+  Opties: het lopende uur pro rata meerekenen (resterende minuten / 60) in kostenNu en de "nu"-dekking,
+  of de "nu"-regel laten starten op het volgende hele uur zodra < 15 min rest. Raakt de kern van de
+  kosten-/besparingsberekening → eigen bewijslast: handberekening in `test/besparing.test.js`, geen
+  regressie voor blokken die niet in het lopende uur beginnen, browser-smoke op een tijd ná :30.
 - **#2** [M] UX review apparaatscherm tijdkeuze — slider/klaar-om/handmatig/overnemen; welke primair? mockup
 - **#3** [M] Laadstatus uit Homey — toon of de auto écht laadt
 - **#4** [S] Goedkoopste blok visueel highlighten in grafiek
@@ -323,6 +331,19 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
+
+**v2.85.1** — Snelkaart: gratis vandaag-venster wint van "wacht op morgen-prijzen"
+- Bug: de snelkaart ("Nu bij het apparaat") toonde vóór ~14:00 "⏳ Wacht op morgen-prijzen" zodra de
+  weekschema-deadline morgen viel, ook als er vandaag al een venster was dat de deadline haalt en
+  volledig op zon draait (€ 0,00) — terwijl het detailscherm dat venster wél adviseerde. Morgen kan
+  niet goedkoper dan gratis. De helper `berekenBlokVoorDeadline` gaf beide (haalbaar + wachtvlag);
+  de kaart liet de vlag altijd winnen.
+- Fix (strenge variant): pure beslisfunctie `kiesSnelkaartAdvies(haalbaar, wachtOpMorgen, kosten)` in
+  `js/apparaatmodel.js` → 'advies' | 'wachten' | 'geen-moment'. Een haalbaar venster wint van de
+  wachtvlag alléén als het effectief gratis is (`GRATIS_GRENS_EURO` = € 0,005); een niet-gratis
+  venster met wachtvlag blijft "wachten", dus het auto-advies van 001 (nacht meestal goedkoper) is
+  ongewijzigd. `_bouwSnelkaartHtml` rendert op die uitkomst; helper ongewijzigd.
+  Test: `test/snelkaartadvies.test.js` (alle vijf takken + bug-geval + auto-borging).
 
 **v2.85.0** — Apparaten bewerken stap 1: kW + uren per user, opslag in Neon (PR B stap 1)
 - Neon-tabel `user_apparaat` (JSONB per apparaat, idempotente migratie) + `GET/POST /api/auth?action=apparaten`
