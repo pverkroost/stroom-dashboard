@@ -22,6 +22,11 @@
 
 const _WS_TIJD_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const _WS_PLANNING_TTL_MS = 60_000;
+// Snelkaart: "klaar om HH:MM" alleen tonen als het blok binnen deze marge vóór de deadline
+// klaar is (v2.85.2). 3 uur: een jacuzzi die om 17:00 klaar is voor "klaar om 19:00" is
+// nog duidelijk aan die deadline gekoppeld; een vaatwasser die om 13:00 klaar is voor
+// morgen 07:00 niet — dan leest de deadline als ruis. Weergave-keuze, geen rekenregel.
+const _WS_DEADLINE_TOON_MS = 3 * 3600000;
 
 let _weekschemaDb        = null;   // { key: { dag: 'HH:MM' } } uit Neon; null = nog niet geladen
 let _weekschemaBron      = 'default';
@@ -215,9 +220,16 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
   // Subregel: alleen de deadline als kleine context ("klaar om 07:00"), met
   // "morgen" ervoor als de aanzettijd pas morgen valt. Geen bedrag/zon/tijdvenster:
   // dat detail staat in de "Slim inplannen"-kaarten en het detailpaneel.
-  const subRegel = (startMorgen) => dl
-    ? '<div class="card-time">' + (startMorgen ? 'morgen · ' : '') + label + ' ' + escapeHtml(dl.tijd) +
-      (override ? ' <span style="color:#854f0b">· aangepast</span>' : '') + '</div>'
+  // v2.85.2: de deadline-regel alleen tonen als het blok KORT vóór de deadline klaar is
+  // (binnen _WS_DEADLINE_TOON_MS). Is het blok ruim eerder klaar (vaatwasser 09:00–13:00
+  // met deadline morgen 07:00), dan leest "klaar om 07:00" als een tijd vóór de start en
+  // zegt hij niets over het advies; de deadline telt wél gewoon mee in de berekening.
+  // Een handmatige overrule blijft altijd zichtbaar (de gebruiker heeft 'm zelf gezet).
+  const subRegel = (startMorgen, toonDeadline = true) => dl
+    ? ((toonDeadline || override)
+        ? '<div class="card-time">' + (startMorgen ? 'morgen · ' : '') + label + ' ' + escapeHtml(dl.tijd) +
+          (override ? ' <span style="color:#854f0b">· aangepast</span>' : '') + '</div>'
+        : (startMorgen ? '<div class="card-time">morgen</div>' : ''))
     : '<div class="card-time">Geen tijd in weekschema — stel in via ⚙️</div>';
 
   const editorOpen = !!_wsEditorOpen['kaart:' + key];
@@ -261,9 +273,10 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
       _snelkaartLaatste[key] = { res, deadlineTijd: dl.tijd };
       const nu          = res.startIndex === 0;
       const startMorgen = res.startTijd.getTime() >= getTomorrowStart().getTime();
+      const kortVoorDeadline = (dl.deadline.getTime() - res.eindTijd.getTime()) <= _WS_DEADLINE_TOON_MS;
       kern = '<div class="snelkaart-verb">' + verb + (nu ? '' : ' om') + '</div>' +
              '<div class="snelkaart-tijd' + (nu ? ' nu' : '') + '">' + (nu ? 'Nu ✓' : escapeHtml(hMStr(res.startTijd))) + '</div>';
-      sub  = subRegel(startMorgen);
+      sub  = subRegel(startMorgen, kortVoorDeadline);
     } else {
       kern = stil('<span style="color:#a32d2d">⚠️ Geen moment vóór ' + escapeHtml(dl.tijd) + '</span>');
       sub  = subRegel(false);
