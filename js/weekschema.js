@@ -247,14 +247,17 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
     sub  = subRegel(false);
   } else {
     const res = berekenBlokVoorDeadline(ap.uren, ap.vermogen, dl.deadline, planUren);
-    // Deadline voorbij de bekende prijzen terwijl morgen nog niet binnen is: geen
-    // advies op halve data (de nachturen zijn meestal het goedkoopst) — zelfde
-    // keuze als leegKaart() in het overzicht. Overrule naar een deadline vandaag
-    // geeft wél direct advies.
-    if (res.wachtOpMorgen) {
+    // Beslissing (v2.85.1, puur: APPARAATMODEL.kiesSnelkaartAdvies): deadline voorbij de
+    // bekende prijzen terwijl morgen nog niet binnen is → geen advies op halve data (de
+    // nachturen zijn meestal het goedkoopst), TENZIJ het venster van vandaag effectief
+    // gratis is (volledig op zon) — dan kan morgen niet goedkoper zijn en wijkt de kaart
+    // niet meer af van het detailscherm. Overrule naar een deadline vandaag geeft wél
+    // direct advies.
+    const besluit = APPARAATMODEL.kiesSnelkaartAdvies(res.haalbaar, res.wachtOpMorgen, res.kosten);
+    if (besluit === 'wachten') {
       kern = stil('⏳ Wacht op morgen-prijzen');
       sub  = '<div class="card-time">rond 14:00 · ' + label + ' ' + escapeHtml(dl.tijd) + '</div>';
-    } else if (res.haalbaar) {
+    } else if (besluit === 'advies') {
       _snelkaartLaatste[key] = { res, deadlineTijd: dl.tijd };
       const nu          = res.startIndex === 0;
       const startMorgen = res.startTijd.getTime() >= getTomorrowStart().getTime();
