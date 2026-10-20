@@ -172,25 +172,3 @@ test('users/003.js is Zonneplan: opslag + zonnebonus 10%', () => {
   assert.ok(!snel.some(a => a.naam === 'Sunshower'), 'Sunshower zit niet bij de snelkaarten');
   assert.deepEqual(c.apparaten.map(a => a.naam), ['Vaatwasser', 'Wasmachine', 'Droger', 'Jacuzzi', 'Sunshower']);
 });
-
-// user 001: snelkaarten = auto (Homey-aansturing) + vaatwasser + heater (beide advies-only, v2.85.3).
-test('user 001: snelkaart-apparaten en de advies-only heater', () => {
-  const fs = require('fs');
-  const src = fs.readFileSync(require('path').join(__dirname, '..', 'users', '001.js'), 'utf8');
-  const w = {}; new Function('window', src)(w);
-  const c = w.CONFIG;
-  const snel = c.apparaten.filter(a => a.snelkaart === true);
-  assert.deepEqual(snel.map(a => a.naam), ['Auto', 'Vaatwasser', 'Heater']);
-  snel.forEach(a => {
-    assert.deepEqual(Object.keys(a.weekschema), ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'], a.naam);
-    assert.ok(Object.values(a.weekschema).every(t => /^\d{2}:\d{2}$/.test(t)), a.naam + ': weekschema-tijden HH:MM');
-  });
-  const heater = c.apparaten.find(a => a.naam === 'Heater');
-  assert.equal(heater.vermogen, 2);
-  assert.equal(heater.uren, 2);
-  assert.equal(heater.deadlineLabel, 'klaar om');
-  assert.ok(!heater.automatisering && !heater.homeConnect && !heater.batterij, 'heater is advies-only');
-  const vaatwasser = c.apparaten.find(a => a.naam === 'Vaatwasser');
-  assert.equal(heater.type, vaatwasser.type, 'zelfde type als de vaatwasser');
-  assert.ok(c.apparaten.find(a => a.naam === 'Auto').automatisering === true, 'auto-guard blijft');
-});

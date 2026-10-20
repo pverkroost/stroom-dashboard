@@ -332,10 +332,7 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
-**v2.85.3** — Heater (advies-only) voor user 001
-- `users/001.js`: apparaat "Heater" (🌡️, 2 kW, 2 u) met dezelfde vlaggen als de vaatwasser (geen
-  Homey, Home Connect of batterij), snelkaart "klaar om" met weekschema ma–vr 18:00, za–zo 12:00.
-  Test voor 001 toegevoegd: snelkaarten = auto, vaatwasser, heater; heater advies-only.
+**v2.85.4** — Heater bij user 001 weer verwijderd (v2.85.3 was een vergissing; config, test en docs teruggedraaid)
 
 **v2.85.2** — Snelkaart: "klaar om HH:MM" alleen als het blok kort vóór de deadline klaar is
 - Puur weergave (`_bouwSnelkaartHtml`, `js/weekschema.js`): de deadline-regel wordt alleen getoond

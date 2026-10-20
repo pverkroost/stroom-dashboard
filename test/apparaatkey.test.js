@@ -56,7 +56,7 @@ for (const id of USERS) {
 
 test('bekende keys die in Neon/Redis staan blijven bestaan', () => {
   const k001 = new Set(zetApparaatKeys(laadUserConfig('001').apparaten).map(ap => ap.key));
-  ['auto', 'vaatwasser', 'wasmachine', 'droger', 'warmtepompwarmwater', 'heater'].forEach(k => assert.ok(k001.has(k), k));
+  ['auto', 'vaatwasser', 'wasmachine', 'droger', 'warmtepompwarmwater'].forEach(k => assert.ok(k001.has(k), k));
   const k003 = new Set(zetApparaatKeys(laadUserConfig('003').apparaten).map(ap => ap.key));
   ['vaatwasser', 'wasmachine', 'droger'].forEach(k => assert.ok(k003.has(k), k));
 });
