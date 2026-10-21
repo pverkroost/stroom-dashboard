@@ -225,12 +225,18 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
   // met deadline morgen 07:00), dan leest "klaar om 07:00" als een tijd vóór de start en
   // zegt hij niets over het advies; de deadline telt wél gewoon mee in de berekening.
   // Een handmatige overrule blijft altijd zichtbaar (de gebruiker heeft 'm zelf gezet).
-  const subRegel = (startMorgen, toonDeadline = true) => dl
-    ? ((toonDeadline || override)
-        ? '<div class="card-time">' + (startMorgen ? 'morgen · ' : '') + label + ' ' + escapeHtml(dl.tijd) +
-          (override ? ' <span style="color:#854f0b">· aangepast</span>' : '') + '</div>'
-        : (startMorgen ? '<div class="card-time">morgen</div>' : ''))
-    : '<div class="card-time">Geen tijd in weekschema — stel in via ⚙️</div>';
+  // v2.86.0: optionele hint ("morgen-prijzen nog onbekend") als extra deel, naast de
+  // deadline-regel — de delen worden met " · " aaneengeregen, niets verdringt iets.
+  const subRegel = (startMorgen, toonDeadline = true, hint = '') => {
+    if (!dl) return '<div class="card-time">Geen tijd in weekschema — stel in via ⚙️</div>';
+    const delen = [];
+    if (startMorgen) delen.push('morgen');
+    if (toonDeadline || override) {
+      delen.push(label + ' ' + escapeHtml(dl.tijd) + (override ? ' <span style="color:#854f0b">· aangepast</span>' : ''));
+    }
+    if (hint) delen.push('<span style="color:var(--muted)">' + escapeHtml(hint) + '</span>');
+    return delen.length ? '<div class="card-time">' + delen.join(' · ') + '</div>' : '';
+  };
 
   const editorOpen = !!_wsEditorOpen['kaart:' + key];
   const overruleHtml =
@@ -259,13 +265,12 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
     sub  = subRegel(false);
   } else {
     const res = berekenBlokVoorDeadline(ap.uren, ap.vermogen, dl.deadline, planUren);
-    // Beslissing (v2.85.1, puur: APPARAATMODEL.kiesSnelkaartAdvies): deadline voorbij de
-    // bekende prijzen terwijl morgen nog niet binnen is → geen advies op halve data (de
-    // nachturen zijn meestal het goedkoopst), TENZIJ het venster van vandaag effectief
-    // gratis is (volledig op zon) — dan kan morgen niet goedkoper zijn en wijkt de kaart
-    // niet meer af van het detailscherm. Overrule naar een deadline vandaag geeft wél
-    // direct advies.
-    const besluit = APPARAATMODEL.kiesSnelkaartAdvies(res.haalbaar, res.wachtOpMorgen, res.kosten);
+    // Beslissing (v2.86.0, puur: APPARAATMODEL.kiesSnelkaartAdvies): een haalbaar venster
+    // vóór de deadline is altijd het advies — zelfde data en kostenfunctie als het
+    // detailscherm. Ligt de deadline voorbij de bekende prijzen terwijl de morgen-prijzen
+    // nog niet binnen zijn, dan staat er een hint bij; "wachten" alleen zonder venster.
+    const besluit = APPARAATMODEL.kiesSnelkaartAdvies(res.haalbaar, res.wachtOpMorgen);
+    const hint    = res.wachtOpMorgen ? 'morgen-prijzen nog onbekend' : '';
     if (besluit === 'wachten') {
       kern = stil('⏳ Wacht op morgen-prijzen');
       sub  = '<div class="card-time">rond 14:00 · ' + label + ' ' + escapeHtml(dl.tijd) + '</div>';
@@ -276,7 +281,7 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
       const kortVoorDeadline = (dl.deadline.getTime() - res.eindTijd.getTime()) <= _WS_DEADLINE_TOON_MS;
       kern = '<div class="snelkaart-verb">' + verb + (nu ? '' : ' om') + '</div>' +
              '<div class="snelkaart-tijd' + (nu ? ' nu' : '') + '">' + (nu ? 'Nu ✓' : escapeHtml(hMStr(res.startTijd))) + '</div>';
-      sub  = subRegel(startMorgen, kortVoorDeadline);
+      sub  = subRegel(startMorgen, kortVoorDeadline, hint);
     } else {
       kern = stil('<span style="color:#a32d2d">⚠️ Geen moment vóór ' + escapeHtml(dl.tijd) + '</span>');
       sub  = subRegel(false);
