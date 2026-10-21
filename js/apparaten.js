@@ -522,6 +522,46 @@ function defaultKlaarOmHHMM(uren) {
   return String(target.getHours()).padStart(2, '0') + ':00';
 }
 
+// ── Deadline-concept (v2.89.0): detail en snelkaart delen de weekschema-deadline ────
+// "Opgeladen zijn om" (vertrekplanner), "klaar om" (Home Connect) en "vertrek om"/"klaar om"
+// (snelkaart) zijn hetzelfde ding: de deadline waarop het apparaat klaar moet zijn. Heeft het
+// apparaat een weekschema, dan is de startwaarde van beide detailvelden de eerstvolgende
+// schema-deadline waar het blok nog vóór past — exact volgendeDeadline() van de snelkaart
+// (js/weekschema.js). Zonder weekschema blijft de oude tijd-plus-buffer-default
+// (defaultKlaarOmHHMM). Handmatig afwijken kan altijd; dan geldt HH:MM → vandaag/morgen.
+function standaardDeadlineVoor(ap) {
+  const heeftSchema = !!ap && ap.snelkaart === true && !!ap.weekschema && typeof ap.weekschema === 'object'
+    && typeof weekschemaVoor === 'function' && typeof volgendeDeadline === 'function' && ap.uren > 0;
+  if (heeftSchema) {
+    const dl = volgendeDeadline(weekschemaVoor(ap), Math.ceil(ap.uren));
+    if (dl && dl.deadline instanceof Date) return { tijd: dl.tijd, deadline: dl.deadline, bron: 'weekschema' };
+  }
+  return { tijd: defaultKlaarOmHHMM(ap && ap.uren > 0 ? ap.uren : 2), deadline: null, bron: 'default' };
+}
+// Datum voor de deadline van een tijdveld. Zolang het veld de weekschema-tijd toont, telt de
+// weekschema-DATUM (kan overmorgen zijn, bv. bij een lege schema-dag); na handmatige invoer
+// wordt HH:MM op de oude manier naar vandaag/morgen gemapt (deadlineVanHHMM). Zonder deze
+// stap rekende het detail een overmorgen-deadline als morgen → verkeerd venster en kosten.
+function vertrekDeadlineDatum(state, hhmm) {
+  if (state && state._vpVertrekDatum instanceof Date && state._vpVertrekTijd === hhmm) return state._vpVertrekDatum;
+  return deadlineVanHHMM(hhmm);
+}
+function deadlineDatumVoorVeld(ap, hhmm, handmatig) {
+  if (!handmatig) {
+    const std = standaardDeadlineVoor(ap);
+    if (std.deadline && std.tijd === hhmm) return std.deadline;
+  }
+  return deadlineVanHHMM(hhmm);
+}
+function _vpDeadlineBronTekst(state) {
+  if (!state) return '';
+  if (state._vpDeadlineBron === 'weekschema' && state._vpVertrekDatum) {
+    return '📅 Uit weekschema: ' + escapeHtml(dagHMStrPlain(state._vpVertrekDatum)) + ' · pas aan als het anders is';
+  }
+  if (state._vpDeadlineBron === 'handmatig') return '✏️ Handmatig gekozen (vandaag, of morgen als het uur voorbij is)';
+  return '';
+}
+
 function openApDetail(apIdx) {
   const ap = APPARATEN[apIdx];
   if (!ap) return;
@@ -542,7 +582,10 @@ function openApDetail(apIdx) {
     _vertrekplannerOpen: false,
     _handmatigOpen: false,
     _vpBatterij: 0,
-    _vpVertrekTijd: defaultKlaarOmHHMM(ap.uren),
+    // Deadline uit het weekschema (v2.89.0), anders de oude default — zie standaardDeadlineVoor.
+    _vpVertrekTijd:   standaardDeadlineVoor(ap).tijd,
+    _vpVertrekDatum:  standaardDeadlineVoor(ap).deadline,
+    _vpDeadlineBron:  standaardDeadlineVoor(ap).bron,
     _vertrekAdviesIdx: null,
     _minuteOffset: 0,
     _handmatigGekozen: false,
@@ -954,10 +997,11 @@ async function kiesHcProgramma(key) {
   }
 }
 
+// "Klaar om"-default van Home Connect: voorselectie (droger-chaining) wint, anders dezelfde
+// weekschema-afleiding als de vertrekplanner (v2.89.0), anders de oude tijd-plus-buffer.
 function _hcDefaultKlaarOm() {
   if (apDetailState && apDetailState._hcUI && apDetailState._hcUI._voorKlaarOm) return apDetailState._hcUI._voorKlaarOm;
-  const uren = (apDetailState && apDetailState.ap && apDetailState.ap.uren) || 2;
-  return defaultKlaarOmHHMM(uren);
+  return standaardDeadlineVoor(apDetailState && apDetailState.ap).tijd;
 }
 
 function _hcIsTijdOptie(key) { return /FinishInRelative$|StartInRelative$/.test(key || ''); }
@@ -1105,8 +1149,12 @@ function hcGoedkoopsteBlok(ap, klaarOmHHMM) {
   const uren = ap.uren || 2;
   const kw   = ap.vermogen || 1.5;
 
-  // Met deadline: gedeelde helper (zelfde filter als de vertrekplanner).
-  const deadline = deadlineVanHHMM(klaarOmHHMM);
+  // Met deadline: gedeelde helper (zelfde filter als de vertrekplanner). Zolang het veld de
+  // weekschema-tijd toont telt de weekschema-DATUM; na handmatige invoer of voorselectie
+  // (droger-chaining) HH:MM → vandaag/morgen (v2.89.0).
+  const ui = apDetailState._hcUI || {};
+  const handmatig = !!(ui._klaarOm || ui._voorKlaarOm);
+  const deadline = deadlineDatumVoorVeld(ap, klaarOmHHMM, handmatig);
   if (deadline) {
     const b = berekenBlokVoorDeadline(uren, kw, deadline, planUren);
     if (!b.haalbaar) return { geenMoment: true };
@@ -1544,8 +1592,9 @@ function renderApDetail() {
           '<div class="tarief-card" style="padding:12px 14px;overflow:hidden;max-width:100%;box-sizing:border-box">' +
             '<label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">' + (ap.klaarOmTekst || 'Klaar om') + '</label>' +
             '<input type="time" id="vpVertrekTijd" value="' + vpTijd + '"' +
-              ' oninput="apDetailState._vpVertrekTijd=this.value;herbereken()"' +
+              ' oninput="apDetailState._vpVertrekTijd=this.value;apDetailState._vpVertrekDatum=null;apDetailState._vpDeadlineBron=\'handmatig\';herbereken()"' +
               ' style="display:block;width:100%;min-width:0;max-width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);font-size:16px;background:var(--card);color:var(--text);font-family:inherit;box-sizing:border-box">' +
+            '<div id="vpDeadlineBron" style="font-size:10px;color:var(--muted);margin-top:4px">' + _vpDeadlineBronTekst(apDetailState) + '</div>' +
             '<div id="vpResultaat"></div>' +
           '</div>' +
         '</div>'
@@ -1727,9 +1776,12 @@ function herbereken() {
     return;
   }
 
-  // Vertrekmoment: vandaag, of morgen als het uur al voorbij is. Blok-zoektocht
-  // via de gedeelde deadline-helper (zelfde logica als Home Connect + snelkaarten).
-  const vertrekDatum = deadlineVanHHMM(tijdEl.value);
+  // Vertrekmoment: de weekschema-datum zolang het veld die tijd toont (v2.89.0, kan
+  // overmorgen zijn), anders HH:MM → vandaag/morgen. Blok-zoektocht via de gedeelde
+  // deadline-helper (zelfde logica als Home Connect + snelkaarten).
+  const vertrekDatum = vertrekDeadlineDatum(apDetailState, tijdEl.value);
+  const bronEl = document.getElementById('vpDeadlineBron');
+  if (bronEl) bronEl.innerHTML = _vpDeadlineBronTekst(apDetailState);
   const res = vertrekDatum ? berekenBlokVoorDeadline(berekendeUren, ap.vermogen, vertrekDatum, planUren) : { haalbaar: false };
   if (!res.haalbaar) {
     resultEl.innerHTML = '<div class="advies-status later" style="margin-top:0">⚠️ Geen geschikt moment beschikbaar vóór ' + escapeHtml(tijdEl.value) + '</div>';

@@ -129,6 +129,19 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
   sessie leeft (de app kent de echte laadstatus niet, backlog #3); eigen statusregel op de kaart,
   401 → "Niet ingelogd — log opnieuw in om te bedienen". State in `_snelkaartStart`
   (`snelkaartStartKnopHtml`, `snelkaartStartTik`, `snelkaartStopTik`). Test: `test/snelkaartstart.test.js`.
+- **Deadline-concept (sinds v2.89.0)**: "opgeladen zijn om" (vertrekplanner in het detail), "klaar om"
+  (Home Connect) en "vertrek om"/"klaar om" (snelkaart) zijn één ding: de deadline waarop het apparaat
+  klaar moet zijn. `standaardDeadlineVoor(ap)` in `js/apparaten.js` geeft voor apparaten met weekschema
+  de eerstvolgende schema-deadline waar het blok nog vóór past (= `volgendeDeadline`, dezelfde als de
+  snelkaart) als `{ tijd, deadline (Date), bron }`; zonder weekschema de oude tijd-plus-buffer
+  `defaultKlaarOmHHMM`. `openApDetail` vult daarmee `_vpVertrekTijd`/`_vpVertrekDatum`/`_vpDeadlineBron`;
+  de bron-regel onder het veld toont "📅 Uit weekschema: vr 08:15". Handmatig afwijken blijft: invoer
+  wist de datum en geldt als HH:MM → vandaag/morgen (`deadlineVanHHMM`). **Datum-randgeval**: zolang het
+  veld de schema-tijd toont, rekent `herbereken` met de schema-DATUM (`vertrekDeadlineDatum`), die
+  overmorgen kan zijn (lege schema-dag) — vroeger werd HH:MM altijd naar vandaag/morgen gemapt, met een
+  verkeerd venster en verkeerde kosten tot gevolg. Home Connect: `_hcDefaultKlaarOm` + `hcGoedkoopsteBlok`
+  via `deadlineDatumVoorVeld` (voorselectie/droger-chaining en handmatige invoer = oude mapping).
+  Test: `test/deadlinebron.test.js` (handberekende vensters/kosten).
 - **Randgeval**: deadline voorbij de bekende prijzen terwijl morgen-prijzen nog niet binnen
   zijn (vóór ~14:00): de helper geeft `wachtOpMorgen: true` én, als dat kan, een haalbaar venster van
   vandaag. Sinds v2.86.0 (brede variant, `kiesSnelkaartAdvies(haalbaar, wachtOpMorgen)` in

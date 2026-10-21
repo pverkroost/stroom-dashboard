@@ -332,6 +332,17 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.89.0** — Detail- en HC-deadline volgen het weekschema i.p.v. een losse default; datum-randgeval
+- Bug: "Auto moet opgeladen zijn om" in het detail toonde een tijd-plus-buffer-default (bv. 19:00) die
+  nergens in het weekschema staat; de snelkaart gebruikte wél de schema-deadline. Nu vult
+  `standaardDeadlineVoor(ap)` het veld met dezelfde `volgendeDeadline` als de snelkaart (do 12:00 + 6 u
+  laden → "vr 08:15"); zonder weekschema de oude default. Bron-regel onder het veld; handmatig afwijken
+  blijft. Home Connect "klaar om" dezelfde afleiding (voorselectie/handmatig = oude mapping).
+- Datum-randgeval (raakt kosten): `herbereken` en `hcGoedkoopsteBlok` rekenen met de schema-DATUM
+  (`vertrekDeadlineDatum`/`deadlineDatumVoorVeld`) zolang het veld de schema-tijd toont; een deadline
+  overmorgen (lege schema-dag) werd vroeger als morgen gerekend → verkeerd venster/kosten. Test:
+  `test/deadlinebron.test.js` (handberekend: € 1,38 i.p.v. € 4,14 in het voorbeeldscenario).
+
 **v2.88.0** — Snelkaarten opgeschoond: klikbaar naar detail, "Plan in", minder knoppen
 - Hele kaart klikbaar naar het detailscherm met hint "Meer ›" in de kop; knoppen ("📅 Plan in",
   "⚡ Nu starten"/"Zeker?", "■ Stoppen") vangen hun tik af en openen nooit het detail.
