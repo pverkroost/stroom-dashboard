@@ -103,7 +103,12 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
 - **Overrule**: "andere tijd voor nu" op de kaart wijzigt alleen de deadline in deze sessie
   (`_snelkaartOverride`), niet het opgeslagen weekschema.
 - **Randgeval**: deadline voorbij de bekende prijzen terwijl morgen-prijzen nog niet binnen
-  zijn (vóór ~14:00) → "Wacht op morgen-prijzen" (helper geeft `wachtOpMorgen: true`).
+  zijn (vóór ~14:00): de helper geeft `wachtOpMorgen: true` én, als dat kan, een haalbaar venster van
+  vandaag. Sinds v2.86.0 (brede variant, `kiesSnelkaartAdvies(haalbaar, wachtOpMorgen)` in
+  `js/apparaatmodel.js`) is een haalbaar venster altijd het advies, met de hint "morgen-prijzen nog
+  onbekend" in de subregel; "⏳ Wacht op morgen-prijzen" alleen als er géén venster vóór de deadline is.
+  Zo zeggen snelkaart en detailscherm hetzelfde. De subregel toont de deadline ("klaar om HH:MM") alleen
+  als het blok binnen `_WS_DEADLINE_TOON_MS` (3 u) vóór de deadline klaar is (v2.85.2).
 
 ## Apparaat-identiteit: stabiele `key` (sinds v2.83.1)
 Elk apparaat in `APPARATEN` heeft een stabiele `ap.key` (`^[a-z0-9]{1,20}$`), gezet bij het laden door

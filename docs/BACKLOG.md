@@ -332,6 +332,20 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.86.0** — Snelkaart: haalbaar venster is altijd het advies (brede variant), hint bij onbekende morgen-prijzen
+- `kiesSnelkaartAdvies(haalbaar, wachtOpMorgen)` in `js/apparaatmodel.js`: zodra er een venster is dat de
+  deadline haalt → 'advies', ongeacht de wachtvlag en de kosten; 'wachten' alleen zonder venster mét
+  wachtvlag; 'geen-moment' zonder venster zonder vlag. De strenge variant van v2.85.1 (alleen een gratis
+  venster won van de vlag) liet de auto van 001 op "Wacht op morgen-prijzen" staan terwijl het
+  detailscherm wél "beste tijd 11:00–16:00" met plan-knop toonde. `GRATIS_GRENS_EURO` en de
+  kostenparameter zijn weg (geen dode code).
+- Kaart (`_bouwSnelkaartHtml`): bij advies met wachtvlag staat de hint "morgen-prijzen nog onbekend" in de
+  subregel, naast (niet in plaats van) de deadline-regel van v2.85.2. `berekenBlokVoorDeadline` ongewijzigd.
+  Raakt alleen apparaten met snelkaart (auto/vaatwasser 001, vaatwasser/jacuzzi 003); "Slim inplannen"
+  (wasmachine/droger) en het detailscherm veranderen niet. Test: `test/snelkaartadvies.test.js` omgebouwd.
+- Auto: de deadline-regel "vertrek om HH:MM" staat altijd op de kaart, los van de 3-uur-marge van
+  v2.85.2 (het vertrekmoment is het doel, nooit ruis). Vaatwasser en jacuzzi houden het marge-gedrag.
+
 **v2.85.4** — Heater bij user 001 weer verwijderd (v2.85.3 was een vergissing; config, test en docs teruggedraaid)
 
 **v2.85.2** — Snelkaart: "klaar om HH:MM" alleen als het blok kort vóór de deadline klaar is

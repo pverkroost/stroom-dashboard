@@ -178,22 +178,18 @@
     return apparaten;
   }
 
-  // ── Snelkaart-advies: venster vs. "wacht op morgen-prijzen" (v2.85.1) ──────────
+  // ── Snelkaart-advies: venster vs. "wacht op morgen-prijzen" (v2.86.0, brede variant) ──
   // berekenBlokVoorDeadline (js/apparaten.js) levert bij een deadline voorbij de bekende
   // prijzen (morgen-prijzen nog niet binnen, vóór ~14:00) zowel een haalbaar venster van
-  // vandaag als de vlag wachtOpMorgen. De kaart liet de vlag altijd winnen — fout zodra het
-  // venster van vandaag effectief gratis is (volledig op zon): morgen kan niet goedkoper dan
-  // gratis. Strenge variant: alleen een gratis venster wint van de vlag; een niet-gratis
-  // venster blijft "wachten" (de nacht is voor de auto meestal goedkoper → gedrag 001 blijft).
-  const GRATIS_GRENS_EURO = 0.005;   // onder een halve cent = effectief gratis
-
-  // (haalbaar, wachtOpMorgen, kosten) → 'advies' | 'wachten' | 'geen-moment'
-  function kiesSnelkaartAdvies(haalbaar, wachtOpMorgen, kosten) {
-    if (haalbaar) {
-      const gratis = Number.isFinite(kosten) && kosten < GRATIS_GRENS_EURO;
-      if (gratis || !wachtOpMorgen) return 'advies';
-      return 'wachten';
-    }
+  // vandaag als de vlag wachtOpMorgen. Zodra er een haalbaar venster is, is dat het advies —
+  // net als in het detailscherm en de vertrekplanner, die ook alleen vandaag kennen. De kaart
+  // toont er dan een hint bij dat de morgen-prijzen nog onbekend zijn. "Wachten" blijft alleen
+  // over als er géén venster vóór de deadline is terwijl morgen nog kan komen.
+  // (v2.85.1 had een strenge variant: alleen een gratis venster won van de vlag. Dat liet de
+  // auto van 001 op "wachten" staan terwijl het detailscherm wél een plan-knop toonde.)
+  // (haalbaar, wachtOpMorgen) → 'advies' | 'wachten' | 'geen-moment'
+  function kiesSnelkaartAdvies(haalbaar, wachtOpMorgen) {
+    if (haalbaar) return 'advies';
     return wachtOpMorgen ? 'wachten' : 'geen-moment';
   }
 
@@ -202,6 +198,6 @@
     MAANDEN, MAAND_NAMEN, maandNummer, seizoensadviesTekst, seizoensadviesOntbrekendeMaanden,
     huidigeMaandAmsterdam, isSeizoensadvies,
     OVERRIDE_VELDEN, OVERRIDE_GRENZEN, valideerOverride, zetApparaatBasis, isOverrideBewerkbaar, pasApparaatOverridesToe,
-    GRATIS_GRENS_EURO, kiesSnelkaartAdvies,
+    kiesSnelkaartAdvies,
   };
 });
