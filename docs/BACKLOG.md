@@ -343,6 +343,8 @@ zie git-log of eerdere PR's voor details.
   subregel, naast (niet in plaats van) de deadline-regel van v2.85.2. `berekenBlokVoorDeadline` ongewijzigd.
   Raakt alleen apparaten met snelkaart (auto/vaatwasser 001, vaatwasser/jacuzzi 003); "Slim inplannen"
   (wasmachine/droger) en het detailscherm veranderen niet. Test: `test/snelkaartadvies.test.js` omgebouwd.
+- Auto: de deadline-regel "vertrek om HH:MM" staat altijd op de kaart, los van de 3-uur-marge van
+  v2.85.2 (het vertrekmoment is het doel, nooit ruis). Vaatwasser en jacuzzi houden het marge-gedrag.
 
 **v2.85.4** — Heater bij user 001 weer verwijderd (v2.85.3 was een vergissing; config, test en docs teruggedraaid)
 

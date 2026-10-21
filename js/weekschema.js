@@ -26,6 +26,7 @@ const _WS_PLANNING_TTL_MS = 60_000;
 // klaar is (v2.85.2). 3 uur: een jacuzzi die om 17:00 klaar is voor "klaar om 19:00" is
 // nog duidelijk aan die deadline gekoppeld; een vaatwasser die om 13:00 klaar is voor
 // morgen 07:00 niet — dan leest de deadline als ruis. Weergave-keuze, geen rekenregel.
+// Geldt niet voor de auto (v2.86.0): "vertrek om" is daar altijd het doel en blijft staan.
 const _WS_DEADLINE_TOON_MS = 3 * 3600000;
 
 let _weekschemaDb        = null;   // { key: { dag: 'HH:MM' } } uit Neon; null = nog niet geladen
@@ -278,10 +279,14 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
       _snelkaartLaatste[key] = { res, deadlineTijd: dl.tijd };
       const nu          = res.startIndex === 0;
       const startMorgen = res.startTijd.getTime() >= getTomorrowStart().getTime();
-      const kortVoorDeadline = (dl.deadline.getTime() - res.eindTijd.getTime()) <= _WS_DEADLINE_TOON_MS;
+      // Deadline-regel: bij de auto (batterij, zelfde kenmerk als elders) altijd — het
+      // vertrekmoment is het doel, nooit ruis; bij de rest alleen als het blok binnen de
+      // marge vóór de deadline klaar is (v2.85.2). Het label komt uit ap.deadlineLabel.
+      const toonDeadline = ap.batterij === true
+        || (dl.deadline.getTime() - res.eindTijd.getTime()) <= _WS_DEADLINE_TOON_MS;
       kern = '<div class="snelkaart-verb">' + verb + (nu ? '' : ' om') + '</div>' +
              '<div class="snelkaart-tijd' + (nu ? ' nu' : '') + '">' + (nu ? 'Nu ✓' : escapeHtml(hMStr(res.startTijd))) + '</div>';
-      sub  = subRegel(startMorgen, kortVoorDeadline, hint);
+      sub  = subRegel(startMorgen, toonDeadline, hint);
     } else {
       kern = stil('<span style="color:#a32d2d">⚠️ Geen moment vóór ' + escapeHtml(dl.tijd) + '</span>');
       sub  = subRegel(false);
