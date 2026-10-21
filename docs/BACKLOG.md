@@ -332,6 +332,11 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.86.1** — Workflow-conventie: alles direct naar `main`, geen feature-branches/PR's meer
+- CLAUDE.md *Workflow & deployment*: harde eis `npm test` groen + ESLint 0 errors vóór elke push (niet
+  groen = niet pushen); zware bewijslast blijft voor geld-rakend werk en fysieke aansturing. Eerdere
+  PR-verwijzingen in deze changelog zijn historisch.
+
 **v2.86.0** — Snelkaart: haalbaar venster is altijd het advies (brede variant), hint bij onbekende morgen-prijzen
 - `kiesSnelkaartAdvies(haalbaar, wachtOpMorgen)` in `js/apparaatmodel.js`: zodra er een venster is dat de
   deadline haalt → 'advies', ongeacht de wachtvlag en de kosten; 'wachten' alleen zonder venster mét

@@ -11,8 +11,20 @@ Bij elke aanpassing aan `index.html` of de bijbehorende `js/`/`css/` bestanden:
 - Update zowel de placeholder in de footer (`<span id="versionStamp">`) als de `?v=…` cache-bust querystrings op de `<script src>` regels
 - `js/app.js` overschrijft de footer runtime met versie + huidige Nederlandse datum/tijd (Europe/Amsterdam) — format: `vX.Y.Z · DD-MM-YYYY HH:mm`
 
-## Deployment
-Na elke aanpassing altijd automatisch pushen naar GitHub met een duidelijke commit message die beschrijft wat er gewijzigd is. Vercel deployt automatisch vanuit `main`.
+## Workflow & deployment (sinds v2.86.1)
+Alles gaat **direct naar `main`** — geen feature-branches, geen pull requests. Eerdere PR-/branch-
+verwijzingen in de changelog (PR #4 … #14) zijn historisch. Vercel deployt automatisch vanuit `main`.
+- **Harde eis vóór elke push**: `npm test` groen én ESLint 0 errors. Niet groen = niet pushen; eerst
+  fixen, dan pas committen en pushen.
+- Elke aanpassing meteen committen en pushen met een duidelijke Nederlandse commit message die
+  beschrijft wát er gewijzigd is (en waarom, als dat niet voor zich spreekt). Versienummer ophogen
+  (zie *Versienummering*) en de changelog in `docs/BACKLOG.md` bijwerken.
+- **Zware bewijslast blijft** — ook al gaat het direct naar `main` — voor werk dat geld raakt
+  (kosten, scoring, prijs-/besparingsberekening, uren/kW van apparaten) of fysieke aansturing
+  (Homey start/stop, Home Connect start, QStash-planning): eigen proef met handberekening in een test,
+  meten in plaats van aannemen, en een smoke-test tegen de echte user-config (`users/<id>.js`) in de
+  browser (Playwright + mock-API) vóór de push. Niet licht afdoen omdat er geen reviewstap meer is.
+- Puur cosmetisch/documentatie: klein en omkeerbaar, maar dezelfde harde eis (test + lint) geldt.
 
 ## Architectuur
 - **Frontend**: vanilla JS + Chart.js, geserveerd vanuit de repo-root (`index.html`, `css/`, `js/`).
