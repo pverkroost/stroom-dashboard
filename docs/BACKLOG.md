@@ -332,6 +332,17 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.87.0** — "⚡ Nu starten" op de auto-snelkaart, met bevestiging en planning-waarschuwing
+- Gedeelde `startStopViaHomey(action, key, { planningActief })` in `js/apparaten.js` (uit `homeyActie`
+  getrokken; detailscherm gedraagt zich exact als voorheen): POST `/api/homey`, bij een geslaagde start
+  de QStash-planning wissen.
+- Snelkaart (`js/weekschema.js`): alleen bij Homey-apparaten (zelfde kenmerk als de detail-knoppen) een
+  knop "⚡ Nu starten" → eerste tik "Zeker? Nu starten" / "Zeker? Start nu, planning van HH:MM vervalt",
+  tweede tik voert uit, terugval na 6 s. Na een geslaagde start "⚡ Laden gestart" + "■ Stoppen"
+  (sessie), planning-cache van de kaart gewist. Eigen statusregel; 401 → inlogmelding. User 003 (geen
+  Homey) krijgt geen knop. Test: `test/snelkaartstart.test.js` (kern met gestubde fetch: start zonder/
+  met planning, 401; knop alleen bij Homey; bevestigingsstap en terugval).
+
 **v2.86.1** — Workflow-conventie: alles direct naar `main`, geen feature-branches/PR's meer
 - CLAUDE.md *Workflow & deployment*: harde eis `npm test` groen + ESLint 0 errors vóór elke push (niet
   groen = niet pushen); zware bewijslast blijft voor geld-rakend werk en fysieke aansturing. Eerdere

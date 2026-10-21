@@ -39,6 +39,12 @@ const _snelkaartOverride     = {}; // { key: 'HH:MM' } — alleen deze sessie
 const _snelkaartOverruleOpen = {}; // { key: bool }   — tijdpicker uitgeklapt?
 const _snelkaartLaatste      = {}; // { key: { res, deadlineTijd } } — voor de inplan-actie
 const _snelkaartPlanning     = {}; // { key: { ts, actief, startTijd, stopTijd, bezig } }
+// Direct starten/stoppen vanaf de kaart (v2.87.0, alleen Homey-apparaten):
+//   { key: { bevestig, timer, bezig, gestart, msg } } — bevestig = eerste tik gedaan ("Zeker?"),
+//   gestart = deze sessie via de kaart gestart (dan "■ Stoppen" zichtbaar; de app kent de echte
+//   laadstatus niet, zie backlog #3), msg = laatste feedback (15 s).
+const _snelkaartStart        = {};
+const _WS_BEVESTIG_MS        = 6000;  // "Zeker?" valt na 6 s terug naar "⚡ Nu starten"
 let   _snelkaartLaatsteHtml  = '';
 
 // ── Schema-data ─────────────────────────────────────────────────────────────
@@ -303,11 +309,98 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
     } else if (haalbaar) {
       actie = '<button class="snelkaart-btn" onclick="event.stopPropagation();snelkaartPlanIn(' + apIdx + ')">📅 Plan in via Homey</button>';
     }
+    // Direct starten/stoppen (v2.87.0) — onder de plan-actie, met bevestigingsstap.
+    actie += snelkaartStartKnopHtml(ap, pl);
   } else {
     actie = '<div class="snelkaart-info">🔌 Zelf aanzetten</div>';
   }
 
   return kaart(kern + sub + actie + overruleHtml);
+}
+
+// ── Direct starten/stoppen vanaf de kaart (v2.87.0) ────────────────────────
+// Fysieke actie (de auto gaat echt laden) → bevestigingsstap op de kaart zelf: eerste tik
+// maakt de knop "Zeker? Nu starten" (of "Zeker? Start nu, planning van HH:MM vervalt" als er
+// een QStash-planning staat), tweede tik voert uit; zonder tweede tik valt de knop na
+// _WS_BEVESTIG_MS terug. Geen modale dialoog. Netwerk + planning-wissen via de gedeelde
+// startStopViaHomey (js/apparaten.js) — zelfde pad als het detailscherm. Na een geslaagde
+// start: "⚡ Laden gestart" + "■ Stoppen" zolang deze sessie leeft; de planning-cache van de
+// kaart wordt gewist zodat de kaart zijn status vers ophaalt. Eigen statusregel op de kaart,
+// niet het detail-element #homeyStatus.
+function _ssState(key) {
+  return _snelkaartStart[key] || (_snelkaartStart[key] = { bevestig: false, timer: null, bezig: false, gestart: false, msg: null });
+}
+function _ssRender() { if (typeof renderSnelkaarten === 'function') renderSnelkaarten(); }
+
+// Knop(pen) + statusregel; '' voor apparaten zonder Homey-aansturing (zelfde kenmerk als de
+// detail-knoppen: ap.automatisering + integratie homey).
+function snelkaartStartKnopHtml(ap, planning) {
+  if (!ap || !_snelkaartKanAansturen(ap)) return '';
+  const key = ap.key;
+  const st  = _ssState(key);
+  const m   = st.msg;
+  const status = (m && Date.now() - m.t < 15_000)
+    ? '<div class="snelkaart-info" style="color:' + m.kleur + '">' + escapeHtml(m.tekst) + '</div>'
+    : '';
+  if (st.gestart) {
+    return '<div class="snelkaart-info" style="color:var(--green);font-weight:600;margin-top:6px">⚡ Laden gestart</div>' +
+      '<button class="snelkaart-btn wit"' + (st.bezig ? ' disabled' : '') +
+      ' onclick="event.stopPropagation();snelkaartStopTik(\'' + key + '\')">' + (st.bezig ? 'Stoppen…' : '■ Stoppen') + '</button>' + status;
+  }
+  let tekst = '⚡ Nu starten';
+  if (st.bezig) tekst = 'Starten…';
+  else if (st.bevestig) {
+    tekst = (planning && planning.actief && planning.startTijd)
+      ? 'Zeker? Start nu, planning van ' + escapeHtml(dagHMStrPlain(planning.startTijd)) + ' vervalt'
+      : 'Zeker? Nu starten';
+  }
+  const stijl = (st.bevestig && !st.bezig) ? ' style="background:#854f0b;border-color:#854f0b;color:#fff"' : '';
+  return '<button class="snelkaart-btn wit"' + (st.bezig ? ' disabled' : '') + stijl +
+    ' onclick="event.stopPropagation();snelkaartStartTik(\'' + key + '\')">' + tekst + '</button>' + status;
+}
+
+function snelkaartStartTik(key) {
+  const st = _ssState(key);
+  if (st.bezig || st.gestart) return;
+  if (!st.bevestig) {
+    st.bevestig = true;
+    if (st.timer) clearTimeout(st.timer);
+    st.timer = setTimeout(() => { st.bevestig = false; st.timer = null; _ssRender(); }, _WS_BEVESTIG_MS);
+    _ssRender();
+    return;
+  }
+  if (st.timer) clearTimeout(st.timer);
+  st.timer = null; st.bevestig = false;
+  return _snelkaartStartUitvoeren(key);
+}
+async function _snelkaartStartUitvoeren(key) {
+  const st = _ssState(key);
+  const pl = _snelkaartPlanning[key];
+  st.bezig = true; st.msg = null; _ssRender();
+  try {
+    const r = await startStopViaHomey('start', key, { planningActief: !!(pl && pl.actief) });
+    st.gestart = true;
+    st.msg = { tekst: r.planningGewist ? '✓ Laden gestart — planning vervallen' : '✓ Laden gestart', kleur: 'var(--green)', t: Date.now() };
+    delete _snelkaartPlanning[key];   // verse planning-status op de kaart
+  } catch (e) {
+    st.msg = { tekst: '✗ ' + e.message, kleur: '#a32d2d', t: Date.now() };
+  } finally {
+    st.bezig = false; _ssRender();
+  }
+}
+async function snelkaartStopTik(key) {
+  const st = _ssState(key);
+  if (st.bezig) return;
+  st.bezig = true; st.msg = null; _ssRender();
+  try {
+    await startStopViaHomey('stop', key, {});
+    st.gestart = false;
+    st.msg = { tekst: '✓ Laden gestopt', kleur: 'var(--green)', t: Date.now() };
+  } catch (e) {
+    st.msg = { tekst: '✗ ' + e.message, kleur: '#a32d2d', t: Date.now() };
+  } finally {
+    st.bezig = false; _ssRender();
+  }
 }
 
 // Na het sluiten van het detailpaneel (sluitApDetail in js/apparaten.js): de

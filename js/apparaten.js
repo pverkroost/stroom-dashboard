@@ -1878,22 +1878,38 @@ async function annuleerPlanning(apparaat) {
 
 // Homey-webhook direct ('start' | 'stop'). Bij 'start' met actieve planning wordt
 // die planning daarna opgeruimd (best-effort), zodat QStash niet alsnog vuurt.
+// Gedeelde kern voor Homey start/stop (v2.87.0): detailscherm (homeyActie) én de auto-snelkaart
+// (js/weekschema.js snelkaartStartTik/snelkaartStopTik) leunen hierop. POST /api/homey (sessie
+// vereist, server: requireSessionUserId); bij een geslaagde start wordt een lopende QStash-planning
+// van dit apparaat gewist zodat de auto niet later nóg een keer gestart wordt (mislukt dat
+// wissen, dan blijft de planning staan — zelfde tolerantie als voorheen). Geen DOM, geen
+// detail-state → testbaar met een gestubde fetch (test/snelkaartstart.test.js). Gooit bij fout;
+// 401 → "Niet ingelogd — log opnieuw in om te bedienen" (via _bedienFout).
+async function startStopViaHomey(action, apparaatKey, { planningActief = false } = {}) {
+  if (action !== 'start' && action !== 'stop') throw new Error('Onbekende actie: ' + action);
+  await _bedienFetch('/api/homey', { method: 'POST', body: JSON.stringify({ action }) });
+  let planningGewist = false;
+  if (action === 'start' && planningActief && apparaatKey) {
+    try {
+      await _bedienFetch('/api/planLaden?apparaat=' + encodeURIComponent(apparaatKey), { method: 'DELETE' });
+      planningGewist = true;
+    } catch {}
+  }
+  return { planningGewist };
+}
+
 async function homeyActie(action) {
   if (!apDetailState) return;
   const knoppen = ['homeyStartBtn', 'homeyStopBtn'].map(id => document.getElementById(id)).filter(Boolean);
   knoppen.forEach(b => { b.disabled = true; });
   _zetBedienStatus(action === 'start' ? 'Starten…' : 'Stoppen…');
   try {
-    await _bedienFetch('/api/homey', { method: 'POST', body: JSON.stringify({ action }) });
-    if (action === 'start' && _planningActief) {
-      const apparaat = apDetailState.ap.key;
-      try {
-        await _bedienFetch('/api/planLaden?apparaat=' + apparaat, { method: 'DELETE' });
-        _planningActief = false;
-        const planStatusEl = document.getElementById('planningStatusEl');
-        if (planStatusEl) planStatusEl.style.display = 'none';
-        _zetPlanKnop();
-      } catch {}
+    const { planningGewist } = await startStopViaHomey(action, apDetailState.ap.key, { planningActief: _planningActief });
+    if (planningGewist) {
+      _planningActief = false;
+      const planStatusEl = document.getElementById('planningStatusEl');
+      if (planStatusEl) planStatusEl.style.display = 'none';
+      _zetPlanKnop();
     }
     _zetBedienStatus(action === 'start' ? '✓ Laden gestart!' : '✓ Laden gestopt.', 'var(--green)');
   } catch (e) {

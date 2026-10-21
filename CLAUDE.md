@@ -112,6 +112,16 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
 - **Auto**: SoC is onbekend → de kaart rekent altijd met de volle `ap.uren`. "Plan in via
   Homey" opent het bestaande detailpaneel met het berekende blok voorgeselecteerd en start
   de bestaande `planInladen`-flow (sessie-auth). De vaatwasser heeft geen aansturing: puur advies.
+- **Direct starten/stoppen vanaf de kaart (sinds v2.87.0, alleen Homey-apparaten)**: knop
+  "⚡ Nu starten" met bevestigingsstap op de kaart zelf (eerste tik → "Zeker? Nu starten", of
+  "Zeker? Start nu, planning van HH:MM vervalt" bij een actieve QStash-planning; tweede tik voert
+  uit; terugval na `_WS_BEVESTIG_MS` = 6 s; geen modale dialoog). Kern = gedeelde
+  `startStopViaHomey(action, key, { planningActief })` in `js/apparaten.js` (POST `/api/homey`,
+  sessie vereist; na een geslaagde start wordt de planning gewist), ook gebruikt door `homeyActie`
+  in het detailscherm. Na een start toont de kaart "⚡ Laden gestart" + "■ Stoppen" zolang de
+  sessie leeft (de app kent de echte laadstatus niet, backlog #3); eigen statusregel op de kaart,
+  401 → "Niet ingelogd — log opnieuw in om te bedienen". State in `_snelkaartStart`
+  (`snelkaartStartKnopHtml`, `snelkaartStartTik`, `snelkaartStopTik`). Test: `test/snelkaartstart.test.js`.
 - **Overrule**: "andere tijd voor nu" op de kaart wijzigt alleen de deadline in deze sessie
   (`_snelkaartOverride`), niet het opgeslagen weekschema.
 - **Randgeval**: deadline voorbij de bekende prijzen terwijl morgen-prijzen nog niet binnen
