@@ -85,16 +85,23 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
 `snelkaart: true` in `users/<id>.js` een kaart die direct het aanbevolen startmoment toont
 ("Zet nu aan" / "Zet aan om HH:MM") o.b.v. een deadline uit een vast weekschema
 (`deadlineLabel`: "klaar om" voor de vaatwasser, "vertrek om" voor de auto).
+- **Snelkaart-principe (sinds v2.88.0)**: de hele kaart is klikbaar naar het detailscherm (hint
+  "Meer ›" in de kop); op de kaart staan alleen de primaire acties ("📅 Plan in" / "⚡ Nu starten" /
+  "■ Stoppen"). Elke knop vangt zijn eigen tik af (`event.stopPropagation()`), ook de twee staps
+  "Zeker? Nu starten" — een knop-tik opent nooit het detailscherm. De vroegere kaart-links "andere tijd"
+  (sessie-overrule) en "weekschema" zijn weg: een andere starttijd kies je in het detailscherm
+  (grafiek/handmatig), het weekschema stel je daar of in Instellingen in.
 - **Beheer per apparaat (sinds v2.80.0)**: één generieke editor (`weekschemaEditorHtml(ap, locatie)` in
-  `js/weekschema.js`: 7 dagen, Opslaan, Standaard, bron-regel) klapt uit op de snelkaart zelf
-  ("📅 weekschema") én bij het apparaat in Instellingen → Apparaten (knop "📅 Weekschema" + samenvatting
-  in de rij, via `weekschemaLijstDeel(ap)`; sinds v2.80.1 — de losse Weekschema-sectie en de vroegere
-  kruistabel zijn weg; apparaten zonder weekschema tonen niets). Opslaan gaat per apparaat (`POST ?action=schema` met alleen die sleutel; de server
+  `js/weekschema.js`: 7 dagen, Opslaan, Standaard, bron-regel) klapt uit in het detailscherm
+  (`weekschemaDetailDeel(ap)`, locatie `'detail'`, in place ververst via `#wsDetail-<key>`; v2.88.0)
+  én bij het apparaat in Instellingen → Apparaten (knop "📅 Weekschema" + samenvatting in de rij, via
+  `weekschemaLijstDeel(ap)`; sinds v2.80.1 — de losse Weekschema-sectie en de vroegere kruistabel zijn
+  weg; apparaten zonder weekschema tonen niets). Opslaan gaat per apparaat (`POST ?action=schema` met alleen die sleutel; de server
   vervangt per apparaat, de respons bevat alleen dat apparaat → lokaal mengen, niet vervangen).
   Herbouw-bestendig: open/dicht per plek in `_wsEditorOpen`, onopgeslagen invoer in `_wsDraft[key]`,
   feedback in `_wsMsg`; de apparatenlijst wordt niet herbouwd zolang een editorveld focus heeft, en
   rij-drag start niet vanuit de editor.
-- **Code**: `js/weekschema.js` (kaarten, overrule, editor + beheer in Instellingen; apparaat-sleutel =
+- **Code**: `js/weekschema.js` (kaarten, editor + beheer in detail/Instellingen; apparaat-sleutel =
   `ap.key`, zie *Apparaat-identiteit*) + gedeelde helper
   `berekenBlokVoorDeadline(uren, kW, deadlineDate, planUren)` en `deadlineVanHHMM()` in
   `js/apparaten.js`. Die helper vervangt de vroeger gedupliceerde deadline-filtering in
@@ -110,7 +117,7 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
   Na deploy éénmalig `GET /api/db/migrate` aanroepen voor de nieuwe tabel (met `MIGRATE_SECRET`,
   zie *Security*).
 - **Auto**: SoC is onbekend → de kaart rekent altijd met de volle `ap.uren`. "Plan in via
-  Homey" opent het bestaande detailpaneel met het berekende blok voorgeselecteerd en start
+  Homey" (sinds v2.88.0 "📅 Plan in") opent het bestaande detailpaneel met het berekende blok voorgeselecteerd en start
   de bestaande `planInladen`-flow (sessie-auth). De vaatwasser heeft geen aansturing: puur advies.
 - **Direct starten/stoppen vanaf de kaart (sinds v2.87.0, alleen Homey-apparaten)**: knop
   "⚡ Nu starten" met bevestigingsstap op de kaart zelf (eerste tik → "Zeker? Nu starten", of
@@ -122,8 +129,6 @@ Bovenaan de hoofdtab (`#snelkaartSection`, boven "Slim inplannen") staat per app
   sessie leeft (de app kent de echte laadstatus niet, backlog #3); eigen statusregel op de kaart,
   401 → "Niet ingelogd — log opnieuw in om te bedienen". State in `_snelkaartStart`
   (`snelkaartStartKnopHtml`, `snelkaartStartTik`, `snelkaartStopTik`). Test: `test/snelkaartstart.test.js`.
-- **Overrule**: "andere tijd voor nu" op de kaart wijzigt alleen de deadline in deze sessie
-  (`_snelkaartOverride`), niet het opgeslagen weekschema.
 - **Randgeval**: deadline voorbij de bekende prijzen terwijl morgen-prijzen nog niet binnen
   zijn (vóór ~14:00): de helper geeft `wachtOpMorgen: true` én, als dat kan, een haalbaar venster van
   vandaag. Sinds v2.86.0 (brede variant, `kiesSnelkaartAdvies(haalbaar, wachtOpMorgen)` in

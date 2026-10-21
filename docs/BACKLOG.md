@@ -332,6 +332,14 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.88.0** — Snelkaarten opgeschoond: klikbaar naar detail, "Plan in", minder knoppen
+- Hele kaart klikbaar naar het detailscherm met hint "Meer ›" in de kop; knoppen ("📅 Plan in",
+  "⚡ Nu starten"/"Zeker?", "■ Stoppen") vangen hun tik af en openen nooit het detail.
+- "Plan in via Homey" → "📅 Plan in" (zelfde actie/pad). Kaart-links "andere tijd" (sessie-overrule,
+  incl. `deadlineVanOverride`/`_snelkaartOverride`) en "weekschema" verwijderd.
+- Weekschema nu ook in het detailscherm (`weekschemaDetailDeel`, locatie `'detail'`, in place ververst);
+  Instellingen → Apparaten ongewijzigd. Andere starttijd kies je in het detail (grafiek/handmatig).
+
 **v2.87.0** — "⚡ Nu starten" op de auto-snelkaart, met bevestiging en planning-waarschuwing
 - Gedeelde `startStopViaHomey(action, key, { planningActief })` in `js/apparaten.js` (uit `homeyActie`
   getrokken; detailscherm gedraagt zich exact als voorheen): POST `/api/homey`, bij een geslaagde start

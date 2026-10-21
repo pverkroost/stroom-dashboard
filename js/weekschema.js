@@ -17,8 +17,8 @@
 // Defaults staan per apparaat in users/<id>.js als { ma:'07:00', … } en worden
 // hier naar dag-indices vertaald; het opgeslagen schema uit Neon gaat voor.
 //
-// Overrule: de gebruiker kan op de kaart een andere deadline kiezen voor NU.
-// Dat leeft alleen in _snelkaartOverride (sessie), het weekschema blijft staan.
+// De kaart zelf is klikbaar naar het detailscherm (v2.88.0, hint "Meer ›"); een andere
+// starttijd kies je daar (grafiek/handmatig), het weekschema stel je daar of in Instellingen in.
 
 const _WS_TIJD_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const _WS_PLANNING_TTL_MS = 60_000;
@@ -35,8 +35,6 @@ let _weekschemaLaadTs    = 0;
 let _weekschemaLaadPromise = null;
 let _weekschemaVersie    = 0;      // bump bij elke data-wijziging → Instellingen rerendert alleen dan
 
-const _snelkaartOverride     = {}; // { key: 'HH:MM' } — alleen deze sessie
-const _snelkaartOverruleOpen = {}; // { key: bool }   — tijdpicker uitgeklapt?
 const _snelkaartLaatste      = {}; // { key: { res, deadlineTijd } } — voor de inplan-actie
 const _snelkaartPlanning     = {}; // { key: { ts, actief, startTijd, stopTijd, bezig } }
 // Direct starten/stoppen vanaf de kaart (v2.87.0, alleen Homey-apparaten):
@@ -139,18 +137,6 @@ function volgendeDeadline(schema, aantalBlok) {
   return null;
 }
 
-// Overrule "HH:MM" → vandaag als het blok er nog voor past, anders morgen.
-function deadlineVanOverride(hhmm, aantalBlok) {
-  if (!_WS_TIJD_RE.test(hhmm || '')) return null;
-  const uurStart = new Date(); uurStart.setMinutes(0, 0, 0);
-  const minMs = uurStart.getTime() + Math.max(1, aantalBlok) * 3600000;
-  const [h, m] = hhmm.split(':').map(Number);
-  const d = getTodayStart(); d.setHours(h, m, 0, 0);
-  let offset = 0;
-  if (d.getTime() < minMs) { d.setDate(d.getDate() + 1); offset = 1; }
-  return { deadline: d, tijd: hhmm, offset };
-}
-
 function _dagContext(datum, offset) {
   const naam = _DAGNAMEN[datum.getDay()];
   if (offset === 0) return 'vandaag';
@@ -207,7 +193,10 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
   const label      = escapeHtml(ap.deadlineLabel || 'klaar om');
   const kanSturen  = _snelkaartKanAansturen(ap);
   const isLaden    = ap.type === 'laden';
-  const kop        = '<div class="card-label">' + icon + ' ' + naam + '</div>';
+  // Kop met rustige hint dat er een detailscherm achter zit; de hele kaart is klikbaar
+  // (onclick op de kaart), knoppen vangen hun eigen tik af (event.stopPropagation).
+  const kop        = '<div class="card-label" style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">' +
+                       '<span>' + icon + ' ' + naam + '</span><span class="snelkaart-meer">Meer ›</span></div>';
   const kaart      = inhoud => '<div class="card snelkaart" onclick="openApDetail(' + apIdx + ')" style="cursor:pointer">' + kop + inhoud + '</div>';
   const stil       = tekst => '<div class="snelkaart-status">' + tekst + '</div>';
 
@@ -219,9 +208,7 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
 
   const aantalBlok   = Math.ceil(ap.uren);
   const schema       = weekschemaVoor(ap);
-  const override     = _snelkaartOverride[key] || null;
-  const dl           = override ? deadlineVanOverride(override, aantalBlok) : volgendeDeadline(schema, aantalBlok);
-  const overruleOpen = !!_snelkaartOverruleOpen[key];
+  const dl           = volgendeDeadline(schema, aantalBlok);
   const verb         = isLaden ? 'Start laden' : 'Zet aan';
 
   // Subregel: alleen de deadline als kleine context ("klaar om 07:00"), met
@@ -231,35 +218,16 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
   // (binnen _WS_DEADLINE_TOON_MS). Is het blok ruim eerder klaar (vaatwasser 09:00–13:00
   // met deadline morgen 07:00), dan leest "klaar om 07:00" als een tijd vóór de start en
   // zegt hij niets over het advies; de deadline telt wél gewoon mee in de berekening.
-  // Een handmatige overrule blijft altijd zichtbaar (de gebruiker heeft 'm zelf gezet).
   // v2.86.0: optionele hint ("morgen-prijzen nog onbekend") als extra deel, naast de
   // deadline-regel — de delen worden met " · " aaneengeregen, niets verdringt iets.
   const subRegel = (startMorgen, toonDeadline = true, hint = '') => {
     if (!dl) return '<div class="card-time">Geen tijd in weekschema — stel in via ⚙️</div>';
     const delen = [];
     if (startMorgen) delen.push('morgen');
-    if (toonDeadline || override) {
-      delen.push(label + ' ' + escapeHtml(dl.tijd) + (override ? ' <span style="color:#854f0b">· aangepast</span>' : ''));
-    }
+    if (toonDeadline) delen.push(label + ' ' + escapeHtml(dl.tijd));
     if (hint) delen.push('<span style="color:var(--muted)">' + escapeHtml(hint) + '</span>');
     return delen.length ? '<div class="card-time">' + delen.join(' · ') + '</div>' : '';
   };
-
-  const editorOpen = !!_wsEditorOpen['kaart:' + key];
-  const overruleHtml =
-    '<div class="snelkaart-links">' +
-      '<button class="snelkaart-link" onclick="event.stopPropagation();snelkaartOverruleToggle(\'' + key + '\')">' +
-        (overruleOpen ? '▲ verberg' : '✏️ andere tijd') + '</button>' +
-      '<button class="snelkaart-link" onclick="event.stopPropagation();weekschemaEditorToggle(\'kaart\', \'' + key + '\')">' +
-        (editorOpen ? '▲ weekschema' : '📅 weekschema') + '</button>' +
-    '</div>' +
-    (overruleOpen
-      ? '<div class="snelkaart-overrule" onclick="event.stopPropagation()">' +
-          '<input type="time" value="' + escapeHtml(override || (dl ? dl.tijd : '')) + '" aria-label="Afwijkende deadline" onchange="snelkaartOverrule(\'' + key + '\', this.value)">' +
-          (override ? '<button class="snelkaart-link" style="text-decoration:none;font-size:16px" title="Terug naar weekschema" onclick="snelkaartOverruleReset(\'' + key + '\')">↺</button>' : '') +
-        '</div>'
-      : '') +
-    (editorOpen ? weekschemaEditorHtml(ap, 'kaart') : '');
 
   let kern = '', sub = '', actie = '';
   _snelkaartLaatste[key] = { res: null, deadlineTijd: dl ? dl.tijd : null };
@@ -307,7 +275,7 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
       actie = '<div class="snelkaart-info"><span style="color:var(--green)">●</span> Gepland · start ' + escapeHtml(dagHMStrPlain(pl.startTijd)) + '</div>' +
               '<button class="snelkaart-btn wit" onclick="event.stopPropagation();snelkaartPlanIn(' + apIdx + ')">Planning wijzigen</button>';
     } else if (haalbaar) {
-      actie = '<button class="snelkaart-btn" onclick="event.stopPropagation();snelkaartPlanIn(' + apIdx + ')">📅 Plan in via Homey</button>';
+      actie = '<button class="snelkaart-btn" onclick="event.stopPropagation();snelkaartPlanIn(' + apIdx + ')">📅 Plan in</button>';
     }
     // Direct starten/stoppen (v2.87.0) — onder de plan-actie, met bevestigingsstap.
     actie += snelkaartStartKnopHtml(ap, pl);
@@ -315,7 +283,7 @@ function _bouwSnelkaartHtml(ap, apIdx, planUren) {
     actie = '<div class="snelkaart-info">🔌 Zelf aanzetten</div>';
   }
 
-  return kaart(kern + sub + actie + overruleHtml);
+  return kaart(kern + sub + actie);
 }
 
 // ── Direct starten/stoppen vanaf de kaart (v2.87.0) ────────────────────────
@@ -410,22 +378,6 @@ function snelkaartNaDetailSluiten() {
   renderSnelkaarten();
 }
 
-// ── Kaart-acties ────────────────────────────────────────────────────────────
-function snelkaartOverruleToggle(key) {
-  _snelkaartOverruleOpen[key] = !_snelkaartOverruleOpen[key];
-  renderSnelkaarten();
-}
-function snelkaartOverrule(key, value) {
-  if (_WS_TIJD_RE.test(value || '')) _snelkaartOverride[key] = value;
-  else delete _snelkaartOverride[key];
-  renderSnelkaarten();
-}
-function snelkaartOverruleReset(key) {
-  delete _snelkaartOverride[key];
-  _snelkaartOverruleOpen[key] = false;
-  renderSnelkaarten();
-}
-
 // Auto: open het bestaande detailpaneel met het berekende blok voorgeselecteerd en
 // start direct de bestaande planInladen-flow via de ingelogde sessie. Bij een al
 // actieve planning alleen het paneel openen zodat de gebruiker die kan
@@ -507,13 +459,37 @@ function weekschemaEditorHtml(ap, locatie) {
   '</div>';
 }
 
-function _wsRender(locatie) {
+function _wsRender(locatie, key) {
   if (locatie === 'kaart') renderSnelkaarten();
+  else if (locatie === 'detail') _wsDetailVervers(key);
   else if (typeof renderApparatenInstellingen === 'function') renderApparatenInstellingen(true);
 }
 function weekschemaEditorToggle(locatie, key) {
   _wsEditorOpen[locatie + ':' + key] = !_wsEditorOpen[locatie + ':' + key];
-  _wsRender(locatie);
+  _wsRender(locatie, key);
+}
+
+// ── Weekschema in het apparaat-detailscherm (v2.88.0) ───────────────────────
+// renderApDetail (js/apparaten.js) vraagt per snelkaart-apparaat dit blok op: knop
+// "📅 Weekschema" + samenvatting, uitklap-editor (zelfde component, locatie 'detail').
+// Verversen gebeurt in place (#wsDetail-<key>), niet via een volledige detail-herrender.
+function weekschemaDetailDeel(ap) {
+  if (!ap || ap.snelkaart !== true || !ap.weekschema || typeof ap.weekschema !== 'object') return '';
+  return '<div class="section" style="padding-top:4px;padding-bottom:4px" id="wsDetail-' + ap.key + '">' + _wsDetailInhoud(ap) + '</div>';
+}
+function _wsDetailInhoud(ap) {
+  const key  = ap.key;
+  const open = !!_wsEditorOpen['detail:' + key];
+  const samenvatting = escapeHtml(ap.deadlineLabel || 'klaar om') + ' · ' + escapeHtml(weekschemaSamenvatting(_wsEffectief(ap)));
+  return '<button class="ap-cta-btn ap-cta-wit" id="wsDetailToggle-' + key + '" style="margin-bottom:0;font-size:13px;text-align:left" aria-expanded="' + open + '"' +
+      ' onclick="weekschemaEditorToggle(\'detail\', \'' + key + '\')">' + (open ? '▲ Weekschema' : '📅 Weekschema') +
+      ' <span style="font-weight:400;color:var(--muted);font-size:11px">' + samenvatting + '</span></button>' +
+    (open ? weekschemaEditorHtml(ap, 'detail') : '');
+}
+function _wsDetailVervers(key) {
+  const el = document.getElementById('wsDetail-' + key);
+  const ap = _wsApparaatVoorKey(key);
+  if (el && ap) el.innerHTML = _wsDetailInhoud(ap);
 }
 // Draft bijwerken zonder te rerenderen (anders verliest het veld focus); de status-
 // regel wordt direct in de DOM gezet op beide plekken.
@@ -525,7 +501,7 @@ function weekschemaDraftZet(key, dag, value) {
 }
 function _wsStatusZet(key, tekst, kleur, onthoud = true) {
   if (onthoud) _wsMsg[key] = { tekst, kleur, t: Date.now() };
-  ['kaart', 'inst'].forEach(loc => {
+  ['kaart', 'inst', 'detail'].forEach(loc => {
     const el = document.getElementById('wsStatus-' + loc + '-' + key);
     if (el) { el.innerHTML = '<span style="color:' + kleur + '">' + escapeHtml(tekst) + '</span>'; }
   });
@@ -572,6 +548,7 @@ async function bewaarWeekschemaApparaat(key) {
     _wsMsg[key] = { tekst: '✓ Weekschema opgeslagen', kleur: 'var(--green)', t: Date.now() };
     renderSnelkaarten();
     _wsRender('inst');
+    _wsRender('detail', key);
   } catch (e) {
     _wsStatusZet(key, '✗ ' + e.message, '#a32d2d');
   } finally {

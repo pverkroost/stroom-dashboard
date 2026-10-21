@@ -1577,6 +1577,9 @@ function renderApDetail() {
     // 5a. HOME CONNECT — koppeling/status/start-stop (apart van Homey)
     (heeftHomeConnect ? '<div id="hcDetailSectie"></div>' : '') +
 
+    // 5b. WEEKSCHEMA (v2.88.0) — voor snelkaart-apparaten; de kaart zelf heeft geen editor meer
+    ((typeof weekschemaDetailDeel === 'function') ? weekschemaDetailDeel(ap) : '') +
+
     // 6. PRIJSGRAFIEK onderaan (v2.82.0, klikbaar sinds v2.83.0): dezelfde grafiek als op
     //    de hoofdtab (verbruiksprijs, zonne-opbrengst, terugleverprijs). Een tik op een uur
     //    kiest dat startuur (renderApGrafiek → onKlik → kiesStartIdx); tegels, balk, tip en
