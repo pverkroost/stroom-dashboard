@@ -332,6 +332,14 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.89.1** — "Te veel verzoeken" bij plannen: aparte rate limit voor status-reads + client-cache
+- `api/planLaden.js`: GET (alleen lezen) 60/min onder `planLaden-get`; POST/DELETE houden 5/min onder
+  `planLaden`. Vroeger deelden ze één budget van 5/min, en het detailscherm las de status bij elke
+  herrender (openen, vertrekplanner, handmatig …) → één keer plannen + sluiten + heropenen gaf al 429.
+- Client (`js/apparaten.js`): één gedeelde status-cache `haalPlanningStatus(key, force)` (TTL 60 s) voor
+  detail én snelkaart (`_verversSnelkaartPlanning` leest erdoorheen); gewist/geforceerd na plannen,
+  annuleren en Homey-start. Test: `test/planladen-ratelimit.test.js`.
+
 **v2.89.0** — Detail- en HC-deadline volgen het weekschema i.p.v. een losse default; datum-randgeval
 - Bug: "Auto moet opgeladen zijn om" in het detail toonde een tijd-plus-buffer-default (bv. 19:00) die
   nergens in het weekschema staat; de snelkaart gebruikte wél de schema-deadline. Nu vult

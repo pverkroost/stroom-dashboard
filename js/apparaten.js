@@ -1819,14 +1819,33 @@ function herbereken() {
     '</div>';
 }
 
-async function laadPlanningStatus(apparaat) {
+// Planningsstatus per apparaat, gecachet (v2.89.1). Het detailscherm herrendert bij elke
+// toggle en las de status steeds opnieuw; samen met de snelkaart en de acties liep de
+// rate limit van /api/planLaden vol. Eén cache voor detail én snelkaart: binnen de TTL geen
+// netwerk; na een actie (plannen, annuleren, start via Homey) wordt hij gewist of geforceerd.
+const _planningStatusCache   = {};   // { key: { ts, data } }
+const _PLANNING_STATUS_TTL_MS = 60_000;
+function wisPlanningStatusCache(key) {
+  if (key) delete _planningStatusCache[key];
+  else Object.keys(_planningStatusCache).forEach(k => { delete _planningStatusCache[k]; });
+}
+async function haalPlanningStatus(apparaat, force = false) {
+  const key = apparaat || 'default';
+  const c   = _planningStatusCache[key];
+  if (!force && c && Date.now() - c.ts < _PLANNING_STATUS_TTL_MS) return c.data;
+  const r    = await fetch(apiUrl('/api/planLaden?apparaat=' + encodeURIComponent(key)));
+  const data = await r.json();
+  if (r.ok && data && typeof data === 'object') _planningStatusCache[key] = { ts: Date.now(), data };
+  return data;
+}
+
+async function laadPlanningStatus(apparaat, force = false) {
   if (!apparaat && apDetailState) apparaat = apDetailState.ap.key;
   const statusEl = document.getElementById('planningStatusEl');
   const btn      = document.getElementById('planInladenBtn');
   if (!statusEl) return;
   try {
-    const r    = await fetch(apiUrl('/api/planLaden?apparaat=' + (apparaat || '')));
-    const data = await r.json();
+    const data = await haalPlanningStatus(apparaat, force);
     if (data.actief) {
       _planningActief = true;
       const start = new Date(data.startTijd);
@@ -1908,7 +1927,7 @@ async function planInladen(stilUpdate = false) {
     }) });
     _planningActief = true;
     if (!stilUpdate) _zetBedienStatus('✓ Planning opgeslagen', 'var(--green)');
-    await laadPlanningStatus(apparaat);
+    await laadPlanningStatus(apparaat, true);   // vers: de planning is net gewijzigd
   } catch (e) {
     if (stilUpdate) console.warn('[planInladen stilUpdate]', e.message);
     if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = '#a32d2d'; statusEl.textContent = '✗ ' + e.message; }
@@ -1922,6 +1941,7 @@ async function annuleerPlanning(apparaat) {
   const statusEl = document.getElementById('planningStatusEl');
   try {
     await _bedienFetch('/api/planLaden?apparaat=' + (apparaat || ''), { method: 'DELETE' });
+    wisPlanningStatusCache(apparaat);
     _planningActief = false;
     if (statusEl) statusEl.style.display = 'none';
     _zetPlanKnop();
@@ -1947,6 +1967,7 @@ async function startStopViaHomey(action, apparaatKey, { planningActief = false }
   if (action === 'start' && planningActief && apparaatKey) {
     try {
       await _bedienFetch('/api/planLaden?apparaat=' + encodeURIComponent(apparaatKey), { method: 'DELETE' });
+      wisPlanningStatusCache(apparaatKey);
       planningGewist = true;
     } catch {}
   }
@@ -1961,6 +1982,7 @@ async function homeyActie(action) {
   try {
     const { planningGewist } = await startStopViaHomey(action, apDetailState.ap.key, { planningActief: _planningActief });
     if (planningGewist) {
+      wisPlanningStatusCache(apDetailState.ap.key);
       _planningActief = false;
       const planStatusEl = document.getElementById('planningStatusEl');
       if (planStatusEl) planStatusEl.style.display = 'none';

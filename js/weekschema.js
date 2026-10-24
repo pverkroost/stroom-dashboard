@@ -153,8 +153,8 @@ function _verversSnelkaartPlanning(key) {
   const cur = _snelkaartPlanning[key];
   if (cur && (cur.bezig || Date.now() - cur.ts < _WS_PLANNING_TTL_MS)) return;
   _snelkaartPlanning[key] = Object.assign({}, cur || {}, { bezig: true, ts: Date.now() });
-  fetch(apiUrl('/api/planLaden?apparaat=' + encodeURIComponent(key)))
-    .then(r => r.json())
+  // Via de gedeelde status-cache (js/apparaten.js, v2.89.1): detail en kaart delen één read.
+  haalPlanningStatus(key)
     .then(data => {
       _snelkaartPlanning[key] = {
         ts: Date.now(), bezig: false,
@@ -396,7 +396,7 @@ async function snelkaartPlanIn(apIdx) {
     overneemSuggestie(info.res.startIndex, true);
   }
   delete _snelkaartPlanning[key]; // na terugkeer verse status op de kaart
-  await laadPlanningStatus(key);
+  await laadPlanningStatus(key, true);
   if (!_planningActief && haalbaar && apDetailState && apDetailState.apIdx === apIdx) planInladen();
 }
 

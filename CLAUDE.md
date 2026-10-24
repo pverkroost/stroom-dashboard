@@ -302,7 +302,11 @@ kan dit zonder aankondiging breken; dan faalt `cloudpoll` netjes en toont de teg
 ## Security
 Gecentraliseerd in `api/_helpers.js` (gedeeld door alle endpoints):
 - **Rate limiting**: sliding window via Upstash Redis (`INCR` + `EXPIRE`). Login 10/5min per IP.
-  Fail-open bij Redis-storing zodat een Upstash-uitval de app niet platlegt.
+  Fail-open bij Redis-storing zodat een Upstash-uitval de app niet platlegt. `/api/planLaden` heeft
+  sinds v2.89.1 aparte budgetten: GET (status lezen) 60/min onder `planLaden-get`, POST/DELETE
+  (bedienen, QStash) 5/min onder `planLaden` — de status-reads van het detailscherm blokkeerden anders
+  de bedienacties. Client-side delen detail en snelkaart één status-cache (`haalPlanningStatus`,
+  TTL 60 s, `wisPlanningStatusCache` na plannen/annuleren/Homey-start) in `js/apparaten.js`.
 - **Sessie-auth op bedien-endpoints**: `requireSessionUserId` (401 zonder geldige
   `eq_session`) op `/api/homey` POST, `/api/planLaden` POST/DELETE,
   `/api/homeconnect?action=start|stop` en alle `/api/homewizard?action=cloud*`-acties.

@@ -81,8 +81,15 @@ async function planHomeConnectQStash(userId, startTijd, apparaat, haId, programK
   return res?.messageId || null;
 }
 
+// Rate limit per methode (v2.89.1): GET is alleen lezen (Redis-lookup, geen QStash) en mag
+// ruim; POST/DELETE bedienen (QStash-berichten) en houden 5/min. Vroeger deelden ze één
+// budget van 5/min, zodat de status-reads van het detailscherm de bedienacties blokkeerden
+// ("Te veel verzoeken" na één keer plannen).
 module.exports = async (req, res) => {
-  if (!(await applyGate(req, res, { endpoint: 'planLaden', max: 5, windowSec: 60 }))) return;
+  const gate = req.method === 'GET'
+    ? { endpoint: 'planLaden-get', max: 60, windowSec: 60 }
+    : { endpoint: 'planLaden',     max: 5,  windowSec: 60 };
+  if (!(await applyGate(req, res, gate))) return;
 
   // GET (status) mag via sessie of legacy ?u=; POST/DELETE (bedienen) vereisen
   // sinds v2.77.0 een geldige sessie — zonder pincode, maar nooit zonder auth.
