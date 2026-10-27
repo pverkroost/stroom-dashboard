@@ -332,6 +332,14 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.89.2** — Security-onderhoud dependencies (n.a.v. Node.js oktober-2026 CVE-release)
+- `engines.node` → `>=22` (Node 18 en 20 zijn EOL; Vercel-project op 22.x, krijgt zo de gepatchte runtime).
+- Runtime-deps bijgewerkt: `@neondatabase/serverless` ^1.2.0, `@upstash/qstash` ^2.12.1, `@upstash/redis` ^1.40.0.
+- De twee high-severity `npm audit`-meldingen (`brace-expansion`, `js-yaml`, beide transitief via eslint,
+  dev-only) weggenomen met `overrides` (brace-expansion ^1.1.21, js-yaml ^5.5.0) i.p.v. een eslint-major-
+  upgrade: eslint 8 blijft, geen flat-config-migratie. `npm audit` nu 0. Productie-runtime was al schoon
+  (`npm audit --omit=dev` = 0). eslint 9/10-migratie bewust uitgesteld (puur onderhoud, geen security).
+
 **v2.89.1** — "Te veel verzoeken" bij plannen: aparte rate limit voor status-reads + client-cache
 - `api/planLaden.js`: GET (alleen lezen) 60/min onder `planLaden-get`; POST/DELETE houden 5/min onder
   `planLaden`. Vroeger deelden ze één budget van 5/min, en het detailscherm las de status bij elke

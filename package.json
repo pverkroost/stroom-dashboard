@@ -1,7 +1,7 @@
 {
   "private": true,
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "scripts": {
     "test": "node --test \"test/**/*.test.js\"",
@@ -9,13 +9,17 @@
     "lint:fix": "eslint \"js/**/*.js\" \"api/**/*.js\" --fix"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.1.0",
-    "@upstash/qstash": "^2.10.1",
-    "@upstash/redis": "^1.38.0",
+    "@neondatabase/serverless": "^1.2.0",
+    "@upstash/qstash": "^2.12.1",
+    "@upstash/redis": "^1.40.0",
     "bcryptjs": "^3.0.3",
     "ws": "^8.22.0"
   },
   "devDependencies": {
     "eslint": "^8.57.1"
+  },
+  "overrides": {
+    "brace-expansion": "^1.1.21",
+    "js-yaml": "^5.5.0"
   }
 }
