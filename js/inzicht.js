@@ -169,6 +169,23 @@
     return out;
   }
 
+  // Gemiddeld gasverbruik in de volledige jaren VÓÓR de warmtepomp (voor de benchmark
+  // tegen de norm). Gebruikt verbruikPerKalenderjaar en sluit het installatiejaar en
+  // later uit (dan draaide de warmtepomp al, dus geen vol stookjaar op gas).
+  function gemGasVoorWarmtepomp(config) {
+    var installY = 9999;
+    if (config && config.warmtepomp && config.warmtepomp.installDatum) {
+      installY = new Date(config.warmtepomp.installDatum + 'T00:00:00Z').getUTCFullYear();
+    }
+    var reeks = verbruikPerKalenderjaar(config).filter(function (r) {
+      return r.volledig && r.gasM3 > 0 && parseInt(r.jaar, 10) < installY;
+    });
+    if (!reeks.length) return 0;
+    var s = 0;
+    for (var i = 0; i < reeks.length; i++) s += reeks[i].gasM3;
+    return s / reeks.length;
+  }
+
   // Warmtepomp-terugverdienmodel (geld-kritisch, pure functie — geborgd in
   // test/inzicht.test.js met een vaste `nu`-datum). Forward besparing/jaar gebruikt de
   // default-gasprijs; de gerealiseerde besparing telt per kalenderjaar op met de
@@ -226,6 +243,7 @@
     gasReeks: gasReeks,
     verbruikPerKalenderjaar: verbruikPerKalenderjaar,
     kostenPerJaar: kostenPerJaar,
+    gemGasVoorWarmtepomp: gemGasVoorWarmtepomp,
     warmtepompAnalyse: warmtepompAnalyse,
   };
 
@@ -351,7 +369,31 @@
           + '<span class="inzicht-rij-euro">' + kwh(r.gasM3) + ' m³</span>'
           + '</div>';
       }
+      h += benchmarkDeel();
       h += '</div>';
+      return h;
+    }
+
+    // Benchmark tegen de norm voor jullie profiel (vrijstaand, 5 personen).
+    function benchmarkDeel() {
+      var cfg = global.CONFIG || {};
+      var nm = cfg.normen;
+      if (!nm) return '';
+      var gemGas = Math.round(API.gemGasVoorWarmtepomp(cfg));
+      var h = '<div class="inzicht-benchmark">'
+        + '<div class="inzicht-benchmark-titel">Hoe doe je het t.o.v. gemiddeld?</div>'
+        + '<div class="inzicht-benchmark-sub">Norm voor ' + (nm.profiel || 'jullie profiel') + ' (' + (nm.bron || '') + ')</div>';
+      if (gemGas > 0 && nm.gasM3) {
+        var verschil = Math.round((gemGas / nm.gasM3 - 1) * 100);
+        var richting = verschil <= 0 ? Math.abs(verschil) + '% onder de norm' : verschil + '% boven de norm';
+        h += '<div class="inzicht-benchmark-rij"><b>Gas</b> (vóór de warmtepomp): jij ~' + kwh(gemGas)
+          + ' m³ · norm ~' + kwh(nm.gasM3) + ' m³ → ' + richting + '.</div>';
+      }
+      h += '<div class="inzicht-benchmark-rij"><b>Stroom</b>: norm ~' + kwh(nm.stroomKwh)
+        + ' kWh huishoudelijk, ~' + kwh(nm.stroomAllElectricKwh) + ' kWh all-electric met warmtepomp. '
+        + 'Jouw inkoop van het net ligt hoger (elektrische auto), maar je zonnepanelen drukken je echte inkoop '
+        + 'en een deel van je verbruik zie je niet terug als afname.</div>'
+        + '</div>';
       return h;
     }
 

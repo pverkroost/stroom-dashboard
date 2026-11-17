@@ -175,5 +175,15 @@
       { jaar: '2022/2023', leverancier: 'Essent', periode: '20 feb 2022 t/m 19 feb 2023', kostenIncl: 1730.89, stroom: -52.99, gas: 1783.88, inclGas: true },
       { jaar: '2023/2024', leverancier: 'Essent', periode: '20 feb 2023 t/m 19 feb 2024', kostenIncl: 2382.36, stroom: 382.40, gas: 1999.96, inclGas: true },
     ],
+    // Landelijke normcijfers voor de benchmark in de Inzicht-tab (jaarverbruik).
+    // Profiel: vrijstaande woning, 5 personen. Bron: Milieu Centraal / Nibud / CBS 2025.
+    // stroomAllElectricKwh = huishoudelijk + warmtepomp (afgeleid), ruwe indicatie.
+    normen: {
+      profiel: 'vrijstaande woning, 5 personen',
+      bron: 'Milieu Centraal / Nibud / CBS',
+      gasM3: 2200,
+      stroomKwh: 4200,
+      stroomAllElectricKwh: 9000,
+    },
   };
 })();

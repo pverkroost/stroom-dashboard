@@ -332,6 +332,14 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.94.0** — Benchmark tegen de norm in het Verbruik-blok
+- Onder het Verbruik-blok een kader "Hoe doe je het t.o.v. gemiddeld?" voor het profiel vrijstaande
+  woning, 5 personen (norm in `users/001.js` → `CONFIG.normen`, bron Milieu Centraal/Nibud/CBS:
+  gas ~2.200 m³, stroom ~4.200 kWh huishoudelijk, ~9.000 kWh all-electric met warmtepomp).
+- Gas-vergelijking is like-for-like en zelf-berekend: `gemGasVoorWarmtepomp` middelt de volledige
+  gasjaren vóór de warmtepomp (2021–2023 → ~1.893 m³, ~14% onder de norm), geborgd in de test. Stroom
+  is bewust als context gelabeld (zon, elektrische auto, warmtepomp maken een 1-op-1-vergelijking scheef).
+
 **v2.93.1** — Verbruik-grafiek: Stroom (afname + teruglevering gegroepeerd) i.p.v. losse toggles
 - Toggle is nu "Stroom" en "Gas". Bij Stroom staan afname (blauw) en teruglevering (groen) als twee
   staven naast elkaar per jaar, met legenda onderaan. Gas blijft apart (andere eenheid, m³). Eenheden

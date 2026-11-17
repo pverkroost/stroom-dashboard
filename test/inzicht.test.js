@@ -249,3 +249,8 @@ test('kostenPerJaar combineert Essent en Sepa met de juiste totalen', () => {
   // Sepa 2025/2026 heeft geen gas meer
   assert.equal(byJaar['2025/2026'].inclGas, false);
 });
+
+test('gemGasVoorWarmtepomp = gemiddelde van de volledige gasjaren vóór de warmtepomp', () => {
+  // 2021 (2038) + 2022 (1836) + 2023 (1804) / 3; 2024 valt af (warmtepomp vanaf april)
+  assert.ok(bijna(INZICHT.gemGasVoorWarmtepomp(cfg001), (2038 + 1836 + 1804) / 3, 0.01));
+});
