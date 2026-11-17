@@ -181,9 +181,11 @@
     normen: {
       profiel: 'vrijstaande woning, 5 personen',
       bron: 'Milieu Centraal / Nibud / CBS',
-      gasM3: 2200,
-      stroomKwh: 4200,
-      stroomAllElectricKwh: 9000,
+      gasM3: 2200,                 // historische gas-context
+      stroomKwh: 4200,             // huishoudelijk, zonder warmtepomp
+      stroomAllElectricKwh: 9000,  // gemiddeld all-electric (huishoudelijk + warmtepomp)
+      kostenAllElectricJaar: 3000, // indicatieve gemiddelde energierekening all-electric
+      marktPrijsKwh: 0.28,         // gangbaar vast stroomtarief nu, voor de contract-vergelijking
     },
   };
 })();

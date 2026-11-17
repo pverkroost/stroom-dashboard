@@ -254,3 +254,12 @@ test('gemGasVoorWarmtepomp = gemiddelde van de volledige gasjaren vóór de warm
   // 2021 (2038) + 2022 (1836) + 2023 (1804) / 3; 2024 valt af (warmtepomp vanaf april)
   assert.ok(bijna(INZICHT.gemGasVoorWarmtepomp(cfg001), (2038 + 1836 + 1804) / 3, 0.01));
 });
+
+test('huidigeBenchmark pakt het laatste volledige jaar en factuurjaar', () => {
+  const b = INZICHT.huidigeBenchmark(cfg001);
+  assert.equal(b.verbruikJaar, '2025');
+  assert.equal(b.afname, 11969);            // laatste volledige kalenderjaar (netto afname)
+  assert.equal(b.kostenJaar, '2025/2026');
+  assert.ok(bijna(b.kosten, 2919.80));      // laatste Sepa-factuurjaar
+  assert.ok(bijna(b.prijsKwh, 2919.80 / 12136, 0.0001)); // gem. stroomprijs per kWh
+});

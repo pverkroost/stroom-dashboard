@@ -169,6 +169,25 @@
     return out;
   }
 
+  // Huidige situatie voor de "nu t.o.v. gemiddeld"-benchmark: het laatste VOLLEDIGE
+  // kalenderjaar verbruik (netto afname van het net) en het laatste factuurjaar kosten
+  // + gemiddelde stroomprijs. Puur, zodat de getallen in de test geborgd zijn.
+  function huidigeBenchmark(config) {
+    var reeks = verbruikPerKalenderjaar(config).filter(function (r) { return r.volledig; });
+    var v = reeks.length ? reeks[reeks.length - 1] : null;
+    var fjs = (config && config.facturen) || [];
+    var fj = fjs.length ? fjs[fjs.length - 1] : null;
+    var t = fj ? jaarTotalen(fj) : null;
+    return {
+      verbruikJaar: v ? v.jaar : null,
+      afname: v ? v.afname : 0,
+      teruglevering: v ? v.teruglevering : 0,
+      kostenJaar: fj ? fj.jaar : null,
+      kosten: t ? t.kostenIncl : 0,
+      prijsKwh: t ? t.gemStroomprijs : 0,
+    };
+  }
+
   // Gemiddeld gasverbruik in de volledige jaren VÓÓR de warmtepomp (voor de benchmark
   // tegen de norm). Gebruikt verbruikPerKalenderjaar en sluit het installatiejaar en
   // later uit (dan draaide de warmtepomp al, dus geen vol stookjaar op gas).
@@ -244,6 +263,7 @@
     verbruikPerKalenderjaar: verbruikPerKalenderjaar,
     kostenPerJaar: kostenPerJaar,
     gemGasVoorWarmtepomp: gemGasVoorWarmtepomp,
+    huidigeBenchmark: huidigeBenchmark,
     warmtepompAnalyse: warmtepompAnalyse,
   };
 
@@ -374,26 +394,46 @@
       return h;
     }
 
-    // Benchmark tegen de norm voor jullie profiel (vrijstaand, 5 personen).
+    // "Nu t.o.v. gemiddeld": je huidige all-electric situatie (laatste volledige jaar)
+    // naast de norm — verbruik, kosten en een contract-signaal. Zoals Essent liet zien.
     function benchmarkDeel() {
       var cfg = global.CONFIG || {};
       var nm = cfg.normen;
       if (!nm) return '';
-      var gemGas = Math.round(API.gemGasVoorWarmtepomp(cfg));
-      var h = '<div class="inzicht-benchmark">'
-        + '<div class="inzicht-benchmark-titel">Hoe doe je het t.o.v. gemiddeld?</div>'
-        + '<div class="inzicht-benchmark-sub">Norm voor ' + (nm.profiel || 'jullie profiel') + ' (' + (nm.bron || '') + ')</div>';
-      if (gemGas > 0 && nm.gasM3) {
-        var verschil = Math.round((gemGas / nm.gasM3 - 1) * 100);
-        var richting = verschil <= 0 ? Math.abs(verschil) + '% onder de norm' : verschil + '% boven de norm';
-        h += '<div class="inzicht-benchmark-rij"><b>Gas</b> (vóór de warmtepomp): jij ~' + kwh(gemGas)
-          + ' m³ · norm ~' + kwh(nm.gasM3) + ' m³ → ' + richting + '.</div>';
+      var b = API.huidigeBenchmark(cfg);
+      function verdict(jij, norm) {
+        if (!norm) return '';
+        var p = Math.round((jij / norm - 1) * 100);
+        if (p <= -5) return Math.abs(p) + '% onder gemiddeld';
+        if (p >= 5) return p + '% boven gemiddeld';
+        return 'rond gemiddeld';
       }
-      h += '<div class="inzicht-benchmark-rij"><b>Stroom</b>: norm ~' + kwh(nm.stroomKwh)
-        + ' kWh huishoudelijk, ~' + kwh(nm.stroomAllElectricKwh) + ' kWh all-electric met warmtepomp. '
-        + 'Jouw inkoop van het net ligt hoger (elektrische auto), maar je zonnepanelen drukken je echte inkoop '
-        + 'en een deel van je verbruik zie je niet terug als afname.</div>'
-        + '</div>';
+      function euroKwh(n) { return '€ ' + komma((Math.round(n * 100) / 100).toFixed(2)); }
+
+      var h = '<div class="inzicht-benchmark">'
+        + '<div class="inzicht-benchmark-titel">Nu t.o.v. gemiddeld</div>'
+        + '<div class="inzicht-benchmark-sub">' + (nm.profiel || '') + ', all-electric · ' + (nm.bron || '') + '</div>';
+
+      if (b.afname > 0 && nm.stroomAllElectricKwh) {
+        h += '<div class="inzicht-benchmark-rij"><b>Verbruik ' + b.verbruikJaar + '</b>: jij ' + kwh(b.afname)
+          + ' kWh van het net · gemiddeld ~' + kwh(nm.stroomAllElectricKwh) + ' kWh ('
+          + verdict(b.afname, nm.stroomAllElectricKwh) + ').</div>';
+      }
+      if (b.kosten > 0 && nm.kostenAllElectricJaar) {
+        h += '<div class="inzicht-benchmark-rij"><b>Kosten ' + b.kostenJaar + '</b>: jij ' + euro(b.kosten)
+          + ' · gemiddelde energierekening ~' + euro(nm.kostenAllElectricJaar) + ' (indicatie, '
+          + verdict(b.kosten, nm.kostenAllElectricJaar) + ').</div>';
+      }
+      if (b.prijsKwh > 0 && nm.marktPrijsKwh) {
+        var goedkoper = b.prijsKwh < nm.marktPrijsKwh;
+        h += '<div class="inzicht-benchmark-rij"><b>Contract</b>: je betaalt gemiddeld ' + euroKwh(b.prijsKwh)
+          + '/kWh; een gangbaar vast tarief is ~' + euroKwh(nm.marktPrijsKwh) + '/kWh. '
+          + (goedkoper ? 'Je dynamische contract is nu voordeliger.' : 'Een ander contract kan schelen.') + '</div>';
+      }
+      h += '<div class="inzicht-benchmark-rij" style="color:var(--muted);margin-top:8px">'
+        + 'Je zit boven het gemiddelde verbruik vooral door de elektrische auto; beter isoleren verlaagt '
+        + 'vooral de warmtepomp-kant. Je zonnepanelen drukken je echte inkoop van het net.</div>';
+      h += '</div>';
       return h;
     }
 

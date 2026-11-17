@@ -332,6 +332,15 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.94.1** — Benchmark omgezet naar "nu t.o.v. gemiddeld" (verbruik, kosten, contract)
+- Op verzoek: de benchmark gaat nu over de huidige all-electric situatie i.p.v. de gas-historie.
+  `huidigeBenchmark` pakt het laatste volledige kalenderjaar (verbruik, netto afname) en het laatste
+  Sepa-factuurjaar (kosten + gem. stroomprijs/kWh), geborgd in de test (2025: 11.969 kWh; 2025/26 € 2.919,80).
+- Drie regels: Verbruik (jij vs ~9.000 kWh gemiddeld all-electric), Kosten (jij vs indicatieve gemiddelde
+  energierekening), en Contract (jouw gem. €/kWh vs een gangbaar vast tarief → signaal of overstappen loont).
+  Normen uitgebreid in `CONFIG.normen` (kostenAllElectricJaar, marktPrijsKwh). Geeft gevoel: minderen,
+  isoleren of ander contract.
+
 **v2.94.0** — Benchmark tegen de norm in het Verbruik-blok
 - Onder het Verbruik-blok een kader "Hoe doe je het t.o.v. gemiddeld?" voor het profiel vrijstaande
   woning, 5 personen (norm in `users/001.js` → `CONFIG.normen`, bron Milieu Centraal/Nibud/CBS:
