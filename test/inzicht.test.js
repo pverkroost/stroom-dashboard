@@ -200,3 +200,52 @@ test('warmtepompAnalyse groeit met de tijd en is nul vóór installatie', () => 
 test('warmtepompAnalyse op null wp geeft null', () => {
   assert.equal(INZICHT.warmtepompAnalyse(null, '2026-11-17'), null);
 });
+
+// ── Verbruik per kalenderjaar (Essent-historie + Sepa-periodes) ────────────────
+const cfg001 = laadConfig('001');
+
+test('verbruikPerKalenderjaar voegt Essent-maanden en Sepa-periodes samen', () => {
+  const reeks = INZICHT.verbruikPerKalenderjaar(cfg001);
+  const byJaar = {};
+  for (const r of reeks) byJaar[r.jaar] = r;
+
+  // Volledige Essent-jaren (gemeten maanden)
+  assert.equal(byJaar['2021'].afname, 3509);
+  assert.equal(byJaar['2021'].teruglevering, 1902);
+  assert.equal(byJaar['2021'].gasM3, 2038);
+  assert.equal(byJaar['2023'].afname, 4260);
+  assert.equal(byJaar['2023'].gasM3, 1804);
+
+  // 2024 = Essent jan–apr (1650/748/772) + Sepa mei–dec (periode 5239/2675)
+  assert.equal(byJaar['2024'].afname, 6889);        // 1650 + 5239
+  assert.equal(byJaar['2024'].teruglevering, 3423); // 748 + 2675
+  assert.equal(byJaar['2024'].gasM3, 772);
+  assert.equal(byJaar['2024'].volledig, true);
+
+  // 2025 = drie Sepa-periodes (breken op 1 jan), geen gas meer
+  assert.equal(byJaar['2025'].afname, 11969);       // 5767 + 2603 + 3599
+  assert.equal(byJaar['2025'].teruglevering, 2864); // 794 + 2044 + 26
+  assert.equal(byJaar['2025'].gasM3, 0);
+  assert.equal(byJaar['2025'].volledig, true);
+
+  // 2026 is nog niet compleet (alleen jan–mei uit de laatste nota)
+  assert.equal(byJaar['2026'].volledig, false);
+});
+
+// ── Kosten per contractjaar (Essent-jaarrekeningen + Sepa-factuurjaren) ─────────
+test('kostenPerJaar combineert Essent en Sepa met de juiste totalen', () => {
+  const k = INZICHT.kostenPerJaar(cfg001);
+  const byJaar = {};
+  for (const r of k) byJaar[r.jaar] = r;
+
+  assert.equal(k.length, 5);
+  assert.ok(bijna(byJaar['2021/2022'].kostenIncl, 2000.87));
+  assert.ok(bijna(byJaar['2022/2023'].kostenIncl, 1730.89));
+  assert.ok(bijna(byJaar['2023/2024'].kostenIncl, 2382.36));
+  assert.ok(bijna(byJaar['2024/2025'].kostenIncl, 2507.91)); // 725,07 + 1428,87 + 353,97 gas
+  assert.ok(bijna(byJaar['2025/2026'].kostenIncl, 2919.80)); // 649,38 + 762,92 + 1507,50
+  assert.equal(byJaar['2021/2022'].bron, 'essent');
+  assert.equal(byJaar['2024/2025'].bron, 'sepa');
+  // Sepa 2025/2026 heeft geen gas meer
+  assert.equal(byJaar['2025/2026'].inclGas, false);
+});

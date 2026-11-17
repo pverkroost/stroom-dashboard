@@ -332,6 +332,25 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.93.0** — Inzicht-tab herschikt naar 3 blokken + duizendpunt + gemeten Essent-stroom
+- De tab teruggebracht tot drie heldere blokken (vier losse secties liepen door elkaar):
+  1. Warmtepomp terugverdientijd (ongewijzigd), 2. Verbruik per kalenderjaar met toggle
+  Verbruik/Teruglevering/Gas, 3. Kosten per contractjaar. De aparte "Van het gas af"-sectie,
+  de hero-samenvatting en de voorschot-uitklap (de meeste rommel) zijn weg.
+- "Mis Essent-elektraverbruik" opgelost: `verbruikPerKalenderjaar` voegt de gemeten Essent-maanden
+  (verbruikHistorie) samen met de Sepa-factuurperiodes (die op 1 jan breken, dus per kalenderjaar
+  toe te wijzen) tot één doorlopende reeks 2021–2025 (afname, teruglevering, gas). `volledig`-vlag
+  sluit het lopende, incomplete jaar uit.
+- Nieuw blok "Kosten per jaar": `kostenPerJaar` combineert de Essent-jaarrekeningen (nieuw in
+  `users/001.js` → `CONFIG.kostenHistorie`: 2021/22 € 2.000,87, 2022/23 € 1.730,89, 2023/24 € 2.382,36,
+  incl. gas, geverifieerd uit de mail) met de Sepa-factuurjaren (jaarTotalen). Eerlijk gelabeld:
+  Essent incl. gas, Sepa vrijwel alleen stroom.
+- Euro's nu met duizendpunt (€ 15.563,49) — `euro()` gaat niet meer via fmtEuro (die zette geen
+  duizendscheiding). Teksten vielen achter de tegels weg omdat de `.cards`-klasse een negatieve
+  `margin-top` heeft (bedoeld voor de hero); eigen `.inzicht-cards`-grid + `.inzicht-balk` lost dat op.
+- Nieuwe pure helpers geborgd in `test/inzicht.test.js` (verbruik 2024 afname 6889 / 2025 11969;
+  kosten 2024/25 € 2.507,91 / 2025/26 € 2.919,80). Browser-smoke bevestigt render, toggle en re-render.
+
 **v2.92.0** — Inzicht-tab: warmtepomp-terugverdientijd (zelf-bijwerkend)
 - Nieuwe sectie "Warmtepomp terugverdientijd": netto investering (€ 18.863 − € 3.300 ISDE = € 15.563),
   besparing per jaar, het bedrag dat al is terugverdiend (met voortgangsbalk + %), terugverdientijd en

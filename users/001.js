@@ -167,5 +167,13 @@
       levensduurJaar:      18,        // gemiddeld 15–20 jaar
       bijgewerkt:          '2026-11-17',
     },
+    // Totale energiekosten (incl. btw) per Essent-contractjaar (20 feb t/m 19 feb), uit de
+    // Essent-jaarrekeningen in de mail. Inclusief gas. De Sepa-jaren komen uit `facturen`
+    // (jaarTotalen). Samen de "Kosten per jaar"-grafiek in de Inzicht-tab.
+    kostenHistorie: [
+      { jaar: '2021/2022', leverancier: 'Essent', periode: '20 feb 2021 t/m 19 feb 2022', kostenIncl: 2000.87, stroom: 111.05, gas: 1889.82, inclGas: true },
+      { jaar: '2022/2023', leverancier: 'Essent', periode: '20 feb 2022 t/m 19 feb 2023', kostenIncl: 1730.89, stroom: -52.99, gas: 1783.88, inclGas: true },
+      { jaar: '2023/2024', leverancier: 'Essent', periode: '20 feb 2023 t/m 19 feb 2024', kostenIncl: 2382.36, stroom: 382.40, gas: 1999.96, inclGas: true },
+    ],
   };
 })();
