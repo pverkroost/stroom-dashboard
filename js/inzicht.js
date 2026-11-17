@@ -95,6 +95,54 @@
     return out;
   }
 
+  // Warmtepomp-terugverdienmodel (geld-kritisch, pure functie — geborgd in
+  // test/inzicht.test.js met een vaste `nu`-datum). Forward besparing/jaar gebruikt de
+  // default-gasprijs; de gerealiseerde besparing telt per kalenderjaar op met de
+  // werkelijke gasprijs van dat jaar en de datum-fractie (install → nu), zodat het
+  // bedrag vanzelf meegroeit met de tijd. Datums in UTC om DST-randgevallen te vermijden.
+  function warmtepompAnalyse(wp, nu) {
+    if (!wp) return null;
+    nu = nu ? new Date(nu) : new Date();
+    var netto = getal(wp.investeringInclBtw) - getal(wp.subsidie);
+    var scop = getal(wp.scop) || 1;
+    var hpKwhPerJaar = getal(wp.gasVervangenM3Jaar) * getal(wp.kWhPerM3) / scop;
+    var prijzen = wp.gasPrijsPerJaar || {};
+    var defPrijs = getal(prijzen.default);
+    var besparingPerJaar = getal(wp.gasVervangenM3Jaar) * defPrijs
+      + getal(wp.gasVastrechtJaar)
+      - hpKwhPerJaar * getal(wp.stroomPrijs);
+    var terugverdientijd = besparingPerJaar > 0 ? netto / besparingPerJaar : Infinity;
+
+    var install = new Date((wp.installDatum || '2024-01-01') + 'T00:00:00Z');
+    var startY = install.getUTCFullYear();
+    var nuY = nu.getUTCFullYear();
+    var nuDag = Date.UTC(nu.getUTCFullYear(), nu.getUTCMonth(), nu.getUTCDate());
+    var installDag = Date.UTC(install.getUTCFullYear(), install.getUTCMonth(), install.getUTCDate());
+    var realized = 0;
+    for (var y = startY; y <= nuY; y++) {
+      var ys = Date.UTC(y, 0, 1);
+      var ye = Date.UTC(y + 1, 0, 1); // exclusief
+      var ps = (y === startY) ? installDag : ys;
+      var pe = (y === nuY) ? nuDag : ye;
+      if (pe <= ps) continue;
+      var fr = (pe - ps) / (ye - ys);
+      var prijs = getal(prijzen[y]) || defPrijs;
+      realized += getal(wp.gasVervangenM3Jaar) * fr * prijs
+        + getal(wp.gasVastrechtJaar) * fr
+        - hpKwhPerJaar * fr * getal(wp.stroomPrijs);
+    }
+    return {
+      netto: netto,
+      hpKwhPerJaar: hpKwhPerJaar,
+      besparingPerJaar: besparingPerJaar,
+      terugverdientijdJaar: terugverdientijd,
+      gerealiseerd: realized,
+      terugverdiendPct: netto > 0 ? realized / netto : 0,
+      jarenInGebruik: (nuDag - installDag) / (365.25 * 86400000),
+      levensduurJaar: getal(wp.levensduurJaar),
+    };
+  }
+
   var API = {
     VOORSCHOT_MAANDEN: VOORSCHOT_MAANDEN,
     MAAND_LABEL: MAAND_LABEL,
@@ -102,6 +150,7 @@
     voorschotTotaal: voorschotTotaal,
     historieJaarTotalen: historieJaarTotalen,
     gasReeks: gasReeks,
+    warmtepompAnalyse: warmtepompAnalyse,
   };
 
   // ── Alleen in de browser: rendering ───────────────────────────────────────
@@ -181,6 +230,9 @@
         + kaart(nieuwste.bijbetaling >= 0 ? 'Bijbetaald' : 'Terugontvangen', euro(Math.abs(nieuwste.bijbetaling)), 'eindafrekening')
         + '</div>';
 
+      // 1a. Warmtepomp terugverdientijd (groeit vanzelf mee met de datum)
+      html += warmtepompSectie();
+
       // 1b. Van het gas af (warmtepomp) — gemeten gasverbruik per jaar naar nul
       html += gasSectie();
 
@@ -209,6 +261,44 @@
       bindToggle();
       tekenGrafiek();
       tekenGasGrafiek();
+    }
+
+    // "Warmtepomp terugverdientijd": investering, besparing/jaar en het bedrag dat je
+    // al hebt terugverdiend (groeit vanzelf mee met de datum). Op aannames, zie config.
+    function warmtepompSectie() {
+      var wp = (global.CONFIG && global.CONFIG.warmtepomp) || null;
+      if (!wp) return '';
+      var a = API.warmtepompAnalyse(wp, new Date());
+      if (!a) return '';
+      var pct = Math.max(0, Math.min(1, a.terugverdiendPct));
+      var ttv = (Math.round(a.terugverdientijdJaar * 10) / 10).toFixed(1).replace('.', ',');
+      var komma = function (n) { return String(n).replace('.', ','); };
+
+      var h = '<div class="section">'
+        + '<div class="section-title">Warmtepomp terugverdientijd</div>'
+        + '<div class="card-sub" style="margin:-4px 0 10px">' + (wp.toestel || 'Warmtepomp')
+        + ', sinds april 2024. Op aannames (zie onderaan).</div>'
+        + '<div class="cards">'
+        + kaart('Netto investering', euro(a.netto), 'na ISDE € ' + kwh(wp.subsidie) + ', gas afsluiten was gratis')
+        + kaart('Besparing per jaar', euro(a.besparingPerJaar), 'vermeden gas min warmtepompstroom')
+        + kaart('Al terugverdiend', euro(a.gerealiseerd), Math.round(pct * 100) + '% van de investering')
+        + kaart('Terugverdientijd', '~' + ttv + ' jaar', 'levensduur ~' + a.levensduurJaar + ' jaar')
+        + '</div>';
+
+      // Voortgangsbalk: terugverdiend t.o.v. netto investering
+      h += '<div style="margin-top:4px;background:rgba(128,128,128,0.15);border-radius:6px;height:14px;overflow:hidden">'
+        + '<div style="width:' + (pct * 100).toFixed(1) + '%;height:100%;background:#2f7d32"></div></div>'
+        + '<div class="card-sub" style="margin-top:6px">Terugverdiend: ' + euro(a.gerealiseerd)
+        + ' van ' + euro(a.netto) + '</div>';
+
+      h += '<div class="inzicht-detail-noot">Aannames: ~' + kwh(wp.gasVervangenM3Jaar)
+        + ' m³ gas/jaar vervangen (je gemeten gemiddelde 2021–2023), SCOP ' + komma(wp.scop)
+        + ' → ~' + kwh(a.hpKwhPerJaar) + ' kWh/jaar warmtepompstroom; gasprijs ~€ '
+        + komma(wp.gasPrijsPerJaar && wp.gasPrijsPerJaar.default) + '/m³, stroom € '
+        + komma(wp.stroomPrijs) + '/kWh. De gerealiseerde besparing rekent per jaar met de '
+        + 'werkelijke gasprijs en groeit vanzelf mee. Bijgewerkt ' + (wp.bijgewerkt || '') + '.</div>';
+      h += '</div>';
+      return h;
     }
 
     // "Van het gas af": gemeten gasverbruik per kalenderjaar (Essent slimme meter),

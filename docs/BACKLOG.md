@@ -332,6 +332,20 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.92.0** — Inzicht-tab: warmtepomp-terugverdientijd (zelf-bijwerkend)
+- Nieuwe sectie "Warmtepomp terugverdientijd": netto investering (€ 18.863 − € 3.300 ISDE = € 15.563),
+  besparing per jaar, het bedrag dat al is terugverdiend (met voortgangsbalk + %), terugverdientijd en
+  levensduur. Het gerealiseerde bedrag groeit vanzelf mee met de datum (datum-fractie per jaar), dus de
+  stand klopt elke keer dat de tab opent, zonder handwerk.
+- Pure functie `INZICHT.warmtepompAnalyse(wp, nu)`: forward besparing/jaar op de default-gasprijs, de
+  gerealiseerde besparing per kalenderjaar met de werkelijke gasprijs van dat jaar (`gasPrijsPerJaar`) en
+  de datum-fractie install → nu. Geld-kritisch → handberekend en geborgd in `test/inzicht.test.js`
+  (netto 15.563,49; warmtepompstroom 4950 kWh/jaar; besparing/jaar 1433; terugverdientijd 10,86 jaar;
+  gerealiseerd ~3690 op 2026-11-17).
+- Parameters in `users/001.js` → `CONFIG.warmtepomp` (toestel, installdatum, investering, ISDE, vervangen
+  gas m³, SCOP, prijzen, levensduur, bijgewerkt-datum). `gasPrijsPerJaar` jaarlijks bij te werken; een
+  scheduled task ververst de markt-gasprijs. Browser-smoke bevestigt render + geen runtime-fouten.
+
 **v2.91.0** — Inzicht-tab: "Van het gas af" + gemeten Essent-historie
 - Nieuwe sectie "Van het gas af" bovenaan de Inzicht-tab: staafgrafiek van het gemeten gasverbruik per
   kalenderjaar (2021–2023 vol, 2024 deels tot de warmtepomp in april), dat daarna naar nul valt

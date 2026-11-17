@@ -133,3 +133,50 @@ test('historieJaarTotalen op leeg object crasht niet', () => {
   assert.equal(t.gasM3, 0);
   assert.equal(t.partieel, true); // 0 maanden
 });
+
+// ── Warmtepomp terugverdienmodel (geld-kritisch) ───────────────────────────────
+// Handberekening met een vaste `nu`-datum zodat de gerealiseerde besparing
+// deterministisch is. Elke drift in config of formule valt hier door de mand.
+const wp = laadConfig('001').warmtepomp;
+
+test('warmtepomp config aanwezig met verwachte kernwaarden', () => {
+  assert.ok(wp);
+  assert.equal(wp.investeringInclBtw, 18863.49);
+  assert.equal(wp.subsidie, 3300);
+  assert.equal(wp.gasVervangenM3Jaar, 1800);
+  assert.equal(wp.scop, 3.2);
+});
+
+test('warmtepompAnalyse: netto, stroom en besparing per jaar kloppen', () => {
+  const a = INZICHT.warmtepompAnalyse(wp, '2026-11-17');
+  // Netto investering = 18863,49 − 3300
+  assert.ok(bijna(a.netto, 15563.49, 0.001));
+  // Warmtepompstroom = 1800 × 8,8 / 3,2 = 4950 kWh/jaar
+  assert.ok(bijna(a.hpKwhPerJaar, 4950, 0.001));
+  // Besparing/jaar (default gasprijs 1,40) = 1800×1,40 + 200 − 4950×0,26 = 1433
+  assert.ok(bijna(a.besparingPerJaar, 1433, 0.001));
+  // Terugverdientijd = 15563,49 / 1433 ≈ 10,86 jaar
+  assert.ok(bijna(a.terugverdientijdJaar, 10.861, 0.01));
+});
+
+test('warmtepompAnalyse: gerealiseerde besparing telt per jaar op (datum-fractie)', () => {
+  const a = INZICHT.warmtepompAnalyse(wp, '2026-11-17');
+  // 2024 (10 apr → 31 dec, fr 266/366, gas €1,30): ~€910,7
+  // 2025 (vol jaar, gas €1,45): €1523
+  // 2026 (1 jan → 17 nov, fr 320/365, gas €1,40): ~€1256,3
+  // Totaal ≈ €3690
+  assert.ok(Math.abs(a.gerealiseerd - 3690) < 3, 'gerealiseerd ~3690, was ' + a.gerealiseerd);
+  assert.ok(bijna(a.terugverdiendPct, 3690 / 15563.49, 0.001));
+});
+
+test('warmtepompAnalyse groeit met de tijd en is nul vóór installatie', () => {
+  const vroeg = INZICHT.warmtepompAnalyse(wp, '2025-01-01');
+  const laat = INZICHT.warmtepompAnalyse(wp, '2026-11-17');
+  assert.ok(laat.gerealiseerd > vroeg.gerealiseerd, 'later = meer terugverdiend');
+  const voorInstall = INZICHT.warmtepompAnalyse(wp, '2024-01-01');
+  assert.equal(voorInstall.gerealiseerd, 0);
+});
+
+test('warmtepompAnalyse op null wp geeft null', () => {
+  assert.equal(INZICHT.warmtepompAnalyse(null, '2026-11-17'), null);
+});

@@ -144,5 +144,28 @@
         ] },
       ],
     },
+    // Warmtepomp terugverdienmodel (Inzicht-tab). Bronnen: factuur Schuttevaar 240311
+    // (incl. btw € 18.863,49) en ISDE-beschikking (€ 3.300); gas afsluiten was gratis.
+    // Op aannames — géén aparte meter op de warmtepomp:
+    //  - gasVervangenM3Jaar = gemeten gemiddelde vóór de warmtepomp (2021 2038, 2022 1836,
+    //    2023 1804 m³ uit verbruikHistorie), afgerond.
+    //  - warmtepompstroom/jaar = gasVervangenM3Jaar × kWhPerM3 / scop (afgeleid, niet gemeten).
+    //  - gasPrijsPerJaar = all-in markt-gasprijs per m³ incl. energiebelasting + btw (wat je
+    //    anders had betaald). JAARLIJKS bijwerken; 'default' geldt voor jaren zonder eigen waarde.
+    // De gerealiseerde besparing groeit vanzelf mee met de datum (js/inzicht.js warmtepompAnalyse).
+    warmtepomp: {
+      toestel:             'Mitsubishi Ecodan PUHZ-SW100YAA',
+      installDatum:        '2024-04-10',
+      investeringInclBtw:  18863.49,
+      subsidie:            3300,      // ISDE
+      gasVervangenM3Jaar:  1800,      // gemeten gemiddelde 2021–2023, afgerond
+      kWhPerM3:            8.8,       // bruikbare warmte per m³ gas (HR-ketel, praktijk)
+      scop:                3.2,       // Ecodan lucht/water, huis uit 1964, radiatoren
+      stroomPrijs:         0.26,      // € per kWh (winter-zwaar, grotendeels net)
+      gasVastrechtJaar:    200,       // vermeden vastrecht gas per jaar
+      gasPrijsPerJaar:     { 2024: 1.30, 2025: 1.45, 2026: 1.40, default: 1.40 },
+      levensduurJaar:      18,        // gemiddeld 15–20 jaar
+      bijgewerkt:          '2026-11-17',
+    },
   };
 })();
