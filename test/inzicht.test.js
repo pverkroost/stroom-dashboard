@@ -139,6 +139,21 @@ test('historieJaarTotalen op leeg object crasht niet', () => {
 // deterministisch is. Elke drift in config of formule valt hier door de mand.
 const wp = laadConfig('001').warmtepomp;
 
+// Vast scenario voor de handberekening: losgekoppeld van de live config, zodat het
+// jaarlijks bijwerken van gasPrijsPerJaar/bijgewerkt deze borging niet breekt.
+const frozenWp = {
+  installDatum: '2024-04-10',
+  investeringInclBtw: 18863.49,
+  subsidie: 3300,
+  gasVervangenM3Jaar: 1800,
+  kWhPerM3: 8.8,
+  scop: 3.2,
+  stroomPrijs: 0.26,
+  gasVastrechtJaar: 200,
+  gasPrijsPerJaar: { 2024: 1.30, 2025: 1.45, 2026: 1.40, default: 1.40 },
+  levensduurJaar: 18,
+};
+
 test('warmtepomp config aanwezig met verwachte kernwaarden', () => {
   assert.ok(wp);
   assert.equal(wp.investeringInclBtw, 18863.49);
@@ -147,20 +162,25 @@ test('warmtepomp config aanwezig met verwachte kernwaarden', () => {
   assert.equal(wp.scop, 3.2);
 });
 
-test('warmtepompAnalyse: netto, stroom en besparing per jaar kloppen', () => {
+test('live config: netto en warmtepompstroom zijn prijs-onafhankelijk correct', () => {
   const a = INZICHT.warmtepompAnalyse(wp, '2026-11-17');
-  // Netto investering = 18863,49 − 3300
+  assert.ok(bijna(a.netto, 15563.49, 0.001));   // 18863,49 − 3300
+  assert.ok(bijna(a.hpKwhPerJaar, 4950, 0.001)); // 1800 × 8,8 / 3,2
+  assert.ok(a.besparingPerJaar > 0 && a.gerealiseerd > 0); // sanity, prijzen mogen wijzigen
+});
+
+test('warmtepompAnalyse (vast scenario): netto, stroom, besparing/jaar, terugverdientijd', () => {
+  const a = INZICHT.warmtepompAnalyse(frozenWp, '2026-11-17');
   assert.ok(bijna(a.netto, 15563.49, 0.001));
-  // Warmtepompstroom = 1800 × 8,8 / 3,2 = 4950 kWh/jaar
   assert.ok(bijna(a.hpKwhPerJaar, 4950, 0.001));
-  // Besparing/jaar (default gasprijs 1,40) = 1800×1,40 + 200 − 4950×0,26 = 1433
+  // Besparing/jaar (default 1,40) = 1800×1,40 + 200 − 4950×0,26 = 1433
   assert.ok(bijna(a.besparingPerJaar, 1433, 0.001));
   // Terugverdientijd = 15563,49 / 1433 ≈ 10,86 jaar
   assert.ok(bijna(a.terugverdientijdJaar, 10.861, 0.01));
 });
 
-test('warmtepompAnalyse: gerealiseerde besparing telt per jaar op (datum-fractie)', () => {
-  const a = INZICHT.warmtepompAnalyse(wp, '2026-11-17');
+test('warmtepompAnalyse (vast scenario): gerealiseerde besparing per jaar (datum-fractie)', () => {
+  const a = INZICHT.warmtepompAnalyse(frozenWp, '2026-11-17');
   // 2024 (10 apr → 31 dec, fr 266/366, gas €1,30): ~€910,7
   // 2025 (vol jaar, gas €1,45): €1523
   // 2026 (1 jan → 17 nov, fr 320/365, gas €1,40): ~€1256,3
@@ -170,10 +190,10 @@ test('warmtepompAnalyse: gerealiseerde besparing telt per jaar op (datum-fractie
 });
 
 test('warmtepompAnalyse groeit met de tijd en is nul vóór installatie', () => {
-  const vroeg = INZICHT.warmtepompAnalyse(wp, '2025-01-01');
-  const laat = INZICHT.warmtepompAnalyse(wp, '2026-11-17');
+  const vroeg = INZICHT.warmtepompAnalyse(frozenWp, '2025-01-01');
+  const laat = INZICHT.warmtepompAnalyse(frozenWp, '2026-11-17');
   assert.ok(laat.gerealiseerd > vroeg.gerealiseerd, 'later = meer terugverdiend');
-  const voorInstall = INZICHT.warmtepompAnalyse(wp, '2024-01-01');
+  const voorInstall = INZICHT.warmtepompAnalyse(frozenWp, '2024-01-01');
   assert.equal(voorInstall.gerealiseerd, 0);
 });
 
