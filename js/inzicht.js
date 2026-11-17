@@ -258,7 +258,7 @@
     // overschreven, waardoor .destroy() faalt).
     var verbruikChartInstance = null;
     var kostenChartInstance = null;
-    var verbruikMaat = 'afname'; // afname | teruglevering | gas
+    var verbruikMaat = 'stroom'; // stroom (afname + teruglevering) | gas
 
     function facturen() {
       var c = global.CONFIG;
@@ -340,7 +340,7 @@
         + '<div class="section-title">Verbruik per jaar</div>'
         + '<div class="inzicht-sectie-sub">Gemeten per kalenderjaar. De stroom stijgt als de warmtepomp komt (april 2024), het gas valt naar nul.</div>'
         + '<div class="inzicht-toggle" id="verbruikToggle">'
-        + vToggle('afname', 'Verbruik') + vToggle('teruglevering', 'Teruglevering') + vToggle('gas', 'Gas')
+        + vToggle('stroom', 'Stroom') + vToggle('gas', 'Gas')
         + '</div>'
         + '<div class="chart-wrap" style="height:190px"><canvas id="verbruikChart"></canvas></div>';
       for (var i = reeks.length - 1; i >= 0; i--) {
@@ -380,22 +380,29 @@
       var reeks = verbruikReeks();
       var labels = reeks.map(function (r) { return r.jaar; });
       var isGas = verbruikMaat === 'gas';
-      var isTerug = verbruikMaat === 'teruglevering';
-      var data = reeks.map(function (r) { return isGas ? r.gasM3 : (isTerug ? r.teruglevering : r.afname); });
-      // stroom-afname blauw, teruglevering groen, gas oranje (fossiel)
-      var kleur = isGas ? '#c77d2e' : (isTerug ? '#2f9e44' : '#3b7dd8');
-      var eenheid = isGas ? ' m³' : ' kWh';
       var muted = leesVar('--muted') || '#888';
+      var eenheid = isGas ? ' m³' : ' kWh';
+      var datasets;
+      if (isGas) {
+        // Gas oranje (fossiel), aparte eenheid m³
+        datasets = [{ label: 'Gas', data: reeks.map(function (r) { return r.gasM3; }), backgroundColor: '#c77d2e', borderRadius: 6, maxBarThickness: 56 }];
+      } else {
+        // Afname (blauw) en teruglevering (groen) naast elkaar — beide kWh
+        datasets = [
+          { label: 'Afname', data: reeks.map(function (r) { return r.afname; }), backgroundColor: '#3b7dd8', borderRadius: 5, maxBarThickness: 26 },
+          { label: 'Teruglevering', data: reeks.map(function (r) { return r.teruglevering; }), backgroundColor: '#2f9e44', borderRadius: 5, maxBarThickness: 26 },
+        ];
+      }
 
       verbruikChartInstance = new global.Chart(canvas, {
         type: 'bar',
-        data: { labels: labels, datasets: [{ data: data, backgroundColor: kleur, borderRadius: 6, maxBarThickness: 56 }] },
+        data: { labels: labels, datasets: datasets },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: function (ctx) { return kwh(ctx.parsed.y) + eenheid; } } },
+            legend: { display: !isGas, position: 'bottom', labels: { color: muted, boxWidth: 12, font: { size: 11 } } },
+            tooltip: { callbacks: { label: function (ctx) { return ctx.dataset.label + ': ' + kwh(ctx.parsed.y) + eenheid; } } },
           },
           scales: {
             x: { grid: { display: false }, ticks: { color: muted } },

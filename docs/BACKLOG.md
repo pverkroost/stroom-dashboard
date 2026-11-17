@@ -332,6 +332,11 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.93.1** — Verbruik-grafiek: Stroom (afname + teruglevering gegroepeerd) i.p.v. losse toggles
+- Toggle is nu "Stroom" en "Gas". Bij Stroom staan afname (blauw) en teruglevering (groen) als twee
+  staven naast elkaar per jaar, met legenda onderaan. Gas blijft apart (andere eenheid, m³). Eenheden
+  worden bewust niet gemengd op één as.
+
 **v2.93.0** — Inzicht-tab herschikt naar 3 blokken + duizendpunt + gemeten Essent-stroom
 - De tab teruggebracht tot drie heldere blokken (vier losse secties liepen door elkaar):
   1. Warmtepomp terugverdientijd (ongewijzigd), 2. Verbruik per kalenderjaar met toggle
