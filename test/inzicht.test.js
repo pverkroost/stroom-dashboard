@@ -80,3 +80,56 @@ test('jaarTotalen op leeg/ontbrekend object crasht niet', () => {
   assert.equal(t.kostenIncl, 0);
   assert.equal(t.gemStroomprijs, 0);
 });
+
+// ── Gemeten verbruikshistorie (Essent slimme meter) ────────────────────────────
+// Borgt de maandcijfers in users/001.js tegen de handberekende jaartotalen uit de
+// Essent "Uw historisch verbruik"-PDFs. Elke mistype valt hier door de mand.
+const historie = laadConfig('001').verbruikHistorie;
+
+test('verbruikHistorie bestaat met gemeten jaren', () => {
+  assert.ok(historie && Array.isArray(historie.jaren));
+  assert.deepEqual(historie.jaren.map((j) => j.jaar), ['2021', '2022', '2023', '2024']);
+});
+
+test('historieJaarTotalen klopt met de handberekening per jaar', () => {
+  const byJaar = {};
+  for (const j of historie.jaren) byJaar[j.jaar] = INZICHT.historieJaarTotalen(j);
+
+  // Gas m³ (de kern: gaat naar nul na de warmtepomp)
+  assert.equal(byJaar['2021'].gasM3, 2038); // vol jaar
+  assert.equal(byJaar['2022'].gasM3, 1836);
+  assert.equal(byJaar['2023'].gasM3, 1804);
+  assert.equal(byJaar['2024'].gasM3, 772);  // jan–apr, tot de warmtepomp
+
+  // Stroom afname
+  assert.equal(byJaar['2021'].afname, 3509);
+  assert.equal(byJaar['2022'].afname, 4085);
+  assert.equal(byJaar['2023'].afname, 4260);
+
+  // Teruglevering
+  assert.equal(byJaar['2021'].teruglevering, 1902);
+  assert.equal(byJaar['2022'].teruglevering, 2196);
+  assert.equal(byJaar['2023'].teruglevering, 1448);
+
+  // Volledige jaren niet partieel, 2024 wel
+  assert.equal(byJaar['2021'].partieel, false);
+  assert.equal(byJaar['2023'].partieel, false);
+  assert.equal(byJaar['2024'].partieel, true);
+});
+
+test('gasReeks vult nul-jaren aan na de laatste gemeten jaar', () => {
+  const reeks = INZICHT.gasReeks(historie, 2026);
+  assert.deepEqual(reeks.map((r) => r.jaar), ['2021', '2022', '2023', '2024', '2025', '2026']);
+  assert.equal(reeks[0].m3, 2038);
+  assert.equal(reeks[3].partieel, true);          // 2024
+  assert.equal(reeks[4].m3, 0);                    // 2025: van het gas af
+  assert.equal(reeks[4].nul, true);
+  assert.equal(reeks[5].m3, 0);                    // 2026
+});
+
+test('historieJaarTotalen op leeg object crasht niet', () => {
+  const t = INZICHT.historieJaarTotalen({});
+  assert.equal(t.afname, 0);
+  assert.equal(t.gasM3, 0);
+  assert.equal(t.partieel, true); // 0 maanden
+});

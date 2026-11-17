@@ -332,6 +332,21 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.91.0** — Inzicht-tab: "Van het gas af" + gemeten Essent-historie
+- Nieuwe sectie "Van het gas af" bovenaan de Inzicht-tab: staafgrafiek van het gemeten gasverbruik per
+  kalenderjaar (2021–2023 vol, 2024 deels tot de warmtepomp in april), dat daarna naar nul valt
+  (nul-jaren groen, deels-jaar lichter, fossiel oranje). Plus een regel gemeten stroom/teruglevering/gas
+  per jaar. Vertelt in één beeld het warmtepomp-verhaal (van ~1.900 m³/jaar naar 0).
+- Data in `users/001.js` → `CONFIG.verbruikHistorie`: werkelijk gemeten maandverbruik (kWh afname,
+  teruglevering, gas m³) uit de Essent "Uw historisch verbruik"-PDFs (maandelijkse energierapporten),
+  2021 t/m begin 2024. Echte metingen, geen euro-schattingen.
+- Pure helpers `INZICHT.historieJaarTotalen` (maand → jaartotaal) en `INZICHT.gasReeks` (gemeten jaren +
+  nul-tail); jaartotalen met de hand nagerekend tegen de PDF's en geborgd in `test/inzicht.test.js`
+  (2021 gas 2038 m³, 2022 1836, 2023 1804, 2024 772). Tweede Chart.js-instantie in een eigen
+  closure-variabele, opgeruimd in `inzichtCleanup`.
+- Meteen de versie-drift rechtgetrokken: `window.APP_VERSION` stond nog op 2.89.1 terwijl de footer en
+  cache-bust al 2.90.0 waren; nu alle drie op 2.91.0.
+
 **v2.90.0** — Inzicht-tab: energie-historie uit de jaarnota's
 - Nieuwe tab "📊 Inzicht" (`switchTab('inzicht')`, `#inzichtContent` → `js/inzicht.js` rendert in
   `#inzichtBody`). Toont per factuurjaar (mei–mei) de kosten, het verbruik (afname) en de teruglevering,

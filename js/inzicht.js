@@ -55,11 +55,53 @@
     return t;
   }
 
+  // Gemeten maandverbruik per kalenderjaar (window.CONFIG.verbruikHistorie), opgeteld
+  // tot jaartotalen. Pure optelling, zodat test/inzicht.test.js de cijfers tegen de
+  // handberekening uit de Essent historisch-verbruik-PDFs borgt. partieel = < 12 maanden
+  // (bv. 2024 loopt tot de warmtepomp in april).
+  function historieJaarTotalen(j) {
+    var mn = (j && j.maanden) || [];
+    var afname = 0, terug = 0, gas = 0;
+    for (var i = 0; i < mn.length; i++) {
+      afname += getal(mn[i].afname);
+      terug += getal(mn[i].terug);
+      gas += getal(mn[i].gasM3);
+    }
+    return {
+      jaar: j && j.jaar,
+      afname: afname,
+      teruglevering: terug,
+      gasM3: gas,
+      maanden: mn.length,
+      partieel: !!(j && j.partieel) || mn.length < 12,
+    };
+  }
+
+  // Gasverbruik per kalenderjaar voor de "Van het gas af"-grafiek: de gemeten
+  // historie-jaren, gevolgd door nul-jaren t/m totJaar (na de warmtepomp = geen gas meer).
+  function gasReeks(hist, totJaar) {
+    var jaren = (hist && hist.jaren) || [];
+    var out = [];
+    var laatste = 0;
+    for (var i = 0; i < jaren.length; i++) {
+      var t = historieJaarTotalen(jaren[i]);
+      out.push({ jaar: jaren[i].jaar, m3: t.gasM3, partieel: t.partieel });
+      var jr = parseInt(jaren[i].jaar, 10);
+      if (isFinite(jr) && jr > laatste) laatste = jr;
+    }
+    for (var y = laatste + 1; y <= totJaar; y++) {
+      out.push({ jaar: String(y), m3: 0, nul: true });
+    }
+    return out;
+  }
+
   var API = {
     VOORSCHOT_MAANDEN: VOORSCHOT_MAANDEN,
     MAAND_LABEL: MAAND_LABEL,
     jaarTotalen: jaarTotalen,
     voorschotTotaal: voorschotTotaal,
+    historieJaarTotalen: historieJaarTotalen,
+    gasReeks: gasReeks,
   };
 
   // ── Alleen in de browser: rendering ───────────────────────────────────────
@@ -92,6 +134,7 @@
     // dezelfde naam als het canvas-id wordt door de browser overschreven met dat
     // element, waardoor .destroy() faalt).
     var chartInstance = null;
+    var gasChartInstance = null; // tweede grafiek: gasverbruik per kalenderjaar
 
     // Welke maat toont de grafiek: kosten | afname | teruglevering
     var huidigeMaat = 'kosten';
@@ -138,6 +181,9 @@
         + kaart(nieuwste.bijbetaling >= 0 ? 'Bijbetaald' : 'Terugontvangen', euro(Math.abs(nieuwste.bijbetaling)), 'eindafrekening')
         + '</div>';
 
+      // 1b. Van het gas af (warmtepomp) — gemeten gasverbruik per jaar naar nul
+      html += gasSectie();
+
       // 2. Grafiek per factuurjaar + maat-toggle
       html += '<div class="section">'
         + '<div class="section-title">Per factuurjaar</div>'
@@ -162,6 +208,37 @@
 
       bindToggle();
       tekenGrafiek();
+      tekenGasGrafiek();
+    }
+
+    // "Van het gas af": gemeten gasverbruik per kalenderjaar (Essent slimme meter),
+    // dat na de warmtepomp (april 2024) naar nul valt, plus de gemeten stroom per jaar.
+    function gasSectie() {
+      var hist = (global.CONFIG && global.CONFIG.verbruikHistorie) || null;
+      if (!hist || !Array.isArray(hist.jaren) || !hist.jaren.length) return '';
+      var h = '<div class="section">'
+        + '<div class="section-title">Van het gas af</div>'
+        + '<div class="card-sub" style="margin:-4px 0 10px">Warmtepomp sinds april 2024. '
+        + 'Je gemeten gasverbruik ging van ~1.900 m³ per jaar naar nul.</div>'
+        + '<div class="chart-wrap" style="height:180px"><canvas id="gasChart"></canvas></div>';
+      h += '<div class="inzicht-detail-titel" style="margin-top:12px">Gemeten per jaar ('
+        + (hist.bron || 'slimme meter') + ')</div>';
+      var heeftPartieel = false;
+      for (var i = 0; i < hist.jaren.length; i++) {
+        var t = API.historieJaarTotalen(hist.jaren[i]);
+        if (t.partieel) heeftPartieel = true;
+        h += '<div class="inzicht-rij">'
+          + '<span class="inzicht-rij-periode">' + t.jaar + (t.partieel ? ' *' : '') + '</span>'
+          + '<span class="inzicht-rij-kwh">' + kwh(t.afname) + ' kWh · ' + kwh(t.teruglevering) + ' terug</span>'
+          + '<span class="inzicht-rij-euro">' + kwh(t.gasM3) + ' m³ gas</span>'
+          + '</div>';
+      }
+      if (heeftPartieel) {
+        h += '<div class="inzicht-detail-noot">* Deels jaar: 2024 loopt tot de warmtepomp in april. '
+          + 'Stroom is bruto van de meter; een deel is eigen zon.</div>';
+      }
+      h += '</div>';
+      return h;
     }
 
     function kaart(label, val, sub) {
@@ -301,6 +378,51 @@
       });
     }
 
+    function tekenGasGrafiek() {
+      var canvas = document.getElementById('gasChart');
+      if (!canvas || typeof global.Chart === 'undefined') return;
+      if (gasChartInstance) { gasChartInstance.destroy(); gasChartInstance = null; }
+      var hist = (global.CONFIG && global.CONFIG.verbruikHistorie) || null;
+      if (!hist) return;
+
+      var reeks = API.gasReeks(hist, new Date().getFullYear());
+      var labels = reeks.map(function (r) { return r.jaar; });
+      var data = reeks.map(function (r) { return r.m3; });
+      // Fossiel gas oranje, deels-jaar lichter, nul-jaren groen (van het gas af).
+      var kleuren = reeks.map(function (r) {
+        return r.nul ? '#2f7d32' : (r.partieel ? '#d9b382' : '#c77d2e');
+      });
+      var muted = leesVar('--muted') || '#888';
+
+      gasChartInstance = new global.Chart(canvas, {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ data: data, backgroundColor: kleuren, borderRadius: 6, maxBarThickness: 48 }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) {
+                  var r = reeks[ctx.dataIndex] || {};
+                  return kwh(ctx.parsed.y) + ' m³' + (r.partieel ? ' (deels jaar)' : '') + (r.nul ? ' — van het gas af' : '');
+                },
+              },
+            },
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: muted } },
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(128,128,128,0.15)' },
+              ticks: { color: muted, callback: function (v) { return kwh(v) + ' m³'; } },
+            },
+          },
+        },
+      });
+    }
+
     function leesVar(naam) {
       try { return getComputedStyle(document.documentElement).getPropertyValue(naam).trim(); }
       catch (e) { return ''; }
@@ -309,6 +431,7 @@
     // Opruimen bij het verlaten van de tab (aangeroepen vanuit switchTab).
     function inzichtCleanup() {
       if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+      if (gasChartInstance) { gasChartInstance.destroy(); gasChartInstance = null; }
     }
 
     // Verberg de Inzicht-tab als deze user geen facturen heeft (bv. 002/003).

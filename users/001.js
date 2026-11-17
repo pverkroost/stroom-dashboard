@@ -85,5 +85,64 @@
         bijbetaling: 347.13,
       },
     ],
+    // Gemeten maandverbruik van de slimme meter uit de tijd bij Essent (vóór Sepa Green).
+    // Bron: Essent "Uw historisch verbruik"-PDF (maandelijkse energierapporten). Dit zijn
+    // werkelijk gemeten waarden (kWh én gas m³), geen euro-schattingen. Gebruikt voor de
+    // "Van het gas af"-sectie in de Inzicht-tab: gasverbruik valt na de warmtepomp
+    // (geplaatst 10 april 2024) naar nul. 2024 is partieel (jan t/m apr, tot de warmtepomp).
+    // afname/terug = kWh bruto; gasM3 = m³. Optelling + borging: test/inzicht.test.js.
+    verbruikHistorie: {
+      bron: 'Essent slimme meter',
+      jaren: [
+        { jaar: '2021', maanden: [
+          { m: '2021-01', afname: 329, terug: 5,   gasM3: 345 },
+          { m: '2021-02', afname: 288, terug: 31,  gasM3: 296 },
+          { m: '2021-03', afname: 243, terug: 170, gasM3: 247 },
+          { m: '2021-04', afname: 199, terug: 327, gasM3: 191 },
+          { m: '2021-05', afname: 164, terug: 299, gasM3: 123 },
+          { m: '2021-06', afname: 177, terug: 334, gasM3: 36 },
+          { m: '2021-07', afname: 223, terug: 251, gasM3: 39 },
+          { m: '2021-08', afname: 133, terug: 272, gasM3: 20 },
+          { m: '2021-09', afname: 330, terug: 170, gasM3: 67 },
+          { m: '2021-10', afname: 410, terug: 36,  gasM3: 158 },
+          { m: '2021-11', afname: 524, terug: 6,   gasM3: 227 },
+          { m: '2021-12', afname: 489, terug: 1,   gasM3: 289 },
+        ] },
+        { jaar: '2022', maanden: [
+          { m: '2022-01', afname: 448, terug: 3,   gasM3: 310 },
+          { m: '2022-02', afname: 561, terug: 36,  gasM3: 234 },
+          { m: '2022-03', afname: 596, terug: 217, gasM3: 233 },
+          { m: '2022-04', afname: 397, terug: 302, gasM3: 170 },
+          { m: '2022-05', afname: 236, terug: 345, gasM3: 61 },
+          { m: '2022-06', afname: 368, terug: 337, gasM3: 36 },
+          { m: '2022-07', afname: 137, terug: 369, gasM3: 22 },
+          { m: '2022-08', afname: 189, terug: 359, gasM3: 32 },
+          { m: '2022-09', afname: 227, terug: 178, gasM3: 82 },
+          { m: '2022-10', afname: 248, terug: 43,  gasM3: 119 },
+          { m: '2022-11', afname: 318, terug: 6,   gasM3: 217 },
+          { m: '2022-12', afname: 360, terug: 1,   gasM3: 320 },
+        ] },
+        { jaar: '2023', maanden: [
+          { m: '2023-01', afname: 407, terug: 3,   gasM3: 277 },
+          { m: '2023-02', afname: 706, terug: 14,  gasM3: 254 },
+          { m: '2023-03', afname: 407, terug: 96,  gasM3: 255 },
+          { m: '2023-04', afname: 257, terug: 282, gasM3: 167 },
+          { m: '2023-05', afname: 189, terug: 365, gasM3: 78 },
+          { m: '2023-06', afname: 197, terug: 386, gasM3: 40 },
+          { m: '2023-07', afname: 305, terug: 148, gasM3: 40 },
+          { m: '2023-08', afname: 316, terug: 0,   gasM3: 26 },
+          { m: '2023-09', afname: 298, terug: 67,  gasM3: 47 },
+          { m: '2023-10', afname: 265, terug: 53,  gasM3: 114 },
+          { m: '2023-11', afname: 391, terug: 30,  gasM3: 231 },
+          { m: '2023-12', afname: 522, terug: 4,   gasM3: 275 },
+        ] },
+        { jaar: '2024', partieel: true, maanden: [
+          { m: '2024-01', afname: 542, terug: 15,  gasM3: 326 },
+          { m: '2024-02', afname: 359, terug: 51,  gasM3: 216 },
+          { m: '2024-03', afname: 280, terug: 263, gasM3: 200 },
+          { m: '2024-04', afname: 469, terug: 419, gasM3: 30 },
+        ] },
+      ],
+    },
   };
 })();
