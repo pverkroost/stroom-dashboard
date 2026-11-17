@@ -56,5 +56,34 @@
       { naam: 'Oven',                    icon: '🔥',       uren: 1,   vermogen: 2.0, type: 'inschakelen', automatisering: false, batterij: false, volgorde: 9,  grootverbruik: true,  klaarOmTekst: 'Oven moet gereed zijn om',          korteTekst: '🔥 Gereed zijn om',    homeConnect: true, haId: null },
       { naam: 'Kookplaat',               icon: '🍳',       uren: 0.5, vermogen: 3.5, type: 'inschakelen', automatisering: false, batterij: false, volgorde: 10, grootverbruik: true,  klaarOmTekst: 'Kookplaat moet gereed zijn om',     korteTekst: '🍳 Gereed zijn om',    homeConnect: true, haId: null },
     ],
+    // Energie-inzicht (Inzicht-tab, v2.90.0). Historische cijfers uit de Sepa Green
+    // jaarnota's. Korrel = factuurjaar (mei–mei) met de factuurperiodes eronder; de
+    // maandbedragen zijn VOORSCHOT (termijnbedragen), niet werkelijke kosten per maand.
+    // afname/teruglevering = kWh bruto van de slimme meter. kostenIncl = werkelijke
+    // kosten incl. btw per periode (levering + belasting + netbeheer + vaste kosten).
+    // Nieuwe jaarnota erbij? Voeg een factuurjaar toe (periodewaarden uit de nota).
+    facturen: [
+      {
+        jaar: '2024/2025', van: '2024-05-03', tot: '2025-05-03',
+        leverancier: 'Sepa Green', saldering: true, gasInclBtw: 353.97, gasM3: 3,
+        periodes: [
+          { van: '2024-05-03', tot: '2025-01-01', afname: 5239, teruglevering: 2675, kostenIncl: 725.07 },
+          { van: '2025-01-01', tot: '2025-05-03', afname: 5767, teruglevering: 794,  kostenIncl: 1428.87 },
+        ],
+        voorschot: { mei: 158.00, jun: 158.00, jul: 158.00, aug: 158.00, sep: 158.00, okt: 158.00, nov: 158.00, dec: 158.00, jan: 158.00, feb: 158.00, mrt: 158.00, apr: 158.00 },
+        bijbetaling: 611.91,
+      },
+      {
+        jaar: '2025/2026', van: '2025-05-03', tot: '2026-05-03',
+        leverancier: 'Sepa Green', saldering: false, gasInclBtw: 0, gasM3: 0,
+        periodes: [
+          { van: '2025-05-03', tot: '2025-10-17', afname: 2603, teruglevering: 2044, kostenIncl: 649.38 },
+          { van: '2025-10-17', tot: '2026-01-01', afname: 3599, teruglevering: 26,   kostenIncl: 762.92 },
+          { van: '2026-01-01', tot: '2026-05-03', afname: 5934, teruglevering: 756,  kostenIncl: 1507.50 },
+        ],
+        voorschot: { mei: 52.15, jun: 122.45, jul: 123.51, aug: 143.12, sep: 150.82, okt: 176.56, nov: 230.98, dec: 267.54, jan: 311.60, feb: 282.35, mrt: 455.44, apr: 256.15 },
+        bijbetaling: 347.13,
+      },
+    ],
   };
 })();

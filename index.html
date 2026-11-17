@@ -31,6 +31,7 @@
   <!-- Drie gelijke tabs: icoon + kort label (v2.80.3). Ids/onclicks ongewijzigd (switchTab in js/app.js). -->
   <div class="day-tab active" id="tab-0" onclick="switchTab(0)"><span class="day-tab-icon">⚡</span>Plannen</div>
   <div class="day-tab" id="tab-2" onclick="switchTab('zon')"><span class="day-tab-icon">☀️</span>Zon</div>
+  <div class="day-tab" id="tab-4" onclick="switchTab('inzicht')"><span class="day-tab-icon">📊</span>Inzicht</div>
   <div class="day-tab" id="tab-3" onclick="switchTab('inst')"><span class="day-tab-icon">⚙️</span>Instellingen</div>
 </div>
 
@@ -174,6 +175,12 @@
   </div>
 </div><!-- /zonContent -->
 
+<!-- Inzicht: historisch overzicht uit de jaarnota's (v2.90.0). Alles wordt door
+     js/inzicht.js in #inzichtBody gerenderd. -->
+<div id="inzichtContent" style="display:none">
+  <div id="inzichtBody"></div>
+</div><!-- /inzichtContent -->
+
 <div id="instellingenContent" style="display:none">
 
   <div class="section" style="padding-top:28px">
@@ -237,7 +244,7 @@
 </div><!-- /instellingenContent -->
 
 <div class="footer">
-  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.89.2</span>
+  <span id="versionStamp" style="font-size:10px;opacity:0.45;">v2.90.0</span>
 </div>
 
 <div id="apparaatDetail" class="ap-detail-panel">
@@ -280,6 +287,6 @@
 <!-- bootstrap.js bepaalt de gebruiker (echte sessie via /api/auth?action=me, of legacy ?u=)
      en laadt daarna pas users/<id>.js + js/config|solar|prijzen|apparaten|app.js.
      Zonder geldige sessie toont het de #loginOverlay hierboven. -->
-<script src="js/bootstrap.js?v=2.89.2"></script>
+<script src="js/bootstrap.js?v=2.90.0"></script>
 </body>
 </html>

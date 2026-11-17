@@ -332,6 +332,21 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.90.0** — Inzicht-tab: energie-historie uit de jaarnota's
+- Nieuwe tab "📊 Inzicht" (`switchTab('inzicht')`, `#inzichtContent` → `js/inzicht.js` rendert in
+  `#inzichtBody`). Toont per factuurjaar (mei–mei) de kosten, het verbruik (afname) en de teruglevering,
+  met een staafgrafiek + maat-toggle (Kosten / Verbruik / Teruglevering), samenvattingskaarten van het
+  nieuwste jaar, en per jaar een uitklap met de factuurperiodes, de maand-voorschotten en de
+  eindafrekening. Bewust eerlijk gelabeld: de maandbedragen zijn voorschot (termijnbedragen), niet
+  werkelijke kosten per maand; werkelijk kent de nota alleen per factuurperiode.
+- Data in `users/001.js` → `CONFIG.facturen` (Sepa Green jaarnota's 2024/25 en 2025/26, bruto kWh +
+  werkelijke kosten incl. btw per periode). Rekenkern `INZICHT.jaarTotalen` is puur/DOM-vrij; de maand-
+  voorschotten en jaartotalen zijn met de hand nagerekend en geborgd in `test/inzicht.test.js`.
+- Users zonder `facturen` (002/003) krijgen de tab verborgen. De grafiek-instantie staat in een
+  closure-variabele i.p.v. op `window` (een global met dezelfde naam als het canvas-id wordt door de
+  browser met dat element overschreven, waardoor `.destroy()` faalt). Vier tabs passen op telefoonbreedte
+  (nav iets compacter). Volgende stap: echte maand-korrel via dagelijkse P1-logging (backlog).
+
 **v2.89.2** — Security-onderhoud dependencies (n.a.v. Node.js oktober-2026 CVE-release)
 - `engines.node` → `>=22` (Node 18 en 20 zijn EOL; Vercel-project op 22.x, krijgt zo de gepatchte runtime).
 - Runtime-deps bijgewerkt: `@neondatabase/serverless` ^1.2.0, `@upstash/qstash` ^2.12.1, `@upstash/redis` ^1.40.0.

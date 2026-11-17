@@ -35,10 +35,26 @@ function switchTab(newTab) {
   const hideAll = () => {
     document.getElementById('mainContent').style.display         = 'none';
     document.getElementById('zonContent').style.display          = 'none';
+    const inz = document.getElementById('inzichtContent');
+    if (inz) inz.style.display = 'none';
     document.getElementById('instellingenContent').style.display = 'none';
   };
 
-  if (newTab === 'inst') {
+  // Inzicht-grafiek opruimen bij elke tabwissel (renderInzicht maakt 'm opnieuw).
+  if (typeof inzichtCleanup === 'function') inzichtCleanup();
+
+  if (newTab === 'inzicht') {
+    isZonTab = false; isInstTab = false;
+    if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
+    if (chart) { chart.destroy(); chart = null; }
+    hideAll();
+    document.getElementById('inzichtContent').style.display = '';
+    document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
+    const inzTabEl = document.getElementById('tab-4');
+    if (inzTabEl) inzTabEl.classList.add('active');
+    if (typeof renderInzicht === 'function') renderInzicht();
+
+  } else if (newTab === 'inst') {
     isInstTab = true; isZonTab = false;
     if (rAFId) { cancelAnimationFrame(rAFId); rAFId = null; }
     if (chart) { chart.destroy(); chart = null; }

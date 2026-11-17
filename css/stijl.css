@@ -182,3 +182,26 @@ body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif; ba
 .loading { display:flex; flex-direction:column; align-items:center; padding:40px; gap:12px; color:var(--muted); font-size:14px; }
 .spinner { width:28px; height:28px; border:2.5px solid var(--border); border-top-color:var(--green); border-radius:50%; animation:spin 0.8s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
+/* ── Inzicht-tab (energie-historie uit de jaarnota's, v2.90.0) ─────────────── */
+/* Vier tabs (Inzicht erbij): iets compacter zodat ze op telefoonbreedte passen. */
+.day-nav { gap:6px; padding-left:14px; padding-right:14px; }
+.day-tab { font-size:12px; min-width:0; overflow:hidden; }
+.day-tab-icon { font-size:14px; }
+
+.inzicht-toggle { display:flex; gap:6px; margin-bottom:12px; }
+.inzicht-toggle-btn { flex:1; padding:7px 0; border:1px solid var(--border); background:var(--card); color:var(--muted); border-radius:8px; font-size:12px; font-family:inherit; font-weight:600; cursor:pointer; transition:all 0.15s; }
+.inzicht-toggle-btn.actief { background:var(--green); color:#fff; border-color:var(--green); }
+
+.inzicht-jaar { margin-bottom:10px; }
+.inzicht-jaar-kop { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; cursor:pointer; }
+.inzicht-detail { margin-top:12px; border-top:0.5px solid var(--border); padding-top:10px; }
+.inzicht-detail-titel { font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:600; margin-bottom:6px; }
+.inzicht-detail-noot { font-size:11px; color:var(--muted); line-height:1.4; margin-top:8px; }
+.inzicht-rij { display:flex; align-items:center; font-size:13px; padding:3px 0; }
+.inzicht-rij-periode { flex:1; }
+.inzicht-rij-kwh { color:var(--muted); width:92px; text-align:right; font-size:12px; }
+.inzicht-rij-euro { width:90px; text-align:right; font-variant-numeric:tabular-nums; }
+.inzicht-voorschot { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px 12px; margin-top:2px; }
+.inzicht-vs { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); }
+.inzicht-vs b { color:var(--text); font-weight:500; }
+.inzicht-voetnoot { font-size:11px; color:var(--muted); line-height:1.4; margin-top:10px; }

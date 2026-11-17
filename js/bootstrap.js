@@ -34,6 +34,7 @@
       'js/weekschema.js' + v,
       'js/apparaatoverrides.js' + v,
       'js/homewizardcloud.js' + v,
+      'js/inzicht.js' + v,
       'js/app.js' + v,
     ];
     for (var i = 0; i < bestanden.length; i++) {
