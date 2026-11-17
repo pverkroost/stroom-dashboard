@@ -332,6 +332,14 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.95.0** — Benchmark: visuele vergelijkingsbalken + thuisladen in de norm
+- UX: de benchmark is nu visueel. Per onderdeel (Verbruik, Kosten) twee balken "Jij" vs "Vergelijkbaar"
+  met een gekleurd label (groen = onder, oranje = boven, blauw = rond). Contract als los signaal met badge.
+  Veel sneller te lezen dan de tekstregels; CSS `.inzicht-bar`/`.inzicht-badge`/`.inzicht-vergelijk`.
+- Eerlijker vergelijken: de norm telt nu thuisladen mee (`normen.evKwh` = 2.500 kWh), zodat het een
+  vergelijkbaar huishouden mét PHEV/EV is (~12.750 kWh). Jij valt daarmee rond/onder i.p.v. kunstmatig
+  "boven". Kanttekening (zon + thuisladen verschillen per gezin) staat eronder. Test bijgewerkt (12.750).
+
 **v2.94.2** — All-electric norm eerlijk afgeleid + uitgelegd
 - De all-electric norm telde impliciet te laag (9.000). Nu afgeleid in `normAllElectric`: gemiddeld
   huishoudelijk stroom (4.200 kWh) + de gemiddelde gas (2.200 m³) omgerekend naar warmtepompstroom met

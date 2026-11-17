@@ -267,8 +267,8 @@ test('huidigeBenchmark pakt het laatste volledige jaar en factuurjaar', () => {
 test('normAllElectric = huishoudelijk + gas omgerekend naar warmtepompstroom', () => {
   const nm = cfg001.normen;
   const wp = cfg001.warmtepomp;
-  // 4200 + 2200 × 8,8 / 3,2 = 4200 + 6050 = 10250 (geen andermans gas als gas)
-  assert.ok(bijna(INZICHT.normAllElectric(nm, wp), 4200 + 2200 * 8.8 / 3.2, 0.01));
+  // 4200 huishoudelijk + 2200 × 8,8 / 3,2 warmtepomp (6050) + 2500 thuisladen = 12750
+  assert.ok(bijna(INZICHT.normAllElectric(nm, wp), 4200 + 2200 * 8.8 / 3.2 + 2500, 0.01));
   // Expliciete override wint
-  assert.equal(INZICHT.normAllElectric({ stroomAllElectricKwh: 8888, stroomKwh: 1, gasM3: 1 }, wp), 8888);
+  assert.equal(INZICHT.normAllElectric({ stroomAllElectricKwh: 8888, stroomKwh: 1, gasM3: 1, evKwh: 1 }, wp), 8888);
 });

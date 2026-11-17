@@ -199,6 +199,16 @@ body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif; ba
 .inzicht-benchmark-sub { font-size:11px; color:var(--muted); margin-bottom:8px; }
 .inzicht-benchmark-rij { font-size:12px; line-height:1.5; margin-top:4px; }
 .inzicht-benchmark-rij b { font-weight:600; }
+.inzicht-vergelijk { margin-top:12px; }
+.inzicht-vergelijk-kop { display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:600; margin-bottom:5px; }
+.inzicht-badge { font-size:10px; font-weight:700; padding:2px 9px; border-radius:20px; white-space:nowrap; }
+.badge-onder { background:rgba(47,125,50,0.15); color:#2f7d32; }
+.badge-boven { background:rgba(199,125,46,0.18); color:#b5671f; }
+.badge-rond { background:rgba(128,128,128,0.15); color:var(--muted); }
+.inzicht-bar { position:relative; height:24px; background:rgba(128,128,128,0.10); border-radius:7px; margin:4px 0; overflow:hidden; }
+.inzicht-bar-vol { position:absolute; left:0; top:0; height:100%; border-radius:7px; min-width:3px; }
+.inzicht-bar-label { position:absolute; left:9px; top:0; line-height:24px; font-size:11px; color:#fff; font-weight:600; text-shadow:0 1px 1px rgba(0,0,0,0.25); }
+.inzicht-bar-waarde { position:absolute; right:9px; top:0; line-height:24px; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; }
 .inzicht-toggle { display:flex; gap:6px; margin-bottom:12px; }
 .inzicht-toggle-btn { flex:1; padding:7px 0; border:1px solid var(--border); background:var(--card); color:var(--muted); border-radius:8px; font-size:12px; font-family:inherit; font-weight:600; cursor:pointer; transition:all 0.15s; }
 .inzicht-toggle-btn.actief { background:var(--green); color:#fff; border-color:var(--green); }

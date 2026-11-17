@@ -197,7 +197,8 @@
     if (normen.stroomAllElectricKwh) return getal(normen.stroomAllElectricKwh);
     var w = (getal(normen.gasM3) && wp && getal(wp.kWhPerM3) && getal(wp.scop))
       ? getal(normen.gasM3) * getal(wp.kWhPerM3) / getal(wp.scop) : 0;
-    return getal(normen.stroomKwh) + w;
+    // + thuisladen auto (evKwh): maakt het een vergelijkbaar huishouden met EV/PHEV.
+    return getal(normen.stroomKwh) + w + getal(normen.evKwh);
   }
 
   // Gemiddeld gasverbruik in de volledige jaren VÓÓR de warmtepomp (voor de benchmark
@@ -407,8 +408,9 @@
       return h;
     }
 
-    // "Nu t.o.v. gemiddeld": je huidige all-electric situatie (laatste volledige jaar)
-    // naast de norm — verbruik, kosten en een contract-signaal. Zoals Essent liet zien.
+    // "Nu t.o.v. een vergelijkbaar huishouden": visuele vergelijkingsbalken (Jij vs
+    // Vergelijkbaar) voor verbruik en kosten, plus een contract-signaal. Groen = onder,
+    // oranje = boven. De norm is een vergelijkbaar all-electric huishouden mét thuisladen.
     function benchmarkDeel() {
       var cfg = global.CONFIG || {};
       var nm = cfg.normen;
@@ -416,47 +418,52 @@
       var wp = cfg.warmtepomp || {};
       var b = API.huidigeBenchmark(cfg);
       var normAE = API.normAllElectric(nm, wp);
-      var wpNorm = normAE - getal(nm.stroomKwh);
       var tar = cfg.tarieven || {};
       var vasteJaar = getal(tar.vasteKostenPerDag) * (getal(tar.btw) || 1.21) * 365;
       var normKosten = getal(nm.kostenAllElectricJaar) || (normAE * (getal(nm.marktPrijsKwh) || 0.28) + vasteJaar);
-      function verdict(jij, norm) {
-        if (!norm) return '';
+
+      function kleurVoor(jij, norm) { var p = (jij / norm - 1) * 100; return p <= -5 ? '#2f7d32' : (p >= 5 ? '#c77d2e' : '#3b7dd8'); }
+      function badge(jij, norm) {
         var p = Math.round((jij / norm - 1) * 100);
-        if (p <= -5) return Math.abs(p) + '% onder gemiddeld';
-        if (p >= 5) return p + '% boven gemiddeld';
-        return 'rond gemiddeld';
+        if (p <= -5) return '<span class="inzicht-badge badge-onder">' + Math.abs(p) + '% onder</span>';
+        if (p >= 5) return '<span class="inzicht-badge badge-boven">' + p + '% boven</span>';
+        return '<span class="inzicht-badge badge-rond">rond gemiddeld</span>';
+      }
+      function bar(naam, waarde, max, tekst, kleur) {
+        var w = Math.max(3, Math.round(waarde / (max || 1) * 100));
+        return '<div class="inzicht-bar"><div class="inzicht-bar-vol" style="width:' + w + '%;background:' + kleur + '"></div>'
+          + '<span class="inzicht-bar-label">' + naam + '</span>'
+          + '<span class="inzicht-bar-waarde">' + tekst + '</span></div>';
+      }
+      function blok(titel, jij, norm, fmt) {
+        var max = Math.max(jij, norm);
+        return '<div class="inzicht-vergelijk">'
+          + '<div class="inzicht-vergelijk-kop"><span>' + titel + '</span>' + badge(jij, norm) + '</div>'
+          + bar('Jij', jij, max, fmt(jij), kleurVoor(jij, norm))
+          + bar('Vergelijkbaar', norm, max, fmt(norm), '#9aa0a6')
+          + '</div>';
       }
       function euroKwh(n) { return '€ ' + komma((Math.round(n * 100) / 100).toFixed(2)); }
+      function fmtKwh(v) { return kwh(v) + ' kWh'; }
 
       var h = '<div class="inzicht-benchmark">'
-        + '<div class="inzicht-benchmark-titel">Nu t.o.v. gemiddeld</div>'
-        + '<div class="inzicht-benchmark-sub">' + (nm.profiel || '') + ', all-electric · ' + (nm.bron || '') + '</div>';
+        + '<div class="inzicht-benchmark-titel">Nu t.o.v. een vergelijkbaar huishouden</div>'
+        + '<div class="inzicht-benchmark-sub">' + (nm.profiel || '') + ', warmtepomp + thuisladen · ' + (nm.bron || '') + '</div>';
 
-      // Uitleg van de all-electric norm (zodat duidelijk is: geen andermans gas als gas)
-      h += '<div class="inzicht-benchmark-rij" style="color:var(--muted)">Gemiddeld all-electric ≈ '
-        + kwh(nm.stroomKwh) + ' kWh huishoudelijk + ~' + kwh(wpNorm) + ' kWh voor de warmtepomp '
-        + '(die ~' + kwh(nm.gasM3) + ' m³ gas vervangt). Dus niet andermans gas, maar de stroom die dat gas zou kosten.</div>';
+      if (b.afname > 0 && normAE) h += blok('Verbruik ' + b.verbruikJaar, b.afname, normAE, fmtKwh);
+      if (b.kosten > 0 && normKosten) h += blok('Kosten ' + b.kostenJaar, b.kosten, normKosten, euro);
 
-      if (b.afname > 0 && normAE) {
-        h += '<div class="inzicht-benchmark-rij"><b>Verbruik ' + b.verbruikJaar + '</b>: jij ' + kwh(b.afname)
-          + ' kWh van het net · gemiddeld ~' + kwh(normAE) + ' kWh ('
-          + verdict(b.afname, normAE) + ').</div>';
-      }
-      if (b.kosten > 0 && normKosten) {
-        h += '<div class="inzicht-benchmark-rij"><b>Kosten ' + b.kostenJaar + '</b>: jij ' + euro(b.kosten)
-          + ' · gemiddelde energierekening ~' + euro(normKosten) + ' (indicatie, '
-          + verdict(b.kosten, normKosten) + ').</div>';
-      }
       if (b.prijsKwh > 0 && nm.marktPrijsKwh) {
-        var goedkoper = b.prijsKwh < nm.marktPrijsKwh;
-        h += '<div class="inzicht-benchmark-rij"><b>Contract</b>: je betaalt gemiddeld ' + euroKwh(b.prijsKwh)
-          + '/kWh; een gangbaar vast tarief is ~' + euroKwh(nm.marktPrijsKwh) + '/kWh. '
-          + (goedkoper ? 'Je dynamische contract is nu voordeliger.' : 'Een ander contract kan schelen.') + '</div>';
+        var goedkoper = b.prijsKwh < getal(nm.marktPrijsKwh);
+        h += '<div class="inzicht-vergelijk-kop" style="margin-top:12px"><span>Contract</span>'
+          + '<span class="inzicht-badge ' + (goedkoper ? 'badge-onder' : 'badge-boven') + '">' + (goedkoper ? 'voordeliger' : 'kan beter') + '</span></div>'
+          + '<div class="inzicht-benchmark-rij">Je betaalt ~' + euroKwh(b.prijsKwh) + '/kWh; gangbaar vast tarief ~' + euroKwh(nm.marktPrijsKwh) + '/kWh.</div>';
       }
-      h += '<div class="inzicht-benchmark-rij" style="color:var(--muted);margin-top:8px">'
-        + 'Je zit boven het gemiddelde verbruik vooral door de elektrische auto; beter isoleren verlaagt '
-        + 'vooral de warmtepomp-kant. Je zonnepanelen drukken je echte inkoop van het net.</div>';
+
+      h += '<div class="inzicht-benchmark-rij" style="color:var(--muted);margin-top:12px">'
+        + 'Vergelijkbaar = ' + (nm.profiel || '') + ', all-electric met warmtepomp én thuisladen (~' + kwh(normAE) + ' kWh/jaar). '
+        + 'Je zit lager doordat je zonnepanelen je inkoop drukken en je dynamische contract goedkoper is. '
+        + 'Thuisladen en zon verschillen sterk per gezin, dus zie dit als richting, niet als exacte score.</div>';
       h += '</div>';
       return h;
     }

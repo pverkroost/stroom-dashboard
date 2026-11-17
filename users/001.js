@@ -183,6 +183,7 @@
       bron: 'Milieu Centraal / Nibud / CBS',
       gasM3: 2200,         // gemiddeld gas vrijstaande woning (voor de all-electric norm)
       stroomKwh: 4200,     // gemiddeld huishoudelijk stroomverbruik (zonder warmtepomp)
+      evKwh: 2500,         // gemiddeld thuisladen PHEV/EV per jaar (vergelijkbaar huishouden)
       marktPrijsKwh: 0.28, // gangbaar vast stroomtarief nu, voor de contract-vergelijking
       // all-electric norm en kosten-norm worden afgeleid (normAllElectric: huishoudelijk +
       // gas omgerekend naar warmtepompstroom). Zet stroomAllElectricKwh/kostenAllElectricJaar
