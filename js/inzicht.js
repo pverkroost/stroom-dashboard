@@ -188,6 +188,18 @@
     };
   }
 
+  // Eerlijke all-electric norm: gemiddeld huishoudelijk stroomverbruik + de stroom die
+  // een warmtepomp nodig heeft om het gemiddelde gas te vervangen (NIET andermans gas als
+  // gas meegeteld, maar omgerekend naar stroom met dezelfde kWh/m³ en SCOP als jouw pomp).
+  // Een expliciete stroomAllElectricKwh in de config wint, anders afgeleid.
+  function normAllElectric(normen, wp) {
+    if (!normen) return 0;
+    if (normen.stroomAllElectricKwh) return getal(normen.stroomAllElectricKwh);
+    var w = (getal(normen.gasM3) && wp && getal(wp.kWhPerM3) && getal(wp.scop))
+      ? getal(normen.gasM3) * getal(wp.kWhPerM3) / getal(wp.scop) : 0;
+    return getal(normen.stroomKwh) + w;
+  }
+
   // Gemiddeld gasverbruik in de volledige jaren VÓÓR de warmtepomp (voor de benchmark
   // tegen de norm). Gebruikt verbruikPerKalenderjaar en sluit het installatiejaar en
   // later uit (dan draaide de warmtepomp al, dus geen vol stookjaar op gas).
@@ -264,6 +276,7 @@
     kostenPerJaar: kostenPerJaar,
     gemGasVoorWarmtepomp: gemGasVoorWarmtepomp,
     huidigeBenchmark: huidigeBenchmark,
+    normAllElectric: normAllElectric,
     warmtepompAnalyse: warmtepompAnalyse,
   };
 
@@ -400,7 +413,13 @@
       var cfg = global.CONFIG || {};
       var nm = cfg.normen;
       if (!nm) return '';
+      var wp = cfg.warmtepomp || {};
       var b = API.huidigeBenchmark(cfg);
+      var normAE = API.normAllElectric(nm, wp);
+      var wpNorm = normAE - getal(nm.stroomKwh);
+      var tar = cfg.tarieven || {};
+      var vasteJaar = getal(tar.vasteKostenPerDag) * (getal(tar.btw) || 1.21) * 365;
+      var normKosten = getal(nm.kostenAllElectricJaar) || (normAE * (getal(nm.marktPrijsKwh) || 0.28) + vasteJaar);
       function verdict(jij, norm) {
         if (!norm) return '';
         var p = Math.round((jij / norm - 1) * 100);
@@ -414,15 +433,20 @@
         + '<div class="inzicht-benchmark-titel">Nu t.o.v. gemiddeld</div>'
         + '<div class="inzicht-benchmark-sub">' + (nm.profiel || '') + ', all-electric · ' + (nm.bron || '') + '</div>';
 
-      if (b.afname > 0 && nm.stroomAllElectricKwh) {
+      // Uitleg van de all-electric norm (zodat duidelijk is: geen andermans gas als gas)
+      h += '<div class="inzicht-benchmark-rij" style="color:var(--muted)">Gemiddeld all-electric ≈ '
+        + kwh(nm.stroomKwh) + ' kWh huishoudelijk + ~' + kwh(wpNorm) + ' kWh voor de warmtepomp '
+        + '(die ~' + kwh(nm.gasM3) + ' m³ gas vervangt). Dus niet andermans gas, maar de stroom die dat gas zou kosten.</div>';
+
+      if (b.afname > 0 && normAE) {
         h += '<div class="inzicht-benchmark-rij"><b>Verbruik ' + b.verbruikJaar + '</b>: jij ' + kwh(b.afname)
-          + ' kWh van het net · gemiddeld ~' + kwh(nm.stroomAllElectricKwh) + ' kWh ('
-          + verdict(b.afname, nm.stroomAllElectricKwh) + ').</div>';
+          + ' kWh van het net · gemiddeld ~' + kwh(normAE) + ' kWh ('
+          + verdict(b.afname, normAE) + ').</div>';
       }
-      if (b.kosten > 0 && nm.kostenAllElectricJaar) {
+      if (b.kosten > 0 && normKosten) {
         h += '<div class="inzicht-benchmark-rij"><b>Kosten ' + b.kostenJaar + '</b>: jij ' + euro(b.kosten)
-          + ' · gemiddelde energierekening ~' + euro(nm.kostenAllElectricJaar) + ' (indicatie, '
-          + verdict(b.kosten, nm.kostenAllElectricJaar) + ').</div>';
+          + ' · gemiddelde energierekening ~' + euro(normKosten) + ' (indicatie, '
+          + verdict(b.kosten, normKosten) + ').</div>';
       }
       if (b.prijsKwh > 0 && nm.marktPrijsKwh) {
         var goedkoper = b.prijsKwh < nm.marktPrijsKwh;

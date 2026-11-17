@@ -332,6 +332,14 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.94.2** — All-electric norm eerlijk afgeleid + uitgelegd
+- De all-electric norm telde impliciet te laag (9.000). Nu afgeleid in `normAllElectric`: gemiddeld
+  huishoudelijk stroom (4.200 kWh) + de gemiddelde gas (2.200 m³) omgerekend naar warmtepompstroom met
+  dezelfde kWh/m³ en SCOP als Pieters pomp → ~10.250 kWh. Dus geen andermans gas als gas, maar de stroom
+  die dat gas zou kosten; dat staat nu ook als uitlegregel in de benchmark. Kosten-norm idem afgeleid
+  (normAE × marktprijs + vastrecht). Config `normen` teruggebracht tot bron-aannames (gasM3, stroomKwh,
+  marktPrijsKwh); afleidingen te overrulen met expliciete velden. Geborgd in de test (10.250).
+
 **v2.94.1** — Benchmark omgezet naar "nu t.o.v. gemiddeld" (verbruik, kosten, contract)
 - Op verzoek: de benchmark gaat nu over de huidige all-electric situatie i.p.v. de gas-historie.
   `huidigeBenchmark` pakt het laatste volledige kalenderjaar (verbruik, netto afname) en het laatste
