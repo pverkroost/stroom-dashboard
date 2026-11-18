@@ -340,6 +340,13 @@ zie git-log of eerdere PR's voor details.
   vergelijkbaar huishouden mét PHEV/EV is (~12.750 kWh). Jij valt daarmee rond/onder i.p.v. kunstmatig
   "boven". Kanttekening (zon + thuisladen verschillen per gezin) staat eronder. Test bijgewerkt (12.750).
 
+**v2.96.1** — Zonnepanelen: echte Growatt-productie uit de live-koppeling
+- `zonneAnalyse` gebruikt nu `productieKwhJaar` per set (echte gemeten jaarproductie) i.p.v. alleen de
+  kWp-schatting. Growatt live opgehaald: lifetime 20.674 kWh → ~3.128 kWh/jaar (was geschat 3.906), dus
+  Growatt staat nu op ~124% terug i.p.v. 154% en het totaal op ~89% (net onder break-even).
+- SolarEdge blijft een schatting: de SolarEdge V1-API geeft HTTP 410 (uitgefaseerd, backlog #104
+  V1→V2). UI-noot zegt dit expliciet. Test bijgewerkt met de echte cijfers.
+
 **v2.96.0** — Inzicht-tab: zonnepanelen-terugverdienblok (twee sets, zelf-bijwerkend)
 - Nieuw blok "Zonnepanelen terugverdientijd", parallel aan de warmtepomp. Twee installaties uit de
   facturen: Growatt (InstallStore 2000299, 10-04-2020, € 4.876,03 excl. btw, 14× 310 Wp) en SolarEdge

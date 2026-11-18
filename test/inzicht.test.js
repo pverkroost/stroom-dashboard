@@ -206,7 +206,9 @@ const frozenZp = {
   productiePerKwpJaar: 900,
   stroomWaardePerJaar: { 2020: 0.22, 2021: 0.24, 2022: 0.40, 2023: 0.35, 2024: 0.28, 2025: 0.26, 2026: 0.27, default: 0.26 },
   installaties: [
-    { naam: 'Growatt (huis)', kWp: 4.34, inbedrijf: '2020-04-09', investeringNetto: 4876.03 },
+    // Growatt: echte jaarproductie uit de live-koppeling (lifetime 20.674 kWh ÷ ~6,61 jr)
+    { naam: 'Growatt (huis)', kWp: 4.34, inbedrijf: '2020-04-09', investeringNetto: 4876.03, productieKwhJaar: 3128 },
+    // SolarEdge: schatting kWp × 900 (V1-API uitgefaseerd)
     { naam: 'SolarEdge (garage)', kWp: 3.2, inbedrijf: '2023-12-12', investeringNetto: 4481.36 },
   ],
 };
@@ -215,22 +217,22 @@ test('zonneAnalyse: netto investering, opbrengst/jaar en terugverdientijd (vast 
   const a = INZICHT.zonneAnalyse(frozenZp, '2026-11-18');
   assert.ok(bijna(a.nettoInvestering, 9357.39, 0.001));       // 4876,03 + 4481,36
   assert.ok(bijna(a.totKwp, 7.54, 0.0001));                   // 4,34 + 3,2
-  assert.ok(bijna(a.productiePerJaar, 6786, 0.01));           // 7,54 × 900
-  assert.ok(bijna(a.besparingPerJaar, 6786 * 0.27, 0.01));    // × stroomwaarde 2026
+  assert.ok(bijna(a.productiePerJaar, 3128 + 2880, 0.01));    // Growatt echt + SolarEdge 3,2×900
+  assert.ok(bijna(a.besparingPerJaar, (3128 + 2880) * 0.27, 0.01)); // × stroomwaarde 2026
 });
 
 test('zonneAnalyse: gerealiseerde besparing per set groeit met de datum', () => {
   const a = INZICHT.zonneAnalyse(frozenZp, '2026-11-18');
-  // Growatt sinds 9 apr 2020 (handberekend over de jaren met hun stroomwaarde) ~€7.531
-  // SolarEdge sinds 12 dec 2023 ~€2.294; totaal ~€9.825 (≈105% terugverdiend)
+  // Growatt (3128 kWh/jaar echt, sinds 9 apr 2020, per jaar × stroomwaarde) ~€6.031
+  // SolarEdge (2880 schatting, sinds 12 dec 2023) ~€2.294; totaal ~€8.325 (~89% terug)
   const byNaam = {};
   for (const p of a.perInstall) byNaam[p.naam] = p;
-  assert.ok(Math.abs(byNaam['Growatt (huis)'].gerealiseerd - 7531) < 5, 'Growatt ~7531, was ' + byNaam['Growatt (huis)'].gerealiseerd);
+  assert.ok(Math.abs(byNaam['Growatt (huis)'].gerealiseerd - 6031) < 5, 'Growatt ~6031, was ' + byNaam['Growatt (huis)'].gerealiseerd);
   assert.ok(Math.abs(byNaam['SolarEdge (garage)'].gerealiseerd - 2294) < 5, 'SolarEdge ~2294, was ' + byNaam['SolarEdge (garage)'].gerealiseerd);
-  assert.ok(Math.abs(a.gerealiseerd - 9825) < 8, 'totaal ~9825, was ' + a.gerealiseerd);
-  assert.ok(a.terugverdiendPct > 1.0 && a.terugverdiendPct < 1.1); // net over break-even
-  assert.ok(byNaam['Growatt (huis)'].terugverdiendPct > 1.4);       // ruim terugverdiend
-  assert.ok(byNaam['SolarEdge (garage)'].terugverdiendPct < 0.6);   // ~halverwege
+  assert.ok(Math.abs(a.gerealiseerd - 8325) < 8, 'totaal ~8325, was ' + a.gerealiseerd);
+  assert.ok(a.terugverdiendPct > 0.85 && a.terugverdiendPct < 0.95); // net onder break-even
+  assert.ok(byNaam['Growatt (huis)'].terugverdiendPct > 1.2);        // ruim terugverdiend
+  assert.ok(byNaam['SolarEdge (garage)'].terugverdiendPct < 0.6);    // ~halverwege
 });
 
 test('zonneAnalyse groeit met de tijd en is nul vóór inbedrijfname', () => {

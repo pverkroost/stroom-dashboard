@@ -186,8 +186,12 @@
       productiePerKwpJaar: 900,
       stroomWaardePerJaar: { 2020: 0.22, 2021: 0.24, 2022: 0.40, 2023: 0.35, 2024: 0.28, 2025: 0.26, 2026: 0.27, default: 0.26 },
       salderingTot: 2027,
+      // productieKwhJaar = echte gemeten jaarproductie (uit de live-koppeling). Growatt:
+      // lifetime 20.674 kWh op 18-11-2026 ÷ ~6,61 jaar sinds 9-4-2020 = ~3.128 kWh/jaar.
+      // SolarEdge: nog een schatting (kWp × productiePerKwpJaar), want de SolarEdge V1-API
+      // is uitgefaseerd (HTTP 410, backlog #104 V1→V2-migratie) dus geen live-cijfer nu.
       installaties: [
-        { naam: 'Growatt (huis)',     kWp: 4.34, panelen: 14, inbedrijf: '2020-04-09', investeringNetto: 4876.03, btwTeruggevraagd: 1023.97, bron: 'InstallStore 2000299' },
+        { naam: 'Growatt (huis)',     kWp: 4.34, panelen: 14, inbedrijf: '2020-04-09', investeringNetto: 4876.03, btwTeruggevraagd: 1023.97, bron: 'InstallStore 2000299', productieKwhJaar: 3128, lifetimeKwh: 20674, lifetimeTot: '2026-11-18' },
         { naam: 'SolarEdge (garage)', kWp: 3.2,  panelen: 8,  inbedrijf: '2023-12-12', investeringNetto: 4481.36, bron: 'Schuttevaar 231052' },
       ],
       bijgewerkt: '2026-11-18',

@@ -272,11 +272,17 @@
     return getal(w[jaar]) || getal(w.default);
   }
 
+  // Jaarproductie van één set: echte gemeten waarde (productieKwhJaar, uit de live-
+  // koppeling) als die er is, anders de schatting kWp × productie/kWp.
+  function installProductie(inst, zp) {
+    return getal(inst.productieKwhJaar) || getal(inst.kWp) * (getal(zp.productiePerKwpJaar) || 900);
+  }
+
   // Gerealiseerde besparing van één zonne-installatie van inbedrijfname tot nu: per
-  // kalenderjaar (datum-fractie) × opbrengst (kWp × productie/kWp) × de stroomwaarde van
-  // dat jaar. Groeit vanzelf mee met de datum. UTC om DST-randgevallen te vermijden.
+  // kalenderjaar (datum-fractie) × jaarproductie × de stroomwaarde van dat jaar. Groeit
+  // vanzelf mee met de datum. UTC om DST-randgevallen te vermijden.
   function zonneInstallGerealiseerd(inst, zp, nu) {
-    var perJaar = getal(inst.kWp) * (getal(zp.productiePerKwpJaar) || 900);
+    var perJaar = installProductie(inst, zp);
     var install = new Date((inst.inbedrijf || '2020-01-01') + 'T00:00:00Z');
     var startY = install.getUTCFullYear();
     var nuY = nu.getUTCFullYear();
@@ -299,12 +305,12 @@
   function zonneAnalyse(zp, nu) {
     if (!zp || !Array.isArray(zp.installaties)) return null;
     nu = nu ? new Date(nu) : new Date();
-    var prodKwp = getal(zp.productiePerKwpJaar) || 900;
-    var netto = 0, totKwp = 0, real = 0, perInstall = [];
+    var netto = 0, totKwp = 0, real = 0, prodTot = 0, perInstall = [];
     for (var i = 0; i < zp.installaties.length; i++) {
       var inst = zp.installaties[i];
       netto += getal(inst.investeringNetto);
       totKwp += getal(inst.kWp);
+      prodTot += installProductie(inst, zp);
       var g = zonneInstallGerealiseerd(inst, zp, nu);
       real += g;
       perInstall.push({
@@ -317,11 +323,11 @@
       });
     }
     var waardeNu = zonneWaarde(zp, nu.getUTCFullYear());
-    var besparingPerJaar = totKwp * prodKwp * waardeNu;
+    var besparingPerJaar = prodTot * waardeNu;
     return {
       nettoInvestering: netto,
       totKwp: totKwp,
-      productiePerJaar: totKwp * prodKwp,
+      productiePerJaar: prodTot,
       besparingPerJaar: besparingPerJaar,
       terugverdientijdJaar: besparingPerJaar > 0 ? netto / besparingPerJaar : Infinity,
       gerealiseerd: real,
@@ -479,8 +485,9 @@
       }
 
       h += '<div class="inzicht-detail-noot">Subsidie = de btw op de panelen van 2020 (~€ 1.024), al verrekend in de netto '
-        + 'investering. Opbrengst = opgewekte kWh × de stroomwaarde per jaar (onder saldering). Saldering stopt in 2027; '
-        + 'daarna telt eigenverbruik overdag zwaarder. Bijgewerkt ' + (zp.bijgewerkt || '') + '.</div>';
+        + 'investering. Growatt-productie komt uit de live-koppeling (lifetime 20.674 kWh); SolarEdge is een schatting '
+        + '(de SolarEdge V1-API is uitgefaseerd). Opbrengst = opgewekte kWh × de stroomwaarde per jaar (onder saldering). '
+        + 'Saldering stopt in 2027; daarna telt eigenverbruik overdag zwaarder. Bijgewerkt ' + (zp.bijgewerkt || '') + '.</div>';
       h += '</div>';
       return h;
     }
