@@ -190,8 +190,8 @@
     // Warmtepomp terugverdienmodel (Inzicht-tab). Bronnen: factuur Schuttevaar 240311
     // (incl. btw € 18.863,49) en ISDE-beschikking (€ 3.300); gas afsluiten was gratis.
     // Op aannames — géén aparte meter op de warmtepomp:
-    //  - gasVervangenM3Jaar = gemeten gemiddelde vóór de warmtepomp (2021 2038, 2022 1836,
-    //    2023 1804 m³ uit verbruikHistorie), afgerond.
+    //  - gasVervangenM3Jaar = gemeten gemiddelde van de volledige jaren vóór de warmtepomp
+    //    (2019 1884, 2020 1882, 2021 2038, 2022 1836, 2023 1804 m³ uit verbruikHistorie → 1889).
     //  - warmtepompstroom/jaar = gasVervangenM3Jaar × kWhPerM3 / scop (afgeleid, niet gemeten).
     //  - gasPrijsPerJaar = all-in markt-gasprijs per m³ incl. energiebelasting + btw (wat je
     //    anders had betaald). JAARLIJKS bijwerken; 'default' geldt voor jaren zonder eigen waarde.
@@ -201,7 +201,7 @@
       installDatum:        '2024-04-10',
       investeringInclBtw:  18863.49,
       subsidie:            3300,      // ISDE
-      gasVervangenM3Jaar:  1800,      // gemeten gemiddelde 2021–2023, afgerond
+      gasVervangenM3Jaar:  1889,      // gemeten gemiddelde volledige jaren 2019–2023 (gasReeks)
       kWhPerM3:            8.8,       // bruikbare warmte per m³ gas (HR-ketel, praktijk)
       scop:                3.2,       // Ecodan lucht/water, huis uit 1964, radiatoren
       stroomPrijs:         0.26,      // € per kWh (winter-zwaar, grotendeels net)

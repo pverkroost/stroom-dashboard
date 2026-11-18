@@ -342,6 +342,15 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.97.1** — Warmtepomp: gasVervangenM3Jaar bijgesteld naar het gemeten gemiddelde 1889 m³
+- Was 1800 (conservatieve afronding), terwijl de noot "gemeten gemiddelde" claimde. Met de nu
+  volledige verbruikshistorie is het gemeten gemiddelde van de volledige jaren vóór de warmtepomp
+  (2019 1884, 2020 1882, 2021 2038, 2022 1836, 2023 1804) = 1889 m³. Config + noot (2019-2023)
+  gelijkgetrokken; dit is exact wat `gemGasVoorWarmtepomp` berekent.
+- Effect (geld): warmtepompstroom/jaar 4950 → 5195 kWh; besparing/jaar € 1.433 → € 1.494;
+  terugverdientijd 10,9 → 10,4 jr. Tests (vast scenario + live) herrekend met handberekening,
+  Inzicht-smoke groen.
+
 **v2.97.0** — Verbruikshistorie uitgebreid naar 2018-2020 (Essent slimme meter)
 - `users/001.js` `verbruikHistorie` met 2018 (partieel, mrt–dec), 2019 en 2020 ervoor. Bron: twee
   Essent "historisch verbruik"-PDF's uit de maandrapporten (apr-2020 en dec-2020), die elkaar

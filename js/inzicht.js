@@ -442,7 +442,7 @@
         + ' van ' + euro(a.netto) + '</div>';
 
       h += '<div class="inzicht-detail-noot">Aannames: ~' + kwh(wp.gasVervangenM3Jaar)
-        + ' m³ gas/jaar vervangen (je gemeten gemiddelde 2021–2023), SCOP ' + komma(wp.scop)
+        + ' m³ gas/jaar vervangen (je gemeten gemiddelde 2019–2023), SCOP ' + komma(wp.scop)
         + ' → ~' + kwh(a.hpKwhPerJaar) + ' kWh/jaar warmtepompstroom; gasprijs ~€ '
         + komma(wp.gasPrijsPerJaar && wp.gasPrijsPerJaar.default) + '/m³, stroom € '
         + komma(wp.stroomPrijs) + '/kWh. De gerealiseerde besparing rekent per jaar met de '
