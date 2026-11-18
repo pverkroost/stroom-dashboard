@@ -189,6 +189,16 @@ migratie mag vervallen: de afgeleide `piekWatt`/`piekUur` in `fetchSolarEdge` (n
 - Heeft Patricks mySolarEdge-account de homeowner self-access/developer-optie, of moet
   de installateur die vrijgeven?
 
+**Hangt hieraan — automatisch zonne-terugverdienblok (Inzicht-tab):** de zonne-analyse rekent
+met `installaties[].productieKwhJaar`, nu een handmatig uit mySolarEdge overgetypt lifetime-cijfer
+(SolarEdge 7.080 kWh, v2.96.2). De jaarlijkse bijwerk-taak ("Energie-app jaarlijks bijwerken
+(gasprijs + zonne)", 9 jan) ververst wél de stroomwaarde per kWh, maar kan de SolarEdge-productie
+**niet** zelf lezen: V1 geeft nu HTTP 410 (uitgefaseerd) en de cloud-sessie van de taak bereikt de
+app-koppeling niet. Daarom vraagt de taak Pieter in de jaarmelding om de verse lifetime-kWh van
+Growatt + SolarEdge. Zodra werkpakket 3 (OAuth V2) staat, kan `api/solaredge.js` de lifetime-energie
+(`energy`-aggregaat) weer serverside leveren en kan de taak `productieKwhJaar` zelf bijwerken — dan
+vervalt de handmatige vraag. Growatt leest al wel live uit; alleen SolarEdge hangt aan deze migratie.
+
 ### #108 — Self-service credentials voor alle per-user koppelingen
 **Doel:** schaalbaar multi-user zonder handwerk per gebruiker. Nu moet de beheerder per nieuwe user
 env vars in Vercel zetten (`SOLAREDGE_API_KEY_<id>`, `SOLAREDGE_SITE_ID_<id>`, `HOMEY_CLOUD_ID_<id>`,
