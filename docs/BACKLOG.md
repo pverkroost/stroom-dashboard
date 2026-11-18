@@ -340,6 +340,10 @@ zie git-log of eerdere PR's voor details.
   vergelijkbaar huishouden mét PHEV/EV is (~12.750 kWh). Jij valt daarmee rond/onder i.p.v. kunstmatig
   "boven". Kanttekening (zon + thuisladen verschillen per gezin) staat eronder. Test bijgewerkt (12.750).
 
+**v2.96.2** — Zonnepanelen: ook SolarEdge op echte productie
+- SolarEdge lifetime 7.080 kWh (7,08 MWh) handmatig uit mySolarEdge → ~2.414 kWh/jaar. Beide sets nu
+  op gemeten productie. Stand: Growatt ~124% terug, SolarEdge ~43%, samen ~85%. UI-noot en test bij.
+
 **v2.96.1** — Zonnepanelen: echte Growatt-productie uit de live-koppeling
 - `zonneAnalyse` gebruikt nu `productieKwhJaar` per set (echte gemeten jaarproductie) i.p.v. alleen de
   kWp-schatting. Growatt live opgehaald: lifetime 20.674 kWh → ~3.128 kWh/jaar (was geschat 3.906), dus

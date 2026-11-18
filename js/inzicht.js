@@ -485,8 +485,8 @@
       }
 
       h += '<div class="inzicht-detail-noot">Subsidie = de btw op de panelen van 2020 (~€ 1.024), al verrekend in de netto '
-        + 'investering. Growatt-productie komt uit de live-koppeling (lifetime 20.674 kWh); SolarEdge is een schatting '
-        + '(de SolarEdge V1-API is uitgefaseerd). Opbrengst = opgewekte kWh × de stroomwaarde per jaar (onder saldering). '
+        + 'investering. Productie uit je eigen meters: Growatt lifetime 20.674 kWh (live), SolarEdge 7.080 kWh. '
+        + 'Opbrengst = opgewekte kWh × de stroomwaarde per jaar (onder saldering). '
         + 'Saldering stopt in 2027; daarna telt eigenverbruik overdag zwaarder. Bijgewerkt ' + (zp.bijgewerkt || '') + '.</div>';
       h += '</div>';
       return h;
