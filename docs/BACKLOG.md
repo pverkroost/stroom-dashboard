@@ -340,6 +340,17 @@ zie git-log of eerdere PR's voor details.
   vergelijkbaar huishouden mét PHEV/EV is (~12.750 kWh). Jij valt daarmee rond/onder i.p.v. kunstmatig
   "boven". Kanttekening (zon + thuisladen verschillen per gezin) staat eronder. Test bijgewerkt (12.750).
 
+**v2.96.0** — Inzicht-tab: zonnepanelen-terugverdienblok (twee sets, zelf-bijwerkend)
+- Nieuw blok "Zonnepanelen terugverdientijd", parallel aan de warmtepomp. Twee installaties uit de
+  facturen: Growatt (InstallStore 2000299, 10-04-2020, € 4.876,03 excl. btw, 14× 310 Wp) en SolarEdge
+  (Schuttevaar 231052, 12-12-2023, € 4.481,36, 8× 400 Wp). De btw van 2020 (~€ 1.024) is teruggevraagd
+  = de "subsidie"; netto investering = het ex-btw-bedrag.
+- Pure `zonneAnalyse(zp, nu)`: gerealiseerde besparing per set = kWp × productie/kWp × stroomwaarde per
+  jaar (onder saldering), met datum-fractie, groeit vanzelf mee. Config `CONFIG.zonnepanelen`
+  (productiePerKwpJaar, stroomWaardePerJaar per jaar, installaties). Geld-kritisch, handberekend in de
+  test (netto 9.357; Growatt ~€ 7.531 = ~154% terug; SolarEdge ~€ 2.294 = ~51%; samen ~€ 9.825, net over
+  break-even). Browser-smoke bevestigt render. Kanttekening in de UI dat saldering in 2027 stopt.
+
 **v2.94.2** — All-electric norm eerlijk afgeleid + uitgelegd
 - De all-electric norm telde impliciet te laag (9.000). Nu afgeleid in `normAllElectric`: gemiddeld
   huishoudelijk stroom (4.200 kWh) + de gemiddelde gas (2.200 m³) omgerekend naar warmtepompstroom met

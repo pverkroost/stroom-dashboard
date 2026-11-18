@@ -201,6 +201,52 @@ test('warmtepompAnalyse op null wp geeft null', () => {
   assert.equal(INZICHT.warmtepompAnalyse(null, '2026-11-17'), null);
 });
 
+// ── Zonnepanelen terugverdienmodel (geld-kritisch) ─────────────────────────────
+const frozenZp = {
+  productiePerKwpJaar: 900,
+  stroomWaardePerJaar: { 2020: 0.22, 2021: 0.24, 2022: 0.40, 2023: 0.35, 2024: 0.28, 2025: 0.26, 2026: 0.27, default: 0.26 },
+  installaties: [
+    { naam: 'Growatt (huis)', kWp: 4.34, inbedrijf: '2020-04-09', investeringNetto: 4876.03 },
+    { naam: 'SolarEdge (garage)', kWp: 3.2, inbedrijf: '2023-12-12', investeringNetto: 4481.36 },
+  ],
+};
+
+test('zonneAnalyse: netto investering, opbrengst/jaar en terugverdientijd (vast scenario)', () => {
+  const a = INZICHT.zonneAnalyse(frozenZp, '2026-11-18');
+  assert.ok(bijna(a.nettoInvestering, 9357.39, 0.001));       // 4876,03 + 4481,36
+  assert.ok(bijna(a.totKwp, 7.54, 0.0001));                   // 4,34 + 3,2
+  assert.ok(bijna(a.productiePerJaar, 6786, 0.01));           // 7,54 × 900
+  assert.ok(bijna(a.besparingPerJaar, 6786 * 0.27, 0.01));    // × stroomwaarde 2026
+});
+
+test('zonneAnalyse: gerealiseerde besparing per set groeit met de datum', () => {
+  const a = INZICHT.zonneAnalyse(frozenZp, '2026-11-18');
+  // Growatt sinds 9 apr 2020 (handberekend over de jaren met hun stroomwaarde) ~€7.531
+  // SolarEdge sinds 12 dec 2023 ~€2.294; totaal ~€9.825 (≈105% terugverdiend)
+  const byNaam = {};
+  for (const p of a.perInstall) byNaam[p.naam] = p;
+  assert.ok(Math.abs(byNaam['Growatt (huis)'].gerealiseerd - 7531) < 5, 'Growatt ~7531, was ' + byNaam['Growatt (huis)'].gerealiseerd);
+  assert.ok(Math.abs(byNaam['SolarEdge (garage)'].gerealiseerd - 2294) < 5, 'SolarEdge ~2294, was ' + byNaam['SolarEdge (garage)'].gerealiseerd);
+  assert.ok(Math.abs(a.gerealiseerd - 9825) < 8, 'totaal ~9825, was ' + a.gerealiseerd);
+  assert.ok(a.terugverdiendPct > 1.0 && a.terugverdiendPct < 1.1); // net over break-even
+  assert.ok(byNaam['Growatt (huis)'].terugverdiendPct > 1.4);       // ruim terugverdiend
+  assert.ok(byNaam['SolarEdge (garage)'].terugverdiendPct < 0.6);   // ~halverwege
+});
+
+test('zonneAnalyse groeit met de tijd en is nul vóór inbedrijfname', () => {
+  const vroeg = INZICHT.zonneAnalyse(frozenZp, '2022-01-01');
+  const laat = INZICHT.zonneAnalyse(frozenZp, '2026-11-18');
+  assert.ok(laat.gerealiseerd > vroeg.gerealiseerd);
+  const voor = INZICHT.zonneAnalyse({ productiePerKwpJaar: 900, stroomWaardePerJaar: { default: 0.26 },
+    installaties: [{ naam: 'x', kWp: 4, inbedrijf: '2020-04-09', investeringNetto: 1000 }] }, '2020-01-01');
+  assert.equal(voor.gerealiseerd, 0);
+});
+
+test('zonneAnalyse op config zonder installaties geeft null', () => {
+  assert.equal(INZICHT.zonneAnalyse({}, '2026-11-18'), null);
+  assert.equal(INZICHT.zonneAnalyse(null, '2026-11-18'), null);
+});
+
 // ── Verbruik per kalenderjaar (Essent-historie + Sepa-periodes) ────────────────
 const cfg001 = laadConfig('001');
 

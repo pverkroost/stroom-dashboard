@@ -175,6 +175,23 @@
       { jaar: '2022/2023', leverancier: 'Essent', periode: '20 feb 2022 t/m 19 feb 2023', kostenIncl: 1730.89, stroom: -52.99, gas: 1783.88, inclGas: true },
       { jaar: '2023/2024', leverancier: 'Essent', periode: '20 feb 2023 t/m 19 feb 2024', kostenIncl: 2382.36, stroom: 382.40, gas: 1999.96, inclGas: true },
     ],
+    // Zonnepanelen-terugverdienmodel (Inzicht-tab). Twee installaties:
+    //  - Growatt: InstallStore factuur 2000299 (10-04-2020), PV-regel € 4.876,03 excl. btw
+    //    (14× URE 310 Wp + Growatt 4200 MTLS). De 21% btw (~€ 1.024) is teruggevraagd bij de
+    //    Belastingdienst = de "subsidie"; netto investering = het ex-btw-bedrag.
+    //  - SolarEdge: Schuttevaar factuur 231052 (12-12-2023), € 4.481,36 (0% btw, 8× Astronergy 400 Wp).
+    // Opbrengst = kWp × productiePerKwpJaar × stroomWaardePerJaar (onder saldering ≈ all-in
+    // stroomprijs). Per-jaar-waarden jaarlijks bij te werken; 'default' voor de rest.
+    zonnepanelen: {
+      productiePerKwpJaar: 900,
+      stroomWaardePerJaar: { 2020: 0.22, 2021: 0.24, 2022: 0.40, 2023: 0.35, 2024: 0.28, 2025: 0.26, 2026: 0.27, default: 0.26 },
+      salderingTot: 2027,
+      installaties: [
+        { naam: 'Growatt (huis)',     kWp: 4.34, panelen: 14, inbedrijf: '2020-04-09', investeringNetto: 4876.03, btwTeruggevraagd: 1023.97, bron: 'InstallStore 2000299' },
+        { naam: 'SolarEdge (garage)', kWp: 3.2,  panelen: 8,  inbedrijf: '2023-12-12', investeringNetto: 4481.36, bron: 'Schuttevaar 231052' },
+      ],
+      bijgewerkt: '2026-11-18',
+    },
     // Landelijke normcijfers voor de benchmark in de Inzicht-tab (jaarverbruik).
     // Profiel: vrijstaande woning, 5 personen. Bron: Milieu Centraal / Nibud / CBS 2025.
     // stroomAllElectricKwh = huishoudelijk + warmtepomp (afgeleid), ruwe indicatie.

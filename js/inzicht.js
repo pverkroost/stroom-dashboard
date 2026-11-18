@@ -266,6 +266,70 @@
     };
   }
 
+  // Waarde van één opgewekte zonne-kWh in een jaar (onder saldering ≈ all-in stroomprijs).
+  function zonneWaarde(zp, jaar) {
+    var w = (zp && zp.stroomWaardePerJaar) || {};
+    return getal(w[jaar]) || getal(w.default);
+  }
+
+  // Gerealiseerde besparing van één zonne-installatie van inbedrijfname tot nu: per
+  // kalenderjaar (datum-fractie) × opbrengst (kWp × productie/kWp) × de stroomwaarde van
+  // dat jaar. Groeit vanzelf mee met de datum. UTC om DST-randgevallen te vermijden.
+  function zonneInstallGerealiseerd(inst, zp, nu) {
+    var perJaar = getal(inst.kWp) * (getal(zp.productiePerKwpJaar) || 900);
+    var install = new Date((inst.inbedrijf || '2020-01-01') + 'T00:00:00Z');
+    var startY = install.getUTCFullYear();
+    var nuY = nu.getUTCFullYear();
+    var installDag = Date.UTC(install.getUTCFullYear(), install.getUTCMonth(), install.getUTCDate());
+    var nuDag = Date.UTC(nu.getUTCFullYear(), nu.getUTCMonth(), nu.getUTCDate());
+    var tot = 0;
+    for (var y = startY; y <= nuY; y++) {
+      var ys = Date.UTC(y, 0, 1);
+      var ye = Date.UTC(y + 1, 0, 1);
+      var ps = (y === startY) ? installDag : ys;
+      var pe = (y === nuY) ? nuDag : ye;
+      if (pe <= ps) continue;
+      tot += perJaar * ((pe - ps) / (ye - ys)) * zonneWaarde(zp, y);
+    }
+    return tot;
+  }
+
+  // Zonnepanelen-terugverdienmodel (geld-kritisch, puur — geborgd in de test). Meerdere
+  // installaties; de gerealiseerde besparing telt per set op en groeit mee met de datum.
+  function zonneAnalyse(zp, nu) {
+    if (!zp || !Array.isArray(zp.installaties)) return null;
+    nu = nu ? new Date(nu) : new Date();
+    var prodKwp = getal(zp.productiePerKwpJaar) || 900;
+    var netto = 0, totKwp = 0, real = 0, perInstall = [];
+    for (var i = 0; i < zp.installaties.length; i++) {
+      var inst = zp.installaties[i];
+      netto += getal(inst.investeringNetto);
+      totKwp += getal(inst.kWp);
+      var g = zonneInstallGerealiseerd(inst, zp, nu);
+      real += g;
+      perInstall.push({
+        naam: inst.naam,
+        kWp: getal(inst.kWp),
+        inbedrijf: inst.inbedrijf,
+        investeringNetto: getal(inst.investeringNetto),
+        gerealiseerd: g,
+        terugverdiendPct: getal(inst.investeringNetto) > 0 ? g / getal(inst.investeringNetto) : 0,
+      });
+    }
+    var waardeNu = zonneWaarde(zp, nu.getUTCFullYear());
+    var besparingPerJaar = totKwp * prodKwp * waardeNu;
+    return {
+      nettoInvestering: netto,
+      totKwp: totKwp,
+      productiePerJaar: totKwp * prodKwp,
+      besparingPerJaar: besparingPerJaar,
+      terugverdientijdJaar: besparingPerJaar > 0 ? netto / besparingPerJaar : Infinity,
+      gerealiseerd: real,
+      terugverdiendPct: netto > 0 ? real / netto : 0,
+      perInstall: perInstall,
+    };
+  }
+
   var API = {
     VOORSCHOT_MAANDEN: VOORSCHOT_MAANDEN,
     MAAND_LABEL: MAAND_LABEL,
@@ -279,6 +343,7 @@
     huidigeBenchmark: huidigeBenchmark,
     normAllElectric: normAllElectric,
     warmtepompAnalyse: warmtepompAnalyse,
+    zonneAnalyse: zonneAnalyse,
   };
 
   // ── Alleen in de browser: rendering ───────────────────────────────────────
@@ -338,7 +403,7 @@
         return;
       }
 
-      body.innerHTML = warmtepompSectie() + verbruikSectie() + kostenSectie();
+      body.innerHTML = warmtepompSectie() + zonneSectie() + verbruikSectie() + kostenSectie();
 
       bindVerbruikToggle();
       tekenVerbruikGrafiek();
@@ -376,6 +441,46 @@
         + komma(wp.gasPrijsPerJaar && wp.gasPrijsPerJaar.default) + '/m³, stroom € '
         + komma(wp.stroomPrijs) + '/kWh. De gerealiseerde besparing rekent per jaar met de '
         + 'werkelijke gasprijs en groeit vanzelf mee. Bijgewerkt ' + (wp.bijgewerkt || '') + '.</div>';
+      h += '</div>';
+      return h;
+    }
+
+    // ── Blok 1b: Zonnepanelen terugverdientijd ───────────────────────────────
+    function zonneSectie() {
+      var zp = (global.CONFIG && global.CONFIG.zonnepanelen) || null;
+      if (!zp) return '';
+      var a = API.zonneAnalyse(zp, new Date());
+      if (!a) return '';
+      var pct = Math.max(0, Math.min(1, a.terugverdiendPct));
+      var ttv = (Math.round(a.terugverdientijdJaar * 10) / 10).toFixed(1).replace('.', ',');
+
+      var h = '<div class="section">'
+        + '<div class="section-title">Zonnepanelen terugverdientijd</div>'
+        + '<div class="inzicht-sectie-sub">' + komma(a.totKwp) + ' kWp in twee sets (Growatt 2020, SolarEdge 2023). '
+        + 'Onder saldering; schatting.</div>'
+        + '<div class="inzicht-cards">'
+        + kaart('Netto investering', euro(a.nettoInvestering), 'na btw-teruggaaf op de set van 2020')
+        + kaart('Opbrengst per jaar', euro(a.besparingPerJaar), '~' + kwh(a.productiePerJaar) + ' kWh/jaar')
+        + kaart('Al terugverdiend', euro(a.gerealiseerd), Math.round(pct * 100) + '% van de investering')
+        + kaart('Terugverdientijd', '~' + ttv + ' jaar', 'gemiddeld over beide sets')
+        + '</div>';
+
+      h += '<div class="inzicht-balk"><div class="inzicht-balk-vol" style="width:' + (pct * 100).toFixed(1) + '%"></div></div>'
+        + '<div class="card-sub" style="margin-top:6px">Terugverdiend: ' + euro(a.gerealiseerd) + ' van ' + euro(a.nettoInvestering) + '</div>';
+
+      h += '<div class="inzicht-detail-titel" style="margin-top:12px">Per set</div>';
+      for (var i = 0; i < a.perInstall.length; i++) {
+        var p = a.perInstall[i];
+        h += '<div class="inzicht-rij">'
+          + '<span class="inzicht-rij-periode">' + p.naam + '</span>'
+          + '<span class="inzicht-rij-kwh">' + euro(p.investeringNetto) + '</span>'
+          + '<span class="inzicht-rij-euro">' + Math.round(p.terugverdiendPct * 100) + '% terug</span>'
+          + '</div>';
+      }
+
+      h += '<div class="inzicht-detail-noot">Subsidie = de btw op de panelen van 2020 (~€ 1.024), al verrekend in de netto '
+        + 'investering. Opbrengst = opgewekte kWh × de stroomwaarde per jaar (onder saldering). Saldering stopt in 2027; '
+        + 'daarna telt eigenverbruik overdag zwaarder. Bijgewerkt ' + (zp.bijgewerkt || '') + '.</div>';
       h += '</div>';
       return h;
     }
