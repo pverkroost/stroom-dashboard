@@ -342,6 +342,19 @@ Vervolg: #98 (slimme trigger via Homey met Redis-cooldown).
 Compact changelog per versie. Items zonder verdere uitleg = bug/cleanup;
 zie git-log of eerdere PR's voor details.
 
+**v2.97.0** — Verbruikshistorie uitgebreid naar 2018-2020 (Essent slimme meter)
+- `users/001.js` `verbruikHistorie` met 2018 (partieel, mrt–dec), 2019 en 2020 ervoor. Bron: twee
+  Essent "historisch verbruik"-PDF's uit de maandrapporten (apr-2020 en dec-2020), die elkaar
+  overlappen (mrt 2018 t/m apr 2020 identiek → dubbel geborgd). Maandcijfers afname/teruglevering/gas.
+- Teruglevering begint april 2020 (Growatt in bedrijf 09-04-2020); daarvoor 0.
+- Grens van de data: Essent leverde pas vanaf 22-02-2018, dus jan/feb 2018 + 2016/2017 vielen onder de
+  vorige (onbekende) leverancier en zijn niet beschikbaar. Woning overgedragen 01-03-2016.
+- `gemGasVoorWarmtepomp` (benchmark-basis) telt nu ook de volledige jaren 2019 (1884 m³) en 2020
+  (1882 m³) mee → gemiddelde 1892,7 naar 1888,8 m³ (minimale verschuiving). De warmtepomp-
+  terugverdienverdict gebruikt de vaste `gasVervangenM3Jaar` (1800) en blijft ongemoeid.
+- Tests bijgewerkt met handberekende jaartotalen (2018 afname 3091/gas 1243; 2019 3598/1884;
+  2020 afname 2984/terug 1850/gas 1882). Inzicht-browser-smoke tegen de echte config groen.
+
 **v2.95.0** — Benchmark: visuele vergelijkingsbalken + thuisladen in de norm
 - UX: de benchmark is nu visueel. Per onderdeel (Verbruik, Kosten) twee balken "Jij" vs "Vergelijkbaar"
   met een gekleurd label (groen = onder, oranje = boven, blauw = rond). Contract als los signaal met badge.

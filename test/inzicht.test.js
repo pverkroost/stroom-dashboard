@@ -88,7 +88,7 @@ const historie = laadConfig('001').verbruikHistorie;
 
 test('verbruikHistorie bestaat met gemeten jaren', () => {
   assert.ok(historie && Array.isArray(historie.jaren));
-  assert.deepEqual(historie.jaren.map((j) => j.jaar), ['2021', '2022', '2023', '2024']);
+  assert.deepEqual(historie.jaren.map((j) => j.jaar), ['2018', '2019', '2020', '2021', '2022', '2023', '2024']);
 });
 
 test('historieJaarTotalen klopt met de handberekening per jaar', () => {
@@ -96,22 +96,33 @@ test('historieJaarTotalen klopt met de handberekening per jaar', () => {
   for (const j of historie.jaren) byJaar[j.jaar] = INZICHT.historieJaarTotalen(j);
 
   // Gas m³ (de kern: gaat naar nul na de warmtepomp)
+  assert.equal(byJaar['2018'].gasM3, 1243); // mrt–dec (partieel, Essent-start)
+  assert.equal(byJaar['2019'].gasM3, 1884); // vol jaar
+  assert.equal(byJaar['2020'].gasM3, 1882);
   assert.equal(byJaar['2021'].gasM3, 2038); // vol jaar
   assert.equal(byJaar['2022'].gasM3, 1836);
   assert.equal(byJaar['2023'].gasM3, 1804);
   assert.equal(byJaar['2024'].gasM3, 772);  // jan–apr, tot de warmtepomp
 
   // Stroom afname
+  assert.equal(byJaar['2018'].afname, 3091); // mrt–dec
+  assert.equal(byJaar['2019'].afname, 3598);
+  assert.equal(byJaar['2020'].afname, 2984);
   assert.equal(byJaar['2021'].afname, 3509);
   assert.equal(byJaar['2022'].afname, 4085);
   assert.equal(byJaar['2023'].afname, 4260);
 
-  // Teruglevering
+  // Teruglevering (zonnepanelen vanaf april 2020)
+  assert.equal(byJaar['2018'].teruglevering, 0);
+  assert.equal(byJaar['2019'].teruglevering, 0);
+  assert.equal(byJaar['2020'].teruglevering, 1850);
   assert.equal(byJaar['2021'].teruglevering, 1902);
   assert.equal(byJaar['2022'].teruglevering, 2196);
   assert.equal(byJaar['2023'].teruglevering, 1448);
 
-  // Volledige jaren niet partieel, 2024 wel
+  // Volledige jaren niet partieel, 2018 (mrt–dec) en 2024 wel
+  assert.equal(byJaar['2018'].partieel, true);
+  assert.equal(byJaar['2019'].partieel, false);
   assert.equal(byJaar['2021'].partieel, false);
   assert.equal(byJaar['2023'].partieel, false);
   assert.equal(byJaar['2024'].partieel, true);
@@ -119,12 +130,14 @@ test('historieJaarTotalen klopt met de handberekening per jaar', () => {
 
 test('gasReeks vult nul-jaren aan na de laatste gemeten jaar', () => {
   const reeks = INZICHT.gasReeks(historie, 2026);
-  assert.deepEqual(reeks.map((r) => r.jaar), ['2021', '2022', '2023', '2024', '2025', '2026']);
-  assert.equal(reeks[0].m3, 2038);
-  assert.equal(reeks[3].partieel, true);          // 2024
-  assert.equal(reeks[4].m3, 0);                    // 2025: van het gas af
-  assert.equal(reeks[4].nul, true);
-  assert.equal(reeks[5].m3, 0);                    // 2026
+  assert.deepEqual(reeks.map((r) => r.jaar), ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026']);
+  assert.equal(reeks[0].m3, 1243);                 // 2018 (partieel)
+  assert.equal(reeks[0].partieel, true);
+  assert.equal(reeks[3].m3, 2038);                 // 2021
+  assert.equal(reeks[6].partieel, true);           // 2024
+  assert.equal(reeks[7].m3, 0);                    // 2025: van het gas af
+  assert.equal(reeks[7].nul, true);
+  assert.equal(reeks[8].m3, 0);                    // 2026
 });
 
 test('historieJaarTotalen op leeg object crasht niet', () => {
@@ -258,6 +271,14 @@ test('verbruikPerKalenderjaar voegt Essent-maanden en Sepa-periodes samen', () =
   for (const r of reeks) byJaar[r.jaar] = r;
 
   // Volledige Essent-jaren (gemeten maanden)
+  assert.equal(byJaar['2019'].afname, 3598);
+  assert.equal(byJaar['2019'].gasM3, 1884);
+  assert.equal(byJaar['2019'].volledig, true);
+  assert.equal(byJaar['2020'].afname, 2984);
+  assert.equal(byJaar['2020'].teruglevering, 1850);
+  assert.equal(byJaar['2020'].gasM3, 1882);
+  assert.equal(byJaar['2020'].volledig, true);
+  assert.equal(byJaar['2018'].volledig, false); // mrt–dec: geen januari
   assert.equal(byJaar['2021'].afname, 3509);
   assert.equal(byJaar['2021'].teruglevering, 1902);
   assert.equal(byJaar['2021'].gasM3, 2038);
@@ -299,8 +320,9 @@ test('kostenPerJaar combineert Essent en Sepa met de juiste totalen', () => {
 });
 
 test('gemGasVoorWarmtepomp = gemiddelde van de volledige gasjaren vóór de warmtepomp', () => {
-  // 2021 (2038) + 2022 (1836) + 2023 (1804) / 3; 2024 valt af (warmtepomp vanaf april)
-  assert.ok(bijna(INZICHT.gemGasVoorWarmtepomp(cfg001), (2038 + 1836 + 1804) / 3, 0.01));
+  // Volledige jaren vóór 2024: 2019 (1884) + 2020 (1882) + 2021 (2038) + 2022 (1836)
+  // + 2023 (1804), / 5. 2018 valt af (partieel, geen januari); 2024 valt af (warmtepomp vanaf april).
+  assert.ok(bijna(INZICHT.gemGasVoorWarmtepomp(cfg001), (1884 + 1882 + 2038 + 1836 + 1804) / 5, 0.01));
 });
 
 test('huidigeBenchmark pakt het laatste volledige jaar en factuurjaar', () => {

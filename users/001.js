@@ -94,6 +94,49 @@
     verbruikHistorie: {
       bron: 'Essent slimme meter',
       jaren: [
+        { jaar: '2018', partieel: true, maanden: [
+          // Essent-levering startte 22-02-2018; de slimme-meter-historie begint in maart.
+          // Jan/feb 2018 + 2016/2017 vielen onder de vorige leverancier (niet beschikbaar).
+          { m: '2018-03', afname: 353, terug: 0, gasM3: 268 },
+          { m: '2018-04', afname: 287, terug: 0, gasM3: 85 },
+          { m: '2018-05', afname: 247, terug: 0, gasM3: 44 },
+          { m: '2018-06', afname: 282, terug: 0, gasM3: 39 },
+          { m: '2018-07', afname: 357, terug: 0, gasM3: 36 },
+          { m: '2018-08', afname: 270, terug: 0, gasM3: 21 },
+          { m: '2018-09', afname: 293, terug: 0, gasM3: 71 },
+          { m: '2018-10', afname: 326, terug: 0, gasM3: 146 },
+          { m: '2018-11', afname: 323, terug: 0, gasM3: 250 },
+          { m: '2018-12', afname: 353, terug: 0, gasM3: 283 },
+        ] },
+        { jaar: '2019', maanden: [
+          { m: '2019-01', afname: 323, terug: 0, gasM3: 357 },
+          { m: '2019-02', afname: 284, terug: 0, gasM3: 262 },
+          { m: '2019-03', afname: 316, terug: 0, gasM3: 205 },
+          { m: '2019-04', afname: 290, terug: 0, gasM3: 111 },
+          { m: '2019-05', afname: 287, terug: 0, gasM3: 82 },
+          { m: '2019-06', afname: 281, terug: 0, gasM3: 36 },
+          { m: '2019-07', afname: 310, terug: 0, gasM3: 36 },
+          { m: '2019-08', afname: 203, terug: 0, gasM3: 21 },
+          { m: '2019-09', afname: 282, terug: 0, gasM3: 67 },
+          { m: '2019-10', afname: 304, terug: 0, gasM3: 149 },
+          { m: '2019-11', afname: 328, terug: 0, gasM3: 267 },
+          { m: '2019-12', afname: 390, terug: 0, gasM3: 291 },
+        ] },
+        { jaar: '2020', maanden: [
+          // Zonnepanelen (Growatt) in bedrijf vanaf 09-04-2020: teruglevering vanaf april.
+          { m: '2020-01', afname: 329, terug: 0,   gasM3: 308 },
+          { m: '2020-02', afname: 297, terug: 0,   gasM3: 253 },
+          { m: '2020-03', afname: 325, terug: 0,   gasM3: 247 },
+          { m: '2020-04', afname: 227, terug: 314, gasM3: 109 },
+          { m: '2020-05', afname: 186, terug: 374, gasM3: 85 },
+          { m: '2020-06', afname: 170, terug: 335, gasM3: 43 },
+          { m: '2020-07', afname: 185, terug: 283, gasM3: 38 },
+          { m: '2020-08', afname: 163, terug: 322, gasM3: 23 },
+          { m: '2020-09', afname: 215, terug: 174, gasM3: 70 },
+          { m: '2020-10', afname: 254, terug: 38,  gasM3: 171 },
+          { m: '2020-11', afname: 289, terug: 8,   gasM3: 225 },
+          { m: '2020-12', afname: 344, terug: 2,   gasM3: 310 },
+        ] },
         { jaar: '2021', maanden: [
           { m: '2021-01', afname: 329, terug: 5,   gasM3: 345 },
           { m: '2021-02', afname: 288, terug: 31,  gasM3: 296 },
